@@ -1,0 +1,24 @@
+import { AiExecutionStage, AiExecutionStatus } from "@/generated/prisma/enums";
+
+export const AI_EXECUTION_STATUS_META: Record<
+  AiExecutionStatus,
+  { label: string; color: string }
+> = {
+  [AiExecutionStatus.QUEUED]: { label: "排队中", color: "default" },
+  [AiExecutionStatus.RUNNING]: { label: "运行中", color: "processing" },
+  [AiExecutionStatus.SUCCEEDED]: { label: "已成功", color: "success" },
+  [AiExecutionStatus.FAILED]: { label: "已失败", color: "error" },
+};
+
+export const AI_EXECUTION_STAGE_LABELS: Record<AiExecutionStage, string> = {
+  [AiExecutionStage.QUEUED]: "等待执行",
+  [AiExecutionStage.CHECKING_REPOSITORIES]: "检查并读取代码仓库",
+  [AiExecutionStage.SELECTING_CODE]: "定位相关代码",
+  [AiExecutionStage.GENERATING_DRAFT]: "生成结构化 US",
+  [AiExecutionStage.COMPLETED]: "生成完成",
+};
+
+export const ACTIVE_AI_EXECUTION_STATUSES = new Set<AiExecutionStatus>([
+  AiExecutionStatus.QUEUED,
+  AiExecutionStatus.RUNNING,
+]);

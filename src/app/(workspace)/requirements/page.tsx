@@ -174,7 +174,7 @@ export default async function RequirementsPage({
         <div>
           <h1 className="page-title">需求</h1>
           <p className="page-description">
-            FE 与 US 在同一列表中管理；FE 状态由其全部子 US 自动计算。
+            FE 与 US 在同一列表中管理；FE 状态由其全部关联 US 自动计算。
           </p>
         </div>
       </div>

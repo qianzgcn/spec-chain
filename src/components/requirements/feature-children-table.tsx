@@ -68,7 +68,7 @@ export function FeatureChildrenTable({ items }: { items: ChildStory[] }) {
       dataSource={items}
       columns={columns}
       pagination={false}
-      locale={{ emptyText: "还没有子 US" }}
+      locale={{ emptyText: "还没有关联 US" }}
     />
   );
 }

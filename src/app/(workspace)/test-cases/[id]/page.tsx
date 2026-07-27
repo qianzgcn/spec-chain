@@ -102,7 +102,7 @@ export default async function TestCaseDetailPage({
                       {userStory.code} · {userStory.title}
                       {userStory.feature
                         ? `（${userStory.feature.name}）`
-                        : "（独立 US）"}
+                        : "（未归属 FE）"}
                     </a>
                   )}
                 </li>

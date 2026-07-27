@@ -54,7 +54,7 @@ export default async function UserStoryDetailPage({
                 {story.feature.code} · {story.feature.name}
               </Button>
             ) : (
-              <span className="text-xs text-slate-500">独立 US</span>
+              <span className="text-xs text-slate-500">未归属 FE</span>
             )}
           </div>
           <h1 className="page-title">{story.title}</h1>

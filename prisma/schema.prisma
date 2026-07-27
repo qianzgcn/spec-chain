@@ -39,6 +39,30 @@ enum RunStatus {
   STOPPED
 }
 
+enum AiCapability {
+  GENERATE_USER_STORY
+}
+
+enum AiExecutionStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum AiExecutionStage {
+  QUEUED
+  CHECKING_REPOSITORIES
+  SELECTING_CODE
+  GENERATING_DRAFT
+  COMPLETED
+}
+
+enum AiDraftStatus {
+  PENDING
+  CONFIRMED
+}
+
 model User {
   id           String    @id @default(cuid())
   username     String    @unique
@@ -50,6 +74,7 @@ model User {
 
   sessions      Session[]
   requestedRuns TestRun[]
+  aiExecutions  AiExecution[]
 
   @@index([deletedAt])
 }
@@ -84,6 +109,8 @@ model Project {
   userStories  UserStory[]
   testGroups   TestCaseGroup[]
   testCases    TestCase[]
+  aiExecutions AiExecution[]
+  aiDrafts     UserStoryDraft[]
 
   @@index([deletedAt])
   @@index([updatedAt])
@@ -132,8 +159,10 @@ model Feature {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  project     Project     @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  userStories UserStory[]
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  userStories  UserStory[]
+  aiExecutions AiExecution[]
+  aiDrafts     UserStoryDraft[]
 
   @@index([projectId, deletedAt, updatedAt])
 }
@@ -158,6 +187,7 @@ model UserStory {
   feature            Feature?              @relation(fields: [featureId], references: [id], onDelete: Restrict)
   acceptanceCriteria AcceptanceCriterion[]
   testCaseLinks      TestCaseUserStory[]
+  sourceDraft        UserStoryDraft?       @relation("ConfirmedUserStory")
 
   @@index([projectId, deletedAt, updatedAt])
   @@index([featureId, deletedAt])
@@ -275,4 +305,120 @@ model BusinessCodeSequence {
   prefix        String   @id
   lastTimestamp BigInt
   updatedAt     DateTime @updatedAt
+}
+
+model AiModelProfile {
+  id              String    @id @default(cuid())
+  name            String
+  baseUrl         String
+  modelId         String
+  apiKeyEncrypted String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  capabilityBindings AiCapabilityBinding[]
+
+  @@index([deletedAt, name])
+}
+
+model AiCapabilityBinding {
+  capability     AiCapability @id
+  modelProfileId String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  modelProfile AiModelProfile @relation(fields: [modelProfileId], references: [id], onDelete: Restrict)
+
+  @@index([modelProfileId])
+}
+
+model AiExecution {
+  id                       String            @id @default(cuid())
+  projectId                String
+  requestedById            String
+  featureId                String?
+  capability               AiCapability
+  status                   AiExecutionStatus @default(QUEUED)
+  stage                    AiExecutionStage  @default(QUEUED)
+  requirementText          String
+  modelProfileNameSnapshot String?
+  modelIdSnapshot          String?
+  skillNameSnapshot        String?
+  skillVersionSnapshot     String?
+  repositorySnapshot       String?
+  codeReferences           String?
+  promptTokens             Int?
+  completionTokens         Int?
+  totalTokens              Int?
+  errorMessage             String?
+  queuedAt                 DateTime          @default(now())
+  startedAt                DateTime?
+  finishedAt               DateTime?
+  durationMs               Int?
+  workerId                 String?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  requestedBy User            @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  feature     Feature?        @relation(fields: [featureId], references: [id], onDelete: Restrict)
+  draft       UserStoryDraft?
+
+  @@index([status, queuedAt])
+  @@index([projectId, createdAt])
+  @@index([featureId])
+}
+
+model UserStoryDraft {
+  id                        String        @id @default(cuid())
+  projectId                 String
+  featureId                 String?
+  sourceExecutionId         String        @unique
+  confirmedUserStoryId      String?       @unique
+  status                    AiDraftStatus @default(PENDING)
+  title                     String
+  asA                       String
+  iWant                     String
+  soThat                    String
+  businessRules             String?
+  nonFunctionalRequirements String?
+  confirmedAt               DateTime?
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+  deletedAt                 DateTime?
+
+  project            Project                    @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  feature            Feature?                   @relation(fields: [featureId], references: [id], onDelete: Restrict)
+  sourceExecution    AiExecution                @relation(fields: [sourceExecutionId], references: [id], onDelete: Restrict)
+  confirmedUserStory UserStory?                 @relation("ConfirmedUserStory", fields: [confirmedUserStoryId], references: [id], onDelete: Restrict)
+  acceptanceCriteria DraftAcceptanceCriterion[]
+
+  @@index([projectId, deletedAt, updatedAt])
+  @@index([featureId, deletedAt])
+}
+
+model DraftAcceptanceCriterion {
+  id        String    @id @default(cuid())
+  draftId   String
+  position  Int
+  given     String
+  when      String
+  then      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  draft UserStoryDraft @relation(fields: [draftId], references: [id], onDelete: Restrict)
+
+  @@index([draftId, deletedAt, position])
+}
+
+model AiWorkerLease {
+  id        String   @id
+  ownerId   String
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
 }

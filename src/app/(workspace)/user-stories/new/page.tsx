@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 
+import ThunderboltOutlined from "@ant-design/icons/ThunderboltOutlined";
 import { Button, Empty } from "antd";
 
 import { UserStoryForm } from "@/components/requirements/user-story-form";
 import { getCurrentProject } from "@/server/projects/current-project";
 
 export const metadata: Metadata = {
-  title: "新建独立 US",
+  title: "新建US",
 };
 
 export default async function NewIndependentUserStoryPage() {
@@ -16,7 +17,7 @@ export default async function NewIndependentUserStoryPage() {
       <div className="page-shell">
         <div className="page-heading">
           <div>
-            <h1 className="page-title">新建独立 US</h1>
+            <h1 className="page-title">新建US</h1>
             <p className="page-description">请先创建项目，再开始编写需求。</p>
           </div>
         </div>
@@ -35,11 +36,14 @@ export default async function NewIndependentUserStoryPage() {
     <div className="page-shell">
       <div className="page-heading">
         <div>
-          <h1 className="page-title">新建独立 US</h1>
+          <h1 className="page-title">新建US</h1>
           <p className="page-description">
-            用于不需要 FE 拆分的小型完整需求，保存后不能再加入 FE。
+            编写边界清楚、可开发、可验证的用户故事。
           </p>
         </div>
+        <Button icon={<ThunderboltOutlined />} href="/user-stories/ai-generate">
+          AI辅助生成US
+        </Button>
       </div>
       <UserStoryForm feature={null} />
     </div>

@@ -3,9 +3,11 @@
 import { useMemo, useState, useTransition } from "react";
 
 import ApartmentOutlined from "@ant-design/icons/ApartmentOutlined";
+import ApiOutlined from "@ant-design/icons/ApiOutlined";
 import DownOutlined from "@ant-design/icons/DownOutlined";
 import FileTextOutlined from "@ant-design/icons/FileTextOutlined";
 import FolderOpenOutlined from "@ant-design/icons/FolderOpenOutlined";
+import HistoryOutlined from "@ant-design/icons/HistoryOutlined";
 import LogoutOutlined from "@ant-design/icons/LogoutOutlined";
 import SettingOutlined from "@ant-design/icons/SettingOutlined";
 import SolutionOutlined from "@ant-design/icons/SolutionOutlined";
@@ -29,6 +31,7 @@ const { Header, Sider, Content } = Layout;
 
 const TABLE_PAGE_PATHS = new Set([
   "/requirements",
+  "/ai-executions",
   "/test-cases",
   "/test-case-groups",
   "/projects",
@@ -50,6 +53,9 @@ function resolveSelectedKey(pathname: string) {
   if (pathname.startsWith("/requirements")) return "/requirements";
   if (pathname.startsWith("/features")) return "/requirements";
   if (pathname.startsWith("/user-stories")) return "/requirements";
+  if (pathname.startsWith("/user-story-drafts")) return "/ai-executions";
+  if (pathname.startsWith("/ai-executions")) return "/ai-executions";
+  if (pathname.startsWith("/ai-settings")) return "/ai-settings";
   if (pathname.startsWith("/test-case-groups")) return "/test-case-groups";
   if (pathname.startsWith("/test-cases")) return "/test-cases";
   if (pathname.startsWith("/project-settings/repositories")) {
@@ -87,6 +93,11 @@ export function AppShell({
         key: "/requirements",
         icon: <FileTextOutlined />,
         label: "需求",
+      },
+      {
+        key: "/ai-executions",
+        icon: <HistoryOutlined />,
+        label: "AI 执行记录",
       },
       {
         key: "test-cases-root",
@@ -129,6 +140,11 @@ export function AppShell({
       },
       ...(user.role === UserRole.ADMIN
         ? [
+            {
+              key: "/ai-settings",
+              icon: <ApiOutlined />,
+              label: "AI 设置",
+            },
             {
               key: "/users",
               icon: <TeamOutlined />,

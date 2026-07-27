@@ -1,6 +1,6 @@
 # SpecChain
 
-SpecChain 是面向团队内部使用的需求与测试用例管理平台。首版提供项目、Feature、用户故事、验收标准、测试用例及 Playwright 自动化运行的一体化管理。
+SpecChain 是面向团队内部使用的需求与测试用例管理平台。首版提供项目、Feature、用户故事、验收标准、测试用例、AI 辅助生成 US 及 Playwright 自动化运行的一体化管理。
 
 系统只面向桌面端，建议浏览器宽度不低于 1280 像素。
 
@@ -10,7 +10,8 @@ SpecChain 是面向团队内部使用的需求与测试用例管理平台。首�
 - 项目、代码仓库、GitHub/Gitee 加密凭据、连接检查和运行变量管理。
 - Feature 与用户故事统一需求列表，支持检索、筛选和 Markdown 复制。
 - 标准用户故事模板：`As`、`I want`、`so that` 及多条 `Given/When/Then` 验收标准。
-- 测试用例分组、优先级、结构化步骤、多用户故事关联和 Playwright TypeScript 脚本。
+- 结合需求、FE 上下文和 GitHub/Gitee 代码生成待评审的结构化 US 草稿。
+- 测试用例分组、优先级、自然语言步骤、多用户故事关联和 Playwright TypeScript 脚本。
 - 单并发运行队列、实时日志、停止任务、超时处理、失败截图及运行历史。
 - 所有业务删除均为逻辑删除，不提供恢复入口。
 
@@ -23,6 +24,7 @@ SpecChain 是面向团队内部使用的需求与测试用例管理平台。首�
 | 界面       | Ant Design 6、Tailwind CSS 4                    |
 | 数据       | Prisma 7.9、SQLite、better-sqlite3 适配器       |
 | 校验与状态 | Zod 4、TanStack Query 5                         |
+| AI         | Vercel AI SDK 7、OpenAI 兼容模型适配器          |
 | 认证与加密 | Argon2id、数据库 Session、AES-256-GCM           |
 | 测试       | Vitest 4、Playwright 1.62                       |
 | 工程质量   | ESLint 9、Prettier 3、Pino                      |
@@ -55,7 +57,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 - 将 `ADMIN_PASSWORD` 改为至少 8 位的安全密码。
 - 本地使用 HTTP 时保持 `SESSION_COOKIE_SECURE="false"`。
 
-敏感变量和仓库 PAT 加密后都与当前 `APP_ENCRYPTION_KEY` 绑定。系统已有数据后不得随意更换该密钥，否则已保存的敏感数据将无法解密。
+敏感变量、仓库 PAT 和模型 API Key 加密后都与当前 `APP_ENCRYPTION_KEY` 绑定。系统已有数据后不得随意更换该密钥，否则已保存的敏感数据将无法解密。
 
 ### 3. 安装并运行
 
@@ -76,6 +78,19 @@ npm run dev
 首版支持 `github.com` 和 `gitee.com` 的 HTTPS、SCP 风格 SSH 及标准 SSH 仓库根地址，不支持企业私有域名。建议 PAT 仅授予目标仓库所需的最小读取权限。
 
 “检查连接”通过托管平台 API 验证 PAT、仓库和指定分支是否可访问，不会执行 Git clone、pull 或 push，也不代表 Git 协议通道已经验证。
+
+## AI 辅助生成 US
+
+管理员在“AI 设置”中创建一个或多个模型档案，并为“生成 US”指定默认模型。当前版本接入实现了 OpenAI Chat Completions 兼容接口的服务，配置项包括档案名称、Base URL、模型 ID 和 API Key。
+
+- API Key 使用 AES-256-GCM 加密，保存后只显示固定掩码。
+- “检查模型”会实际验证认证、接口连通性和结构化输出能力。
+- 用户不能在生成页面临时切换模型，任务统一使用管理员绑定的默认模型。
+- 系统通过 GitHub/Gitee 官方 API 读取项目全部仓库的分支、文件树和有限的相关源码，不执行 Git clone，也不向模型开放 Shell。
+- 只有找到真实相关代码且需求信息足够时才创建待评审草稿；确认草稿后才创建正式 US。
+- AI 执行记录长期保留模型、Skill、仓库提交和代码路径引用，但不保存完整源码、PAT 或 API Key。
+
+不同 OpenAI 兼容服务对结构化输出的实现可能不同，新模型投入使用前应先执行“检查模型”。当前版本不包含 AI 生成自然语言测试用例、Playwright CLI 页面探测、自动化脚本生成或 Skill 管理。
 
 ## 容器部署
 
@@ -128,6 +143,8 @@ prisma/                 数据模型、迁移和管理员初始化
 scripts/                端到端测试数据库重置脚本
 src/app/                页面、Server Actions 和 HTTP 接口
 src/components/         中文业务界面组件
+src/ai/                 模型适配、仓库代码读取和 AI 工作流
+src/ai-worker/          短生命周期 AI 队列工作进程
 src/lib/                纯领域逻辑与通用类型
 src/server/             认证、数据库、加密及队列启动逻辑
 src/runner/             Playwright 队列工作进程

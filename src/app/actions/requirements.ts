@@ -10,6 +10,7 @@ import {
   buildFeatureMarkdown,
   buildUserStoryMarkdown,
 } from "@/lib/requirements/markdown";
+import { userStoryInputSchema } from "@/lib/requirements/user-story-schema";
 import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
@@ -19,27 +20,6 @@ const featureSchema = z.object({
   name: z.string().trim().min(1, "请输入 FE 名称").max(150),
   summary: z.string().trim().min(1, "请输入一句话描述").max(300),
   backgroundGoal: z.string().trim().min(1, "请输入业务背景与目标"),
-});
-
-const acceptanceCriterionSchema = z.object({
-  id: z.string().optional(),
-  given: z.string().trim().min(1, "Given 不能为空"),
-  when: z.string().trim().min(1, "When 不能为空"),
-  then: z.string().trim().min(1, "Then 不能为空"),
-});
-
-const userStorySchema = z.object({
-  featureId: z.string().nullable().optional(),
-  title: z.string().trim().min(1, "请输入 US 标题").max(150),
-  asA: z.string().trim().min(1, "As 不能为空"),
-  iWant: z.string().trim().min(1, "I want 不能为空"),
-  soThat: z.string().trim().min(1, "so that 不能为空"),
-  status: z.enum(RequirementStatus),
-  businessRules: z.string().trim().optional().default(""),
-  nonFunctionalRequirements: z.string().trim().optional().default(""),
-  acceptanceCriteria: z
-    .array(acceptanceCriterionSchema)
-    .min(1, "至少需要一条验收标准"),
 });
 
 async function requireCurrentProjectForAction() {
@@ -144,7 +124,7 @@ export async function deleteFeatureAction(id: string): Promise<ActionResult> {
     ok: true,
     message:
       feature._count.userStories > 0
-        ? `FE 及其 ${feature._count.userStories} 个子 US 已删除`
+        ? `FE 及其 ${feature._count.userStories} 个关联 US 已删除`
         : "FE 已删除",
   };
 }
@@ -157,7 +137,7 @@ export async function createUserStoryAction(
     return { ok: false, message: "请先创建项目" };
   }
 
-  const parsed = userStorySchema.safeParse(input);
+  const parsed = userStoryInputSchema.safeParse(input);
   if (!parsed.success) {
     return {
       ok: false,
@@ -217,7 +197,9 @@ export async function updateUserStoryAction(
     return { ok: false, message: "请先创建项目" };
   }
 
-  const parsed = userStorySchema.omit({ featureId: true }).safeParse(input);
+  const parsed = userStoryInputSchema
+    .omit({ featureId: true })
+    .safeParse(input);
   if (!parsed.success) {
     return {
       ok: false,

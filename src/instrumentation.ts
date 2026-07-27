@@ -3,6 +3,9 @@ export async function register() {
     return;
   }
 
-  const { recoverRunnerState } = await import("@/server/runner/launcher");
-  await recoverRunnerState();
+  const [{ recoverRunnerState }, { recoverAiQueueState }] = await Promise.all([
+    import("@/server/runner/launcher"),
+    import("@/server/ai/launcher"),
+  ]);
+  await Promise.all([recoverRunnerState(), recoverAiQueueState()]);
 }

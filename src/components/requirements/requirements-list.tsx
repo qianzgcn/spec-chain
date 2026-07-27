@@ -129,7 +129,7 @@ export function RequirementsList({
       title: `删除${item.type === "FEATURE" ? " FE" : " US"}`,
       content:
         item.type === "FEATURE"
-          ? `将同时删除 ${item.childCount ?? 0} 个子 US，且不能恢复。`
+          ? `将同时删除 ${item.childCount ?? 0} 个关联 US，且不能恢复。`
           : "删除后不能恢复，不会影响已关联的测试用例。",
       okText: "删除",
       cancelText: "取消",
@@ -185,12 +185,10 @@ export function RequirementsList({
       render: (featureName: string | null, item) => {
         if (item.type === "FEATURE") {
           return (
-            <span className="text-slate-500">
-              {item.childCount ?? 0} 个子 US
-            </span>
+            <span className="text-slate-500">{item.childCount ?? 0} 个 US</span>
           );
         }
-        return featureName || <span className="text-slate-400">独立 US</span>;
+        return featureName || <span className="text-slate-400">未归属 FE</span>;
       },
     },
     {
@@ -251,7 +249,7 @@ export function RequirementsList({
                         {
                           key: "child",
                           icon: <PlusOutlined />,
-                          label: "新增子 US",
+                          label: "新建US",
                           onClick: () =>
                             navigate(`/features/${item.id}/user-stories/new`),
                         },
@@ -330,7 +328,7 @@ export function RequirementsList({
             placeholder="全部 FE 归属"
             onChange={(feature = "") => updateQuery({ feature, page: 1 })}
             options={[
-              { value: "independent", label: "独立 US" },
+              { value: "independent", label: "未归属 FE" },
               ...featureOptions.map((feature) => ({
                 value: feature.id,
                 label: `${feature.code} · ${feature.name}`,
@@ -350,7 +348,7 @@ export function RequirementsList({
           ) : null}
           <div className="table-toolbar__actions">
             <Button icon={<PlusOutlined />} href="/user-stories/new">
-              新建独立 US
+              新建US
             </Button>
             <Button type="primary" icon={<PlusOutlined />} href="/features/new">
               新建 FE

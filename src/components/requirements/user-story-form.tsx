@@ -12,6 +12,7 @@ import {
   Divider,
   Form,
   Input,
+  Popconfirm,
   Select,
   Space,
   Typography,
@@ -23,6 +24,11 @@ import {
   createUserStoryAction,
   updateUserStoryAction,
 } from "@/app/actions/requirements";
+import {
+  confirmUserStoryDraftAction,
+  deleteUserStoryDraftAction,
+  updateUserStoryDraftAction,
+} from "@/app/actions/ai-executions";
 import { MarkdownField } from "@/components/markdown/markdown-field";
 import { RequirementStatus } from "@/generated/prisma/enums";
 import { REQUIREMENT_STATUS_META } from "@/lib/requirements/status";
@@ -51,6 +57,8 @@ export type UserStoryFormValues = {
 
 type UserStoryFormProps = {
   userStoryId?: string;
+  draftId?: string;
+  sourceExecutionId?: string;
   feature?: {
     id: string;
     code: string;
@@ -61,12 +69,18 @@ type UserStoryFormProps = {
 
 export function UserStoryForm({
   userStoryId,
+  draftId,
+  sourceExecutionId,
   feature,
   initialValues,
 }: UserStoryFormProps) {
   const router = useRouter();
   const [messageApi, messageContext] = message.useMessage();
+  const [form] = Form.useForm<UserStoryFormValues>();
   const [dirty, setDirty] = useState(false);
+  const [pendingAction, setPendingAction] = useState<
+    "save" | "confirm" | "delete" | null
+  >(null);
   const [isPending, startTransition] = useTransition();
   useUnsavedChanges(dirty);
 
@@ -82,14 +96,35 @@ export function UserStoryForm({
   };
 
   function submit(values: UserStoryFormValues) {
+    setPendingAction("save");
     startTransition(async () => {
+      if (draftId) {
+        const result = await updateUserStoryDraftAction(draftId, values);
+        if (!result.ok) {
+          setPendingAction(null);
+          messageApi.error(result.message);
+          return;
+        }
+
+        setDirty(false);
+        messageApi.success(result.message);
+        if (result.data) {
+          form.setFieldValue(
+            "acceptanceCriteria",
+            result.data.acceptanceCriteria,
+          );
+        }
+        setPendingAction(null);
+        router.refresh();
+        return;
+      }
+
       const result = userStoryId
         ? await updateUserStoryAction(userStoryId, values)
         : await createUserStoryAction({
             ...values,
             featureId: feature?.id ?? null,
           });
-
       if (!result.ok) {
         messageApi.error(result.message);
         return;
@@ -99,6 +134,60 @@ export function UserStoryForm({
       messageApi.success(result.message);
       const targetId = userStoryId ?? result.data?.id;
       router.push(targetId ? `/user-stories/${targetId}` : "/requirements");
+      router.refresh();
+    });
+  }
+
+  function confirmDraft() {
+    if (!draftId) return;
+
+    void form
+      .validateFields()
+      .then((values) => {
+        setPendingAction("confirm");
+        startTransition(async () => {
+          const saveResult = await updateUserStoryDraftAction(draftId, values);
+          if (!saveResult.ok) {
+            setPendingAction(null);
+            messageApi.error(saveResult.message);
+            return;
+          }
+
+          const confirmResult = await confirmUserStoryDraftAction(draftId);
+          if (!confirmResult.ok || !confirmResult.data) {
+            setPendingAction(null);
+            messageApi.error(confirmResult.message);
+            return;
+          }
+
+          setDirty(false);
+          messageApi.success(confirmResult.message);
+          router.push(`/user-stories/${confirmResult.data.id}`);
+          router.refresh();
+        });
+      })
+      .catch(() => undefined);
+  }
+
+  function deleteDraft() {
+    if (!draftId) return;
+
+    setPendingAction("delete");
+    startTransition(async () => {
+      const result = await deleteUserStoryDraftAction(draftId);
+      if (!result.ok) {
+        setPendingAction(null);
+        messageApi.error(result.message);
+        return;
+      }
+
+      setDirty(false);
+      messageApi.success(result.message);
+      router.push(
+        sourceExecutionId
+          ? `/ai-executions/${sourceExecutionId}`
+          : "/ai-executions",
+      );
       router.refresh();
     });
   }
@@ -113,6 +202,7 @@ export function UserStoryForm({
     <>
       {messageContext}
       <Form<UserStoryFormValues>
+        form={form}
         className="form-panel"
         layout="vertical"
         requiredMark={false}
@@ -125,18 +215,18 @@ export function UserStoryForm({
             className="mb-5"
             type="info"
             showIcon
-            title={`所属 FE：${feature.code} · ${feature.name}。子 US 创建后不能迁移或解除归属。`}
+            title={`所属 FE：${feature.code} · ${feature.name}`}
+            description="US 创建后不能迁移或解除归属。"
           />
-        ) : (
-          <Alert
-            className="mb-5"
-            type="info"
-            showIcon
-            title="独立 US：创建后不能再加入某个 FE。"
-          />
-        )}
+        ) : null}
 
-        <div className="grid grid-cols-[minmax(0,1fr)_180px] gap-5">
+        <div
+          className={
+            draftId
+              ? "grid grid-cols-1"
+              : "grid grid-cols-[minmax(0,1fr)_180px] gap-5"
+          }
+        >
           <Form.Item
             name="title"
             label="US 标题"
@@ -144,14 +234,20 @@ export function UserStoryForm({
           >
             <Input maxLength={150} showCount />
           </Form.Item>
-          <Form.Item name="status" label="状态" rules={[{ required: true }]}>
-            <Select
-              options={Object.values(RequirementStatus).map((status) => ({
-                value: status,
-                label: REQUIREMENT_STATUS_META[status].label,
-              }))}
-            />
-          </Form.Item>
+          {draftId ? (
+            <Form.Item name="status" hidden>
+              <Input />
+            </Form.Item>
+          ) : (
+            <Form.Item name="status" label="状态" rules={[{ required: true }]}>
+              <Select
+                options={Object.values(RequirementStatus).map((status) => ({
+                  value: status,
+                  label: REQUIREMENT_STATUS_META[status].label,
+                }))}
+              />
+            </Form.Item>
+          )}
         </div>
 
         <Divider titlePlacement="left">用户故事</Divider>
@@ -312,10 +408,47 @@ export function UserStoryForm({
         </Form.Item>
 
         <div className="form-actions">
-          <Button onClick={cancel}>取消</Button>
-          <Button type="primary" htmlType="submit" loading={isPending}>
-            保存
-          </Button>
+          {draftId ? (
+            <>
+              <Popconfirm
+                title="删除 US 草稿"
+                description="删除后不能恢复，但 AI 执行记录仍会保留。"
+                okText="删除"
+                cancelText="取消"
+                okButtonProps={{ danger: true }}
+                onConfirm={deleteDraft}
+              >
+                <Button
+                  danger
+                  loading={isPending && pendingAction === "delete"}
+                >
+                  删除草稿
+                </Button>
+              </Popconfirm>
+              <div className="flex-1" />
+              <Button onClick={cancel}>返回</Button>
+              <Button
+                htmlType="submit"
+                loading={isPending && pendingAction === "save"}
+              >
+                保存草稿
+              </Button>
+              <Button
+                type="primary"
+                loading={isPending && pendingAction === "confirm"}
+                onClick={confirmDraft}
+              >
+                确认创建US
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={cancel}>取消</Button>
+              <Button type="primary" htmlType="submit" loading={isPending}>
+                保存
+              </Button>
+            </>
+          )}
         </div>
       </Form>
     </>

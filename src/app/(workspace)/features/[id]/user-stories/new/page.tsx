@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import ThunderboltOutlined from "@ant-design/icons/ThunderboltOutlined";
+import { Button } from "antd";
 import { notFound } from "next/navigation";
 
 import { UserStoryForm } from "@/components/requirements/user-story-form";
@@ -7,7 +9,7 @@ import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
 export const metadata: Metadata = {
-  title: "新建子 US",
+  title: "新建US",
 };
 
 export default async function NewFeatureUserStoryPage({
@@ -28,11 +30,17 @@ export default async function NewFeatureUserStoryPage({
     <div className="page-shell">
       <div className="page-heading">
         <div>
-          <h1 className="page-title">新建子 US</h1>
+          <h1 className="page-title">新建US</h1>
           <p className="page-description">
-            将复杂需求拆分为边界清楚、可独立验证的用户故事。
+            编写边界清楚、可开发、可验证的用户故事。
           </p>
         </div>
+        <Button
+          icon={<ThunderboltOutlined />}
+          href={`/user-stories/ai-generate?featureId=${feature.id}`}
+        >
+          AI辅助生成US
+        </Button>
       </div>
       <UserStoryForm feature={feature} />
     </div>

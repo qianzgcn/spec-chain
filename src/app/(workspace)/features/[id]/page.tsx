@@ -77,11 +77,10 @@ export default async function FeatureDetailPage({
         <section>
           <div className="flex items-center justify-between border-b border-slate-200 px-7 py-5">
             <div>
-              <h2 className="m-0 text-base font-semibold text-slate-800">
-                子 US
-              </h2>
+              <h2 className="m-0 text-base font-semibold text-slate-800">US</h2>
               <p className="mt-1 mb-0 text-sm text-slate-500">
-                FE 状态取全部未删除子 US 中进度最慢的状态；没有子 US 时为设计。
+                FE 状态取全部未删除关联 US 中进度最慢的状态；没有关联 US
+                时为设计。
               </p>
             </div>
             <span className="text-sm text-slate-500">

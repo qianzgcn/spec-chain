@@ -71,7 +71,7 @@ export function RequirementDetailActions({
             icon={<PlusOutlined />}
             href={`/features/${id}/user-stories/new`}
           >
-            新建子 US
+            新建US
           </Button>
         ) : null}
         <Button icon={<CopyOutlined />} onClick={copy} loading={isPending}>
@@ -84,7 +84,7 @@ export function RequirementDetailActions({
           title={`删除${type === "FEATURE" ? " FE" : " US"}`}
           description={
             type === "FEATURE"
-              ? `将同时删除 ${childCount} 个子 US，且不能恢复。`
+              ? `将同时删除 ${childCount} 个关联 US，且不能恢复。`
               : "删除后不能恢复，不会影响测试用例。"
           }
           okText="删除"

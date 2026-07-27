@@ -176,7 +176,7 @@ export function TestCaseForm({
             options={userStories.map((story) => ({
               value: story.id,
               label: `${story.code} · ${story.title}${
-                story.featureName ? `（${story.featureName}）` : "（独立 US）"
+                story.featureName ? `（${story.featureName}）` : "（未归属 FE）"
               }`,
             }))}
           />
