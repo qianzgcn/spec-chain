@@ -204,12 +204,17 @@ export function UserManagement({
   return (
     <>
       {messageContext}
-      <div className="content-panel">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <span className="text-sm text-slate-500">
+      <div className="content-panel table-page-panel">
+        <div className="table-toolbar">
+          <span className="table-toolbar__summary">
             共 {users.length} 个用户
           </span>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+          <Button
+            className="ml-auto"
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={openCreate}
+          >
             新建用户
           </Button>
         </div>
@@ -217,7 +222,12 @@ export function UserManagement({
           rowKey="id"
           columns={columns}
           dataSource={users}
-          pagination={false}
+          scroll={{ y: "100%" }}
+          pagination={{
+            pageSize: 20,
+            showSizeChanger: false,
+            showTotal: (count) => `共 ${count} 个用户`,
+          }}
         />
       </div>
 

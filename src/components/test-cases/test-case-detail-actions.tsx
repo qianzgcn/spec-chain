@@ -4,6 +4,7 @@ import { useTransition } from "react";
 
 import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
 import EditOutlined from "@ant-design/icons/EditOutlined";
+import HistoryOutlined from "@ant-design/icons/HistoryOutlined";
 import { Button, Popconfirm, Space, message } from "antd";
 import { useRouter } from "next/navigation";
 
@@ -31,6 +32,13 @@ export function TestCaseDetailActions({ id }: { id: string }) {
     <>
       {messageContext}
       <Space>
+        <Button
+          type="primary"
+          icon={<HistoryOutlined />}
+          href={`/test-cases/${id}/runs`}
+        >
+          执行记录
+        </Button>
         <Button icon={<EditOutlined />} href={`/test-cases/${id}/edit`}>
           编辑
         </Button>

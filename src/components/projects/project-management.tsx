@@ -102,7 +102,7 @@ export function ProjectManagement({
     {
       title: "项目名称",
       dataIndex: "name",
-      width: 230,
+      width: 210,
       render: (name: string, item) => (
         <Space size={8}>
           <strong>{name}</strong>
@@ -120,7 +120,7 @@ export function ProjectManagement({
     },
     {
       title: "业务内容",
-      width: 220,
+      width: 180,
       render: (_, item) => (
         <span className="text-slate-600">
           FE {item._count.features} · US {item._count.userStories} · 用例{" "}
@@ -131,20 +131,20 @@ export function ProjectManagement({
     {
       title: "Base URL",
       dataIndex: "baseUrl",
-      width: 240,
+      width: 200,
       ellipsis: true,
       render: (baseUrl: string | null) => baseUrl || "未配置",
     },
     {
       title: "更新时间",
       dataIndex: "updatedAt",
-      width: 170,
+      width: 155,
       render: (value: string) => formatDateTime(value),
     },
     {
       title: "操作",
       key: "actions",
-      width: 245,
+      width: 230,
       fixed: "right",
       render: (_, item) => (
         <Space size={4}>
@@ -194,12 +194,13 @@ export function ProjectManagement({
   return (
     <>
       {messageContext}
-      <div className="content-panel">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <span className="text-sm text-slate-500">
+      <div className="content-panel table-page-panel">
+        <div className="table-toolbar">
+          <span className="table-toolbar__summary">
             共 {projects.length} 个项目
           </span>
           <Button
+            className="ml-auto"
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => setCreateOpen(true)}
@@ -211,8 +212,12 @@ export function ProjectManagement({
           rowKey="id"
           columns={columns}
           dataSource={projects}
-          pagination={false}
-          scroll={{ x: 1250 }}
+          pagination={{
+            pageSize: 20,
+            showSizeChanger: false,
+            showTotal: (count) => `共 ${count} 个项目`,
+          }}
+          scroll={{ x: 1150, y: "100%" }}
           locale={{
             emptyText: (
               <Empty

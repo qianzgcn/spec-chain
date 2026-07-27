@@ -2,10 +2,6 @@
 
 import { useState, useTransition } from "react";
 
-import ArrowDownOutlined from "@ant-design/icons/ArrowDownOutlined";
-import ArrowUpOutlined from "@ant-design/icons/ArrowUpOutlined";
-import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import PlusOutlined from "@ant-design/icons/PlusOutlined";
 import {
   Alert,
   Button,
@@ -13,9 +9,7 @@ import {
   Form,
   Input,
   Select,
-  Space,
   Switch,
-  Typography,
   message,
 } from "antd";
 import dynamic from "next/dynamic";
@@ -47,12 +41,6 @@ const ScriptEditor = dynamic<ScriptEditorProps>(
   },
 );
 
-type TestStepValue = {
-  id?: string;
-  action: string;
-  expectedResult: string;
-};
-
 export type TestCaseFormValues = {
   name: string;
   groupId: string;
@@ -60,7 +48,7 @@ export type TestCaseFormValues = {
   preconditions: string;
   enabled: boolean;
   script: string;
-  steps: TestStepValue[];
+  steps: string;
   userStoryIds: string[];
 };
 
@@ -95,7 +83,7 @@ export function TestCaseForm({
     preconditions: "",
     enabled: true,
     script: "",
-    steps: [{ action: "", expectedResult: "" }],
+    steps: "",
     userStoryIds: [],
   };
 
@@ -202,97 +190,22 @@ export function TestCaseForm({
           <MarkdownField rows={7} placeholder="没有前置条件时可以留空" />
         </Form.Item>
 
-        <Divider titlePlacement="left">测试步骤</Divider>
-
-        <Form.List
+        <Form.Item
           name="steps"
+          label="测试步骤"
+          extra="所有步骤统一写在此处，建议每行一个编号步骤；需要验证的结果直接写在对应步骤中。支持 Markdown。"
           rules={[
-            {
-              validator: async (_, steps) => {
-                if (!steps?.length) {
-                  throw new Error("至少需要一条测试步骤");
-                }
-              },
-            },
+            { required: true, whitespace: true, message: "请输入测试步骤" },
           ]}
         >
-          {(fields, { add, remove, move }, { errors }) => (
-            <Space orientation="vertical" className="w-full" size={16}>
-              {fields.map((field, index) => (
-                <div
-                  key={field.key}
-                  className="border-b border-slate-200 pb-5 last:border-b-0"
-                >
-                  <Form.Item name={[field.name, "id"]} hidden>
-                    <Input />
-                  </Form.Item>
-                  <div className="mb-3 flex items-center justify-between">
-                    <Typography.Text strong>步骤 {index + 1}</Typography.Text>
-                    <Space size={2}>
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<ArrowUpOutlined />}
-                        disabled={index === 0}
-                        aria-label="上移步骤"
-                        onClick={() => move(index, index - 1)}
-                      />
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<ArrowDownOutlined />}
-                        disabled={index === fields.length - 1}
-                        aria-label="下移步骤"
-                        onClick={() => move(index, index + 1)}
-                      />
-                      <Button
-                        type="text"
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        aria-label="删除步骤"
-                        disabled={fields.length === 1}
-                        onClick={() => remove(field.name)}
-                      />
-                    </Space>
-                  </div>
-                  <div className="grid grid-cols-2 gap-5">
-                    <Form.Item
-                      name={[field.name, "action"]}
-                      label="操作步骤"
-                      rules={[{ required: true, message: "操作步骤不能为空" }]}
-                      className="!mb-0"
-                    >
-                      <Input.TextArea
-                        rows={4}
-                        placeholder="描述用户操作、输入或系统事件"
-                      />
-                    </Form.Item>
-                    <Form.Item
-                      name={[field.name, "expectedResult"]}
-                      label="预期结果"
-                      rules={[{ required: true, message: "预期结果不能为空" }]}
-                      className="!mb-0"
-                    >
-                      <Input.TextArea
-                        rows={4}
-                        placeholder="描述可观察、可验证的结果"
-                      />
-                    </Form.Item>
-                  </div>
-                </div>
-              ))}
-              <Form.ErrorList errors={errors} />
-              <Button
-                type="dashed"
-                icon={<PlusOutlined />}
-                onClick={() => add({ action: "", expectedResult: "" })}
-              >
-                添加步骤
-              </Button>
-            </Space>
-          )}
-        </Form.List>
+          <Input.TextArea
+            rows={10}
+            maxLength={100_000}
+            placeholder={
+              "1. 打开 SpecChain 登录页\n2. 输入用户名 `admin` 和错误密码 `wrong-password`\n3. 点击登录，显示“用户名或密码错误”，并停留在登录页。"
+            }
+          />
+        </Form.Item>
 
         <Divider titlePlacement="left">自动化脚本（可选）</Divider>
 

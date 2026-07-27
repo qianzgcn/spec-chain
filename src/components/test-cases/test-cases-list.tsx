@@ -3,13 +3,13 @@
 import { useState, useTransition } from "react";
 
 import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import EditOutlined from "@ant-design/icons/EditOutlined";
-import EyeOutlined from "@ant-design/icons/EyeOutlined";
+import MoreOutlined from "@ant-design/icons/MoreOutlined";
 import PlusOutlined from "@ant-design/icons/PlusOutlined";
 import {
   Button,
+  Dropdown,
   Input,
-  Popconfirm,
+  Modal,
   Select,
   Space,
   Switch,
@@ -18,12 +18,14 @@ import {
   message,
 } from "antd";
 import type { TableProps } from "antd";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import {
   deleteTestCaseAction,
   setTestCaseEnabledAction,
 } from "@/app/actions/test-cases";
+import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
 import { RunStatus, TestPriority } from "@/generated/prisma/enums";
 import { formatCompactDateTime } from "@/lib/date-time";
 import { RUN_STATUS_META, TEST_PRIORITY_META } from "@/lib/test-cases/meta";
@@ -61,6 +63,7 @@ export function TestCasesList({
   groups: Array<{ id: string; name: string }>;
 }) {
   const router = useRouter();
+  const { isNavigating, navigate } = useNavigationFeedback();
   const [messageApi, messageContext] = message.useMessage();
   const [query, setQuery] = useState(filters.q);
   const [isPending, startTransition] = useTransition();
@@ -75,7 +78,7 @@ export function TestCasesList({
     if (next.priority) params.set("priority", next.priority);
     if (next.enabled) params.set("enabled", next.enabled);
     if (next.page > 1) params.set("page", String(next.page));
-    router.push(`/test-cases${params.size ? `?${params}` : ""}`);
+    navigate(`/test-cases${params.size ? `?${params}` : ""}`);
   }
 
   function changeEnabled(id: string, enabled: boolean) {
@@ -102,11 +105,22 @@ export function TestCasesList({
     });
   }
 
+  function confirmRemove(item: TestCaseListItem) {
+    Modal.confirm({
+      title: "删除测试用例",
+      content: "删除后不能恢复，运行历史仍会保留。",
+      okText: "删除",
+      cancelText: "取消",
+      okButtonProps: { danger: true },
+      onOk: () => remove(item.id),
+    });
+  }
+
   const columns: TableProps<TestCaseListItem>["columns"] = [
     {
       title: "编号",
       dataIndex: "code",
-      width: 205,
+      width: 185,
       render: (code: string) => (
         <span className="font-mono text-xs text-slate-600">{code}</span>
       ),
@@ -116,25 +130,24 @@ export function TestCasesList({
       dataIndex: "name",
       ellipsis: true,
       render: (name: string, item) => (
-        <button
-          type="button"
-          className="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-slate-800 hover:text-cyan-700"
-          onClick={() => router.push(`/test-cases/${item.id}`)}
+        <Link
+          href={`/test-cases/${item.id}`}
+          className="font-medium text-slate-800 hover:text-cyan-700"
         >
           {name}
-        </button>
+        </Link>
       ),
     },
     {
       title: "分组",
       dataIndex: "groupName",
-      width: 180,
+      width: 150,
       ellipsis: true,
     },
     {
       title: "优先级",
       dataIndex: "priority",
-      width: 95,
+      width: 80,
       render: (priority: TestPriority) => (
         <Tag color={TEST_PRIORITY_META[priority].color}>{priority}</Tag>
       ),
@@ -142,13 +155,13 @@ export function TestCasesList({
     {
       title: "步骤",
       dataIndex: "stepCount",
-      width: 80,
+      width: 70,
       render: (count: number) => `${count} 条`,
     },
     {
       title: "自动化",
       dataIndex: "hasScript",
-      width: 105,
+      width: 90,
       render: (hasScript: boolean) =>
         hasScript ? (
           <Tag color="cyan">已配置</Tag>
@@ -159,7 +172,7 @@ export function TestCasesList({
     {
       title: "最近运行",
       dataIndex: "lastRunStatus",
-      width: 110,
+      width: 100,
       render: (status: RunStatus | null) =>
         status ? (
           <Tag color={RUN_STATUS_META[status].color}>
@@ -172,7 +185,7 @@ export function TestCasesList({
     {
       title: "启用",
       dataIndex: "enabled",
-      width: 80,
+      width: 70,
       render: (enabled: boolean, item) => (
         <Switch
           size="small"
@@ -185,49 +198,40 @@ export function TestCasesList({
     {
       title: "更新时间",
       dataIndex: "updatedAt",
-      width: 165,
+      width: 150,
       render: (value: string) => formatCompactDateTime(value),
     },
     {
       title: "操作",
-      width: 210,
+      width: 170,
       fixed: "right",
       render: (_, item) => (
-        <Space size={1}>
-          <Button
-            type="link"
-            size="small"
-            icon={<EyeOutlined />}
-            href={`/test-cases/${item.id}`}
-          >
+        <Space size={2}>
+          <Button type="link" size="small" href={`/test-cases/${item.id}`}>
             查看
           </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            href={`/test-cases/${item.id}/edit`}
-          >
+          <Button type="link" size="small" href={`/test-cases/${item.id}/edit`}>
             编辑
           </Button>
-          <Popconfirm
-            title="删除测试用例"
-            description="删除后不能恢复，运行历史仍会保留。"
-            okText="删除"
-            cancelText="取消"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => remove(item.id)}
+          <Dropdown
+            trigger={["click"]}
+            menu={{
+              items: [
+                {
+                  key: "delete",
+                  icon: <DeleteOutlined />,
+                  label: "删除",
+                  danger: true,
+                  disabled: isPending,
+                  onClick: () => confirmRemove(item),
+                },
+              ],
+            }}
           >
-            <Button
-              type="link"
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              disabled={isPending}
-            >
-              删除
+            <Button type="text" size="small" icon={<MoreOutlined />}>
+              更多
             </Button>
-          </Popconfirm>
+          </Dropdown>
         </Space>
       ),
     },
@@ -236,10 +240,10 @@ export function TestCasesList({
   return (
     <>
       {messageContext}
-      <div className="content-panel">
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-5 py-4">
+      <div className="content-panel table-page-panel">
+        <div className="table-toolbar">
           <Input.Search
-            className="w-72"
+            className="table-search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onSearch={() => updateQuery({ q: query.trim(), page: 1 })}
@@ -286,7 +290,7 @@ export function TestCasesList({
               type="link"
               onClick={() => {
                 setQuery("");
-                router.push("/test-cases");
+                navigate("/test-cases");
               }}
             >
               重置筛选
@@ -305,8 +309,8 @@ export function TestCasesList({
           rowKey="id"
           columns={columns}
           dataSource={items}
-          loading={isPending}
-          scroll={{ x: 1480 }}
+          loading={isPending || isNavigating}
+          scroll={{ x: 1240, y: "100%" }}
           pagination={{
             current: filters.page,
             pageSize: 20,

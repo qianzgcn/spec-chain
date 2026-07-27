@@ -15,11 +15,21 @@ export default async function NewTestCasePage() {
   if (!project) {
     return (
       <div className="page-shell">
-        <Empty description="请先创建项目">
-          <Button type="primary" href="/projects">
-            前往项目管理
-          </Button>
-        </Empty>
+        <div className="page-heading">
+          <div>
+            <h1 className="page-title">新建测试用例</h1>
+            <p className="page-description">
+              请先创建项目，再开始编写测试用例。
+            </p>
+          </div>
+        </div>
+        <div className="content-panel empty-panel">
+          <Empty description="请先创建项目">
+            <Button type="primary" href="/projects">
+              前往项目管理
+            </Button>
+          </Empty>
+        </div>
       </div>
     );
   }
@@ -53,7 +63,7 @@ export default async function NewTestCasePage() {
             </p>
           </div>
         </div>
-        <div className="content-panel py-20">
+        <div className="content-panel empty-panel">
           <Empty description="当前项目还没有用例分组">
             <Button type="primary" href="/test-case-groups">
               创建用例分组
@@ -70,7 +80,7 @@ export default async function NewTestCasePage() {
         <div>
           <h1 className="page-title">新建测试用例</h1>
           <p className="page-description">
-            先写清操作步骤与预期结果；自动化脚本可以稍后补充。
+            所有步骤统一写在一个输入框中；需要验证的结果直接写在对应步骤中。
           </p>
         </div>
       </div>

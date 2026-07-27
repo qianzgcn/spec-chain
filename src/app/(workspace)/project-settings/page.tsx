@@ -16,7 +16,15 @@ export default async function ProjectSettingsPage() {
   if (!currentProject) {
     return (
       <div className="page-shell">
-        <div className="content-panel py-20">
+        <div className="page-heading">
+          <div>
+            <h1 className="page-title">项目设置</h1>
+            <p className="page-description">
+              配置当前项目的基础地址、代码仓库和自动化运行变量。
+            </p>
+          </div>
+        </div>
+        <div className="content-panel empty-panel">
           <Empty description="请先创建一个项目">
             <Button type="primary" href="/projects">
               前往项目管理

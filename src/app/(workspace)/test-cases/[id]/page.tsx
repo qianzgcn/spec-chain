@@ -5,10 +5,6 @@ import { notFound } from "next/navigation";
 
 import { MarkdownView } from "@/components/markdown/markdown-view";
 import { TestCaseDetailActions } from "@/components/test-cases/test-case-detail-actions";
-import {
-  TestRunPanel,
-  type TestRunSummary,
-} from "@/components/test-cases/test-run-panel";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
@@ -29,10 +25,6 @@ export default async function TestCaseDetailPage({
     where: { id, projectId: project.id, deletedAt: null },
     include: {
       group: { select: { name: true } },
-      steps: {
-        where: { deletedAt: null },
-        orderBy: { position: "asc" },
-      },
       userStoryLinks: {
         where: { deletedAt: null },
         orderBy: { createdAt: "asc" },
@@ -48,30 +40,9 @@ export default async function TestCaseDetailPage({
           },
         },
       },
-      runs: {
-        orderBy: { queuedAt: "desc" },
-        take: 20,
-        select: {
-          id: true,
-          status: true,
-          queuedAt: true,
-          startedAt: true,
-          durationMs: true,
-          requestedBy: { select: { username: true } },
-        },
-      },
     },
   });
   if (!testCase) notFound();
-
-  const initialRuns: TestRunSummary[] = testCase.runs.map((run) => ({
-    id: run.id,
-    status: run.status,
-    queuedAt: run.queuedAt.toISOString(),
-    startedAt: run.startedAt?.toISOString() ?? null,
-    durationMs: run.durationMs,
-    requestedBy: run.requestedBy.username,
-  }));
 
   return (
     <div className="page-shell">
@@ -96,14 +67,6 @@ export default async function TestCaseDetailPage({
         <TestCaseDetailActions id={testCase.id} />
       </div>
 
-      <TestRunPanel
-        testCaseId={testCase.id}
-        enabled={testCase.enabled}
-        hasScript={Boolean(testCase.script?.trim())}
-        hasBaseUrl={Boolean(project.baseUrl)}
-        initialRuns={initialRuns}
-      />
-
       <div className="content-panel max-w-[1180px]">
         <section className="border-b border-slate-200 px-7 py-6">
           <h2 className="mb-4 text-base font-semibold text-slate-800">
@@ -112,34 +75,11 @@ export default async function TestCaseDetailPage({
           <MarkdownView content={testCase.preconditions} />
         </section>
 
-        <section className="border-b border-slate-200">
-          <div className="border-b border-slate-200 px-7 py-5">
-            <h2 className="m-0 text-base font-semibold text-slate-800">
-              测试步骤
-            </h2>
-          </div>
-          <table className="w-full table-fixed border-collapse text-left text-sm">
-            <thead className="bg-slate-50 text-slate-600">
-              <tr>
-                <th className="w-16 px-7 py-3 font-medium">序号</th>
-                <th className="w-1/2 px-5 py-3 font-medium">操作步骤</th>
-                <th className="px-5 py-3 font-medium">预期结果</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {testCase.steps.map((step, index) => (
-                <tr key={step.id} className="align-top">
-                  <td className="px-7 py-4 text-slate-400">{index + 1}</td>
-                  <td className="px-5 py-4 whitespace-pre-wrap text-slate-800">
-                    {step.action}
-                  </td>
-                  <td className="px-5 py-4 whitespace-pre-wrap text-slate-800">
-                    {step.expectedResult}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <section className="border-b border-slate-200 px-7 py-6">
+          <h2 className="mb-4 text-base font-semibold text-slate-800">
+            测试步骤
+          </h2>
+          <MarkdownView content={testCase.steps} />
         </section>
 
         <section className="border-b border-slate-200 px-7 py-6">

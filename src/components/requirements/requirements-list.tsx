@@ -4,13 +4,13 @@ import { useState, useTransition } from "react";
 
 import CopyOutlined from "@ant-design/icons/CopyOutlined";
 import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import EditOutlined from "@ant-design/icons/EditOutlined";
-import EyeOutlined from "@ant-design/icons/EyeOutlined";
+import MoreOutlined from "@ant-design/icons/MoreOutlined";
 import PlusOutlined from "@ant-design/icons/PlusOutlined";
 import {
   Button,
+  Dropdown,
   Input,
-  Popconfirm,
+  Modal,
   Select,
   Space,
   Table,
@@ -18,6 +18,7 @@ import {
   message,
 } from "antd";
 import type { TableProps } from "antd";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import {
@@ -26,6 +27,7 @@ import {
   getRequirementMarkdownAction,
   updateUserStoryStatusAction,
 } from "@/app/actions/requirements";
+import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
 import { RequirementStatus } from "@/generated/prisma/enums";
 import { formatCompactDateTime } from "@/lib/date-time";
 import { REQUIREMENT_STATUS_META } from "@/lib/requirements/status";
@@ -61,6 +63,7 @@ export function RequirementsList({
   featureOptions: Array<{ id: string; name: string; code: string }>;
 }) {
   const router = useRouter();
+  const { isNavigating, navigate } = useNavigationFeedback();
   const [messageApi, messageContext] = message.useMessage();
   const [query, setQuery] = useState(filters.q);
   const [isPending, startTransition] = useTransition();
@@ -75,7 +78,7 @@ export function RequirementsList({
     if (next.status) params.set("status", next.status);
     if (next.feature) params.set("feature", next.feature);
     if (next.page > 1) params.set("page", String(next.page));
-    router.push(`/requirements${params.size ? `?${params}` : ""}`);
+    navigate(`/requirements${params.size ? `?${params}` : ""}`);
   }
 
   function copyRequirement(item: RequirementListItem) {
@@ -121,11 +124,25 @@ export function RequirementsList({
     });
   }
 
+  function confirmDeleteRequirement(item: RequirementListItem) {
+    Modal.confirm({
+      title: `删除${item.type === "FEATURE" ? " FE" : " US"}`,
+      content:
+        item.type === "FEATURE"
+          ? `将同时删除 ${item.childCount ?? 0} 个子 US，且不能恢复。`
+          : "删除后不能恢复，不会影响已关联的测试用例。",
+      okText: "删除",
+      cancelText: "取消",
+      okButtonProps: { danger: true },
+      onOk: () => deleteRequirement(item),
+    });
+  }
+
   const columns: TableProps<RequirementListItem>["columns"] = [
     {
       title: "编号",
       dataIndex: "code",
-      width: 205,
+      width: 185,
       render: (code: string) => (
         <span className="font-mono text-xs text-slate-600">{code}</span>
       ),
@@ -133,7 +150,7 @@ export function RequirementsList({
     {
       title: "类型",
       dataIndex: "type",
-      width: 90,
+      width: 75,
       render: (type: RequirementListItem["type"]) =>
         type === "FEATURE" ? (
           <Tag color="geekblue">FE</Tag>
@@ -145,26 +162,25 @@ export function RequirementsList({
       title: "名称",
       dataIndex: "title",
       ellipsis: true,
-      render: (title: string, item) => (
-        <button
-          type="button"
-          className="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-slate-800 hover:text-cyan-700"
-          onClick={() =>
-            router.push(
-              item.type === "FEATURE"
-                ? `/features/${item.id}`
-                : `/user-stories/${item.id}`,
-            )
-          }
-        >
-          {title}
-        </button>
-      ),
+      render: (title: string, item) => {
+        const href =
+          item.type === "FEATURE"
+            ? `/features/${item.id}`
+            : `/user-stories/${item.id}`;
+        return (
+          <Link
+            href={href}
+            className="font-medium text-slate-800 hover:text-cyan-700"
+          >
+            {title}
+          </Link>
+        );
+      },
     },
     {
       title: "所属 FE",
       dataIndex: "featureName",
-      width: 210,
+      width: 185,
       ellipsis: true,
       render: (featureName: string | null, item) => {
         if (item.type === "FEATURE") {
@@ -180,7 +196,7 @@ export function RequirementsList({
     {
       title: "状态",
       dataIndex: "status",
-      width: 130,
+      width: 115,
       render: (status: RequirementStatus, item) =>
         item.type === "USER_STORY" ? (
           <Select
@@ -204,13 +220,13 @@ export function RequirementsList({
     {
       title: "更新时间",
       dataIndex: "updatedAt",
-      width: 165,
+      width: 150,
       render: (value: string) => formatCompactDateTime(value),
     },
     {
       title: "操作",
       key: "actions",
-      width: 295,
+      width: 190,
       fixed: "right",
       render: (_, item) => {
         const detailPath =
@@ -219,64 +235,51 @@ export function RequirementsList({
             : `/user-stories/${item.id}`;
         const editPath = `${detailPath}/edit`;
         return (
-          <Space size={1}>
-            <Button
-              type="link"
-              size="small"
-              icon={<EyeOutlined />}
-              href={detailPath}
-            >
+          <Space size={2}>
+            <Button type="link" size="small" href={detailPath}>
               查看
             </Button>
-            <Button
-              type="link"
-              size="small"
-              icon={<EditOutlined />}
-              href={editPath}
-            >
+            <Button type="link" size="small" href={editPath}>
               编辑
             </Button>
-            {item.type === "FEATURE" ? (
-              <Button
-                type="link"
-                size="small"
-                icon={<PlusOutlined />}
-                href={`/features/${item.id}/user-stories/new`}
-              >
-                子 US
-              </Button>
-            ) : null}
-            <Button
-              type="link"
-              size="small"
-              icon={<CopyOutlined />}
-              onClick={() => copyRequirement(item)}
-              disabled={isPending}
+            <Dropdown
+              trigger={["click"]}
+              menu={{
+                items: [
+                  ...(item.type === "FEATURE"
+                    ? [
+                        {
+                          key: "child",
+                          icon: <PlusOutlined />,
+                          label: "新增子 US",
+                          onClick: () =>
+                            navigate(`/features/${item.id}/user-stories/new`),
+                        },
+                      ]
+                    : []),
+                  {
+                    key: "copy",
+                    icon: <CopyOutlined />,
+                    label: "复制 Markdown",
+                    disabled: isPending,
+                    onClick: () => copyRequirement(item),
+                  },
+                  { type: "divider" as const },
+                  {
+                    key: "delete",
+                    icon: <DeleteOutlined />,
+                    label: "删除",
+                    danger: true,
+                    disabled: isPending,
+                    onClick: () => confirmDeleteRequirement(item),
+                  },
+                ],
+              }}
             >
-              复制
-            </Button>
-            <Popconfirm
-              title={`删除${item.type === "FEATURE" ? " FE" : " US"}`}
-              description={
-                item.type === "FEATURE"
-                  ? `将同时删除 ${item.childCount ?? 0} 个子 US，且不能恢复。`
-                  : "删除后不能恢复，不会影响已关联的测试用例。"
-              }
-              okText="删除"
-              cancelText="取消"
-              okButtonProps={{ danger: true }}
-              onConfirm={() => deleteRequirement(item)}
-            >
-              <Button
-                type="link"
-                size="small"
-                danger
-                icon={<DeleteOutlined />}
-                disabled={isPending}
-              >
-                删除
+              <Button type="text" size="small" icon={<MoreOutlined />}>
+                更多
               </Button>
-            </Popconfirm>
+            </Dropdown>
           </Space>
         );
       },
@@ -286,10 +289,10 @@ export function RequirementsList({
   return (
     <>
       {messageContext}
-      <div className="content-panel">
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-5 py-4">
+      <div className="content-panel table-page-panel">
+        <div className="table-toolbar">
           <Input.Search
-            className="w-72"
+            className="table-search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onSearch={() => updateQuery({ q: query.trim(), page: 1 })}
@@ -339,13 +342,13 @@ export function RequirementsList({
               type="link"
               onClick={() => {
                 setQuery("");
-                router.push("/requirements");
+                navigate("/requirements");
               }}
             >
               重置筛选
             </Button>
           ) : null}
-          <div className="ml-auto flex gap-2">
+          <div className="table-toolbar__actions">
             <Button icon={<PlusOutlined />} href="/user-stories/new">
               新建独立 US
             </Button>
@@ -358,8 +361,8 @@ export function RequirementsList({
           rowKey={(item) => `${item.type}-${item.id}`}
           columns={columns}
           dataSource={items}
-          loading={isPending}
-          scroll={{ x: 1360 }}
+          loading={isPending || isNavigating}
+          scroll={{ x: 1150, y: "100%" }}
           pagination={{
             current: filters.page,
             pageSize: 20,

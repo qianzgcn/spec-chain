@@ -46,7 +46,7 @@ export default async function RequirementsPage({
             <p className="page-description">请先创建项目，再开始编写需求。</p>
           </div>
         </div>
-        <div className="content-panel py-20">
+        <div className="content-panel empty-panel">
           <Empty description="当前没有可用项目">
             <Button type="primary" href="/projects">
               创建项目
@@ -169,7 +169,7 @@ export default async function RequirementsPage({
     }));
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell--table">
       <div className="page-heading">
         <div>
           <h1 className="page-title">需求</h1>

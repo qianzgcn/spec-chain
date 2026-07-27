@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import Image from "next/image";
 import { redirect } from "next/navigation";
 
 import { LoginForm } from "@/app/(auth)/login/login-form";
@@ -28,7 +29,13 @@ export default async function LoginPage({
     <main className={styles.page}>
       <section className={styles.brandPanel}>
         <div className={styles.brand}>
-          <span className={styles.brandMark}>SC</span>
+          <Image
+            className={styles.brandMark}
+            src="/specchain.svg"
+            alt=""
+            width={34}
+            height={34}
+          />
           <span>SpecChain</span>
         </div>
         <div className={styles.brandCopy}>

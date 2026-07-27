@@ -43,7 +43,7 @@ export default async function TestCasesPage({
             </p>
           </div>
         </div>
-        <div className="content-panel py-20">
+        <div className="content-panel empty-panel">
           <Empty description="当前没有可用项目">
             <Button type="primary" href="/projects">
               创建项目
@@ -106,11 +106,9 @@ export default async function TestCasesPage({
       priority: true,
       enabled: true,
       script: true,
+      steps: true,
       updatedAt: true,
       group: { select: { name: true } },
-      _count: {
-        select: { steps: { where: { deletedAt: null } } },
-      },
       runs: {
         orderBy: { queuedAt: "desc" },
         take: 1,
@@ -127,13 +125,14 @@ export default async function TestCasesPage({
     priority: testCase.priority,
     enabled: testCase.enabled,
     hasScript: Boolean(testCase.script?.trim()),
-    stepCount: testCase._count.steps,
+    stepCount: testCase.steps.split(/\r?\n/).filter((line) => line.trim())
+      .length,
     lastRunStatus: testCase.runs[0]?.status ?? null,
     updatedAt: testCase.updatedAt.toISOString(),
   }));
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell--table">
       <div className="page-heading">
         <div>
           <h1 className="page-title">测试用例</h1>

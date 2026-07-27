@@ -22,7 +22,7 @@ export default async function UsersPage() {
   });
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell--table">
       <div className="page-heading">
         <div>
           <h1 className="page-title">用户管理</h1>

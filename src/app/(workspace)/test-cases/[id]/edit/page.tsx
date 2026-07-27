@@ -25,10 +25,6 @@ export default async function EditTestCasePage({
     db.testCase.findFirst({
       where: { id, projectId: project.id, deletedAt: null },
       include: {
-        steps: {
-          where: { deletedAt: null },
-          orderBy: { position: "asc" },
-        },
         userStoryLinks: {
           where: {
             deletedAt: null,
@@ -63,11 +59,7 @@ export default async function EditTestCasePage({
     preconditions: testCase.preconditions ?? "",
     enabled: testCase.enabled,
     script: testCase.script ?? "",
-    steps: testCase.steps.map((step) => ({
-      id: step.id,
-      action: step.action,
-      expectedResult: step.expectedResult,
-    })),
+    steps: testCase.steps,
     userStoryIds: testCase.userStoryLinks.map((link) => link.userStoryId),
   };
 

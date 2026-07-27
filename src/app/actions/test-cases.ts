@@ -17,12 +17,6 @@ const groupNameSchema = z
   .min(1, "请输入分组名称")
   .max(100, "分组名称不能超过 100 个字符");
 
-const testStepSchema = z.object({
-  id: z.string().optional(),
-  action: z.string().trim().min(1, "操作步骤不能为空"),
-  expectedResult: z.string().trim().min(1, "预期结果不能为空"),
-});
-
 const testCaseSchema = z.object({
   name: z
     .string()
@@ -43,7 +37,11 @@ const testCaseSchema = z.object({
     .max(500_000, "自动化脚本不能超过 500000 个字符")
     .optional()
     .default(""),
-  steps: z.array(testStepSchema).min(1, "至少需要一条测试步骤"),
+  steps: z
+    .string()
+    .trim()
+    .min(1, "测试步骤不能为空")
+    .max(100_000, "测试步骤内容过长"),
   userStoryIds: z.array(z.string()).default([]),
 });
 
@@ -241,15 +239,9 @@ export async function createTestCaseAction(
       name: parsed.data.name,
       priority: parsed.data.priority,
       preconditions: parsed.data.preconditions || null,
+      steps: parsed.data.steps,
       enabled: parsed.data.enabled,
       script: parsed.data.script.trim() || null,
-      steps: {
-        create: parsed.data.steps.map((step, position) => ({
-          position,
-          action: step.action,
-          expectedResult: step.expectedResult,
-        })),
-      },
       userStoryLinks: {
         create: parsed.data.userStoryIds.map((userStoryId) => ({
           userStoryId,
@@ -285,13 +277,7 @@ export async function updateTestCaseAction(
   const [testCase, validation] = await Promise.all([
     db.testCase.findFirst({
       where: { id, projectId: project.id, deletedAt: null },
-      select: {
-        id: true,
-        steps: {
-          where: { deletedAt: null },
-          select: { id: true },
-        },
-      },
+      select: { id: true },
     }),
     validateGroupAndStories(
       project.id,
@@ -305,14 +291,6 @@ export async function updateTestCaseAction(
   }
   if (!validation.ok) return validation;
 
-  const inputStepIds = new Set(
-    parsed.data.steps.flatMap((step) => (step.id ? [step.id] : [])),
-  );
-  const existingStepIds = new Set(testCase.steps.map((step) => step.id));
-  if ([...inputStepIds].some((stepId) => !existingStepIds.has(stepId))) {
-    return { ok: false, message: "测试步骤中包含无效数据" };
-  }
-
   await db.$transaction(async (transaction) => {
     await transaction.testCase.update({
       where: { id },
@@ -321,41 +299,11 @@ export async function updateTestCaseAction(
         name: parsed.data.name,
         priority: parsed.data.priority,
         preconditions: parsed.data.preconditions || null,
+        steps: parsed.data.steps,
         enabled: parsed.data.enabled,
         script: parsed.data.script.trim() || null,
       },
     });
-
-    await transaction.testStep.updateMany({
-      where: {
-        testCaseId: id,
-        deletedAt: null,
-        id: { notIn: [...inputStepIds] },
-      },
-      data: { deletedAt: new Date() },
-    });
-
-    for (const [position, step] of parsed.data.steps.entries()) {
-      if (step.id) {
-        await transaction.testStep.update({
-          where: { id: step.id },
-          data: {
-            position,
-            action: step.action,
-            expectedResult: step.expectedResult,
-          },
-        });
-      } else {
-        await transaction.testStep.create({
-          data: {
-            testCaseId: id,
-            position,
-            action: step.action,
-            expectedResult: step.expectedResult,
-          },
-        });
-      }
-    }
 
     await transaction.testCaseUserStory.updateMany({
       where: {

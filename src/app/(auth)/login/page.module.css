@@ -1,7 +1,9 @@
 .page {
   display: grid;
   grid-template-columns: minmax(520px, 0.95fr) minmax(580px, 1.05fr);
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
   background: #f5f7f9;
 }
 
@@ -24,15 +26,9 @@
 }
 
 .brandMark {
-  display: grid;
   width: 34px;
   height: 34px;
-  place-items: center;
-  border: 1px solid rgb(255 255 255 / 26%);
-  border-radius: 6px;
-  background: #087ca7;
-  font-size: 12px;
-  letter-spacing: 0.04em;
+  border-radius: 7px;
 }
 
 .brandCopy {
@@ -50,7 +46,7 @@
 
 .brandCopy h1 {
   margin: 0;
-  font-size: clamp(38px, 4vw, 56px);
+  font-size: clamp(36px, 3vw, 48px);
   font-weight: 620;
   letter-spacing: -0.045em;
   line-height: 1.18;

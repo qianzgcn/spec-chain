@@ -35,7 +35,7 @@ export default async function ProjectsPage() {
   ]);
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell--table">
       <div className="page-heading">
         <div>
           <h1 className="page-title">项目管理</h1>

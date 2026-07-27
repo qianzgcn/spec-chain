@@ -1,0 +1,193 @@
+.form {
+  width: 100%;
+  max-width: none;
+  overflow: visible;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow:
+    0 1px 2px rgb(20 36 50 / 4%),
+    0 6px 20px rgb(20 36 50 / 3%);
+}
+
+.section {
+  padding: 30px 32px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sectionIntro {
+  margin-bottom: 20px;
+}
+
+.sectionIntro h2 {
+  margin: 0 0 5px;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+.sectionIntro p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.sectionContent {
+  min-width: 0;
+}
+
+.twoColumns,
+.repositoryRow {
+  display: grid;
+}
+
+.twoColumns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.lastFormItem {
+  margin-bottom: 0 !important;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.repositoryRow,
+.variableRow {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.repositoryRow {
+  padding: 14px 14px 15px;
+  grid-template-columns: minmax(0, 1fr) 180px 36px;
+  gap: 12px;
+  align-items: start;
+}
+
+.repositoryRow :global(.ant-form-item),
+.variableRow :global(.ant-form-item) {
+  margin-bottom: 0;
+}
+
+.variableRow {
+  display: grid;
+  padding: 12px 14px 13px;
+  grid-template-columns:
+    minmax(170px, 0.9fr) 174px minmax(220px, 1.1fr)
+    minmax(200px, 1.2fr) 36px;
+  gap: 12px;
+  align-items: start;
+}
+
+.deleteButton {
+  margin-top: 26px;
+}
+
+.addButton {
+  align-self: flex-start;
+}
+
+.emptyList {
+  display: flex;
+  min-height: 82px;
+  padding: 16px 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  background: #fbfcfd;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.emptyList > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.emptyList strong {
+  color: #334454;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.emptyList span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.emptyList :global(.ant-btn) {
+  border-color: #cbd5dc;
+  background: #fff;
+  color: #3c5261;
+}
+
+.variableNotice {
+  margin-bottom: 14px;
+}
+
+.saveBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 8;
+  display: flex;
+  min-height: 66px;
+  padding: 14px 32px;
+  border-radius: 0 0 10px 10px;
+  background: var(--surface);
+  box-shadow:
+    0 -1px 0 var(--border),
+    0 -10px 24px rgb(20 36 50 / 5%);
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.saveState {
+  display: flex;
+  color: var(--text-secondary);
+  font-size: 13px;
+  align-items: center;
+  gap: 8px;
+}
+
+.savedDot,
+.unsavedDot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.savedDot {
+  background: #52a36a;
+}
+
+.unsavedDot {
+  background: #d5932d;
+}
+
+@media (max-width: 1440px) {
+  .section {
+    padding: 26px 28px;
+  }
+
+  .sectionIntro {
+    margin-bottom: 18px;
+  }
+
+  .saveBar {
+    padding-right: 28px;
+    padding-left: 28px;
+  }
+}

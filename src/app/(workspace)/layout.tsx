@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell/app-shell";
+import { NavigationFeedbackProvider } from "@/components/app-shell/navigation-feedback";
 import { requireUser } from "@/server/auth/session";
 import {
   getActiveProjects,
@@ -17,19 +18,21 @@ export default async function WorkspaceLayout({
   ]);
 
   return (
-    <AppShell
-      user={user}
-      projects={projects.map((project) => ({
-        id: project.id,
-        name: project.name,
-      }))}
-      currentProject={
-        currentProject
-          ? { id: currentProject.id, name: currentProject.name }
-          : null
-      }
-    >
-      {children}
-    </AppShell>
+    <NavigationFeedbackProvider>
+      <AppShell
+        user={user}
+        projects={projects.map((project) => ({
+          id: project.id,
+          name: project.name,
+        }))}
+        currentProject={
+          currentProject
+            ? { id: currentProject.id, name: currentProject.name }
+            : null
+        }
+      >
+        {children}
+      </AppShell>
+    </NavigationFeedbackProvider>
   );
 }

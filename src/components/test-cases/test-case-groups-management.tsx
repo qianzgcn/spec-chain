@@ -16,6 +16,7 @@ import {
   message,
 } from "antd";
 import type { TableProps } from "antd";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import {
@@ -39,20 +40,17 @@ type GroupFormValues = {
 export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
   const router = useRouter();
   const [messageApi, messageContext] = message.useMessage();
-  const [form] = Form.useForm<GroupFormValues>();
   const [editingGroup, setEditingGroup] = useState<GroupItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function openCreate() {
     setEditingGroup(null);
-    form.resetFields();
     setModalOpen(true);
   }
 
   function openEdit(group: GroupItem) {
     setEditingGroup(group);
-    form.setFieldsValue({ name: group.name });
     setModalOpen(true);
   }
 
@@ -68,7 +66,6 @@ export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
 
       messageApi.success(result.message);
       setModalOpen(false);
-      form.resetFields();
       router.refresh();
     });
   }
@@ -96,7 +93,18 @@ export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
       title: "用例数量",
       dataIndex: "testCaseCount",
       width: 140,
-      render: (count: number) => `${count} 个`,
+      render: (count: number, group) => (
+        <Link
+          href={{
+            pathname: "/test-cases",
+            query: { group: group.id },
+          }}
+          className="font-medium text-cyan-700 hover:text-cyan-800 hover:underline"
+          aria-label={`查看 ${group.name} 分组的 ${count} 个测试用例`}
+        >
+          {count} 个
+        </Link>
+      ),
     },
     {
       title: "更新时间",
@@ -148,12 +156,17 @@ export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
   return (
     <>
       {messageContext}
-      <div className="content-panel max-w-[1000px]">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <span className="text-sm text-slate-500">
+      <div className="content-panel table-page-panel">
+        <div className="table-toolbar">
+          <span className="table-toolbar__summary">
             平级分组；包含未删除用例的分组不能删除。
           </span>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+          <Button
+            className="ml-auto"
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={openCreate}
+          >
             新建分组
           </Button>
         </div>
@@ -162,7 +175,12 @@ export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
           columns={columns}
           dataSource={groups}
           loading={isPending}
-          pagination={false}
+          scroll={{ y: "100%" }}
+          pagination={{
+            pageSize: 20,
+            showSizeChanger: false,
+            showTotal: (count) => `共 ${count} 个分组`,
+          }}
           locale={{ emptyText: "还没有用例分组" }}
         />
       </div>
@@ -176,7 +194,9 @@ export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
         width={480}
       >
         <Form<GroupFormValues>
-          form={form}
+          key={editingGroup?.id ?? "create"}
+          initialValues={{ name: editingGroup?.name ?? "" }}
+          preserve={false}
           layout="vertical"
           requiredMark={false}
           className="pt-3"

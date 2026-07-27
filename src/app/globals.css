@@ -1,12 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --app-bg: #f3f5f7;
+  --app-bg: #f5f7f9;
   --surface: #ffffff;
-  --text: #17212b;
-  --text-secondary: #607080;
-  --border: #dce2e8;
-  --accent: #087ca7;
+  --surface-subtle: #f8fafb;
+  --text: #17232e;
+  --text-secondary: #667585;
+  --text-muted: #8a98a5;
+  --border: #dfe5ea;
+  --border-strong: #cdd6de;
+  --accent: #0b7f9f;
+  --accent-hover: #086d8a;
 }
 
 * {
@@ -15,7 +19,10 @@
 
 html,
 body {
-  min-height: 100%;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 body {
@@ -24,7 +31,10 @@ body {
   color: var(--text);
   font-family:
     "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -39,10 +49,21 @@ a {
   text-decoration: none;
 }
 
+::selection {
+  background: rgb(11 127 159 / 18%);
+}
+
 .page-shell {
   width: 100%;
-  max-width: 1560px;
+  max-width: 1480px;
   margin: 0 auto;
+}
+
+.page-shell--table {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
 }
 
 .page-heading {
@@ -50,43 +71,125 @@ a {
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .page-title {
   margin: 0;
   color: var(--text);
-  font-size: 24px;
-  font-weight: 650;
-  line-height: 1.35;
+  font-size: 26px;
+  font-weight: 680;
+  letter-spacing: -0.025em;
+  line-height: 1.3;
 }
 
 .page-description {
-  margin: 6px 0 0;
+  max-width: 780px;
+  margin: 7px 0 0;
   color: var(--text-secondary);
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.65;
 }
 
 .content-panel {
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--surface);
+  box-shadow:
+    0 1px 2px rgb(20 36 50 / 4%),
+    0 6px 20px rgb(20 36 50 / 3%);
 }
 
-.form-panel {
-  max-width: 980px;
-  padding: 28px 32px;
+.table-page-panel {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.table-page-panel > .ant-table-wrapper,
+.table-page-panel > .ant-table-wrapper > .ant-spin,
+.table-page-panel > .ant-table-wrapper > .ant-spin > .ant-spin-container,
+.table-page-panel .ant-table,
+.table-page-panel .ant-table-container {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.table-page-panel .ant-table-body {
+  min-height: 0;
+  max-height: none !important;
+  flex: 1 1 auto;
+  overflow-y: auto !important;
+}
+
+.table-page-panel .ant-table-pagination {
+  margin: 14px 16px !important;
+  flex: 0 0 auto;
+}
+
+.form-panel.ant-form {
+  width: 100%;
+  max-width: 1060px;
+  padding: 30px 32px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--surface);
+  box-shadow:
+    0 1px 2px rgb(20 36 50 / 4%),
+    0 6px 20px rgb(20 36 50 / 3%);
 }
 
 .form-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
   display: flex;
+  min-height: 65px;
+  margin: 28px -32px -30px;
+  padding: 14px 32px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 10px 10px;
+  background: var(--surface);
+  box-shadow: 0 -10px 24px rgb(20 36 50 / 5%);
   gap: 12px;
+  align-items: center;
   justify-content: flex-end;
-  padding-top: 8px;
+}
+
+.table-toolbar {
+  display: flex;
+  min-height: 64px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.table-toolbar__summary {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.table-toolbar__actions {
+  display: flex;
+  margin-left: auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-search {
+  width: 280px !important;
+  flex: 0 0 280px;
+}
+
+.empty-panel {
+  padding: 72px 24px;
 }
 
 .markdown-content {
@@ -119,4 +222,56 @@ a {
 
 .markdown-content code {
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+}
+
+.ant-form-item .ant-form-item-label > label {
+  color: #344454;
+  font-weight: 550;
+}
+
+.ant-form-item .ant-form-item-extra {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.form-panel .ant-divider-horizontal.ant-divider-with-text {
+  margin: 30px 0 22px;
+  color: #2e3e4d;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr > td {
+  color: #334354;
+}
+
+.ant-btn {
+  box-shadow: none;
+}
+
+.ant-modal .ant-modal-title {
+  font-weight: 650;
+}
+
+@media (max-width: 1440px) {
+  .page-title {
+    font-size: 24px;
+  }
+
+  .form-panel.ant-form {
+    padding: 28px;
+  }
+
+  .form-actions {
+    margin-right: -28px;
+    margin-bottom: -28px;
+    margin-left: -28px;
+    padding-right: 28px;
+    padding-left: 28px;
+  }
 }

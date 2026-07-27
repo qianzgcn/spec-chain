@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 
 import ApartmentOutlined from "@ant-design/icons/ApartmentOutlined";
+import DownOutlined from "@ant-design/icons/DownOutlined";
 import FileTextOutlined from "@ant-design/icons/FileTextOutlined";
 import FolderOpenOutlined from "@ant-design/icons/FolderOpenOutlined";
 import LogoutOutlined from "@ant-design/icons/LogoutOutlined";
@@ -10,28 +11,29 @@ import SettingOutlined from "@ant-design/icons/SettingOutlined";
 import SolutionOutlined from "@ant-design/icons/SolutionOutlined";
 import TeamOutlined from "@ant-design/icons/TeamOutlined";
 import UserOutlined from "@ant-design/icons/UserOutlined";
-import {
-  Avatar,
-  Dropdown,
-  Layout,
-  Menu,
-  Select,
-  Space,
-  Typography,
-  message,
-} from "antd";
+import { Avatar, Dropdown, Layout, Menu, Select, message } from "antd";
 import type { MenuProps } from "antd";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 
 import { logoutAction } from "@/app/actions/auth";
 import { switchProjectAction } from "@/app/actions/projects";
 import { UserRole } from "@/generated/prisma/enums";
+import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
 import { ChangePasswordModal } from "@/components/auth/change-password-modal";
 import { confirmLeaveIfDirty } from "@/hooks/use-unsaved-changes";
 
 import styles from "./app-shell.module.css";
 
 const { Header, Sider, Content } = Layout;
+
+const TABLE_PAGE_PATHS = new Set([
+  "/requirements",
+  "/test-cases",
+  "/test-case-groups",
+  "/projects",
+  "/users",
+]);
 
 type AppShellProps = {
   user: {
@@ -64,6 +66,10 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const contentClassName = TABLE_PAGE_PATHS.has(pathname)
+    ? `${styles.content} ${styles.tableContent}`
+    : styles.content;
+  const { isNavigating, navigate } = useNavigationFeedback();
   const [messageApi, messageContext] = message.useMessage();
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [isSwitching, startSwitchTransition] = useTransition();
@@ -141,9 +147,9 @@ export function AppShell({
     },
   ];
 
-  function navigate({ key }: { key: string }) {
-    if (key.startsWith("/") && confirmLeaveIfDirty()) {
-      router.push(key);
+  function navigateFromMenu({ key }: { key: string }) {
+    if (key.startsWith("/")) {
+      navigate(key);
     }
   }
 
@@ -156,7 +162,7 @@ export function AppShell({
         messageApi.error(result.message);
         return;
       }
-      router.push("/requirements");
+      navigate("/requirements");
       router.refresh();
     });
   }
@@ -165,27 +171,16 @@ export function AppShell({
     <>
       {messageContext}
       <Layout className={styles.layout}>
-        <Sider className={styles.sider} width={232}>
+        <Sider className={styles.sider} width={240}>
           <div className={styles.logo}>
-            <span className={styles.logoMark}>SC</span>
-            <span>SpecChain</span>
-          </div>
-
-          <div className={styles.projectArea}>
-            <div className={styles.projectLabel}>当前项目</div>
-            <Select
-              className={styles.projectSelect}
-              value={currentProject?.id}
-              placeholder="暂无项目"
-              options={projects.map((project) => ({
-                label: project.name,
-                value: project.id,
-              }))}
-              onChange={switchProject}
-              loading={isSwitching}
-              disabled={projects.length === 0}
-              suffixIcon={<ApartmentOutlined />}
+            <Image
+              className={styles.logoMark}
+              src="/specchain.svg"
+              alt=""
+              width={34}
+              height={34}
             />
+            <span className={styles.logoName}>SpecChain</span>
           </div>
 
           <Menu
@@ -195,27 +190,57 @@ export function AppShell({
             items={menuItems}
             selectedKeys={[resolveSelectedKey(pathname)]}
             defaultOpenKeys={["test-cases-root"]}
-            onClick={navigate}
+            onClick={navigateFromMenu}
           />
         </Sider>
 
         <Layout className={styles.mainLayout}>
           <Header className={styles.header}>
-            <div className={styles.context}>
-              <Typography.Text className={styles.contextLabel}>
-                {currentProject?.name ?? "平台管理"}
-              </Typography.Text>
+            <div className={styles.projectContext}>
+              <span className={styles.projectContextIcon}>
+                <ApartmentOutlined />
+              </span>
+              <div className={styles.projectContextBody}>
+                <span className={styles.projectContextLabel}>当前项目</span>
+                {projects.length > 0 ? (
+                  <Select
+                    className={styles.projectSelect}
+                    value={currentProject?.id}
+                    placeholder="请选择项目"
+                    options={projects.map((project) => ({
+                      label: project.name,
+                      value: project.id,
+                    }))}
+                    onChange={switchProject}
+                    loading={isSwitching}
+                    variant="borderless"
+                    suffixIcon={<DownOutlined />}
+                  />
+                ) : (
+                  <button
+                    className={styles.emptyProject}
+                    type="button"
+                    onClick={() => navigate("/projects")}
+                  >
+                    <span>暂无项目</span>
+                    <strong>创建项目</strong>
+                  </button>
+                )}
+              </div>
             </div>
             <Dropdown menu={{ items: userMenu }} trigger={["click"]}>
               <button className={styles.userButton} type="button">
-                <Space size={9}>
-                  <Avatar size={30} icon={<UserOutlined />} />
-                  <span>{user.username}</span>
-                </Space>
+                <Avatar className={styles.userAvatar} size={30}>
+                  {user.username.slice(0, 1).toUpperCase()}
+                </Avatar>
+                <span className={styles.userName}>{user.username}</span>
+                <DownOutlined className={styles.userChevron} />
               </button>
             </Dropdown>
           </Header>
-          <Content className={styles.content}>{children}</Content>
+          <Content className={contentClassName} aria-busy={isNavigating}>
+            {children}
+          </Content>
         </Layout>
       </Layout>
 

@@ -125,16 +125,14 @@ export function UserStoryForm({
             className="mb-5"
             type="info"
             showIcon
-            title={`所属 FE：${feature.code} · ${feature.name}`}
-            description="子 US 创建后不能迁移或解除归属。"
+            title={`所属 FE：${feature.code} · ${feature.name}。子 US 创建后不能迁移或解除归属。`}
           />
         ) : (
           <Alert
             className="mb-5"
             type="info"
             showIcon
-            title="独立 US"
-            description="独立 US 创建后不能再加入某个 FE。"
+            title="独立 US：创建后不能再加入某个 FE。"
           />
         )}
 
