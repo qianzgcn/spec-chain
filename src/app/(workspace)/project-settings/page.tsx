@@ -1,37 +1,28 @@
 import type { Metadata } from "next";
 
-import { Button, Empty } from "antd";
-
-import { ProjectSettingsForm } from "@/components/projects/project-settings-form";
+import { ProjectBasicSettingsForm } from "@/components/projects/project-basic-settings-form";
+import {
+  NoCurrentProject,
+  ProjectSettingsPage,
+} from "@/components/projects/project-settings-page";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
 export const metadata: Metadata = {
-  title: "项目设置",
+  title: "基础设置",
 };
 
-export default async function ProjectSettingsPage() {
+export default async function ProjectBasicSettingsPage() {
   const currentProject = await getCurrentProject();
 
   if (!currentProject) {
     return (
-      <div className="page-shell">
-        <div className="page-heading">
-          <div>
-            <h1 className="page-title">项目设置</h1>
-            <p className="page-description">
-              配置当前项目的基础地址、代码仓库和自动化运行变量。
-            </p>
-          </div>
-        </div>
-        <div className="content-panel empty-panel">
-          <Empty description="请先创建一个项目">
-            <Button type="primary" href="/projects">
-              前往项目管理
-            </Button>
-          </Empty>
-        </div>
-      </div>
+      <ProjectSettingsPage
+        title="基础设置"
+        description="维护当前项目的名称、访问地址和业务说明。"
+      >
+        <NoCurrentProject />
+      </ProjectSettingsPage>
     );
   }
 
@@ -42,56 +33,23 @@ export default async function ProjectSettingsPage() {
       name: true,
       description: true,
       baseUrl: true,
-      repositories: {
-        where: { deletedAt: null },
-        orderBy: { position: "asc" },
-        select: { id: true, gitUrl: true, branch: true },
-      },
-      variables: {
-        where: { deletedAt: null },
-        orderBy: { position: "asc" },
-        select: {
-          id: true,
-          name: true,
-          value: true,
-          description: true,
-          kind: true,
-        },
-      },
     },
   });
 
   return (
-    <div className="page-shell">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">项目设置</h1>
-          <p className="page-description">
-            配置当前项目的基础地址、代码仓库和自动化运行变量。
-          </p>
-        </div>
-      </div>
-
-      <ProjectSettingsForm
+    <ProjectSettingsPage
+      title="基础设置"
+      description="维护当前项目的名称、访问地址和业务说明。"
+    >
+      <ProjectBasicSettingsForm
+        key={project.id}
         project={{
           id: project.id,
           name: project.name,
           description: project.description ?? "",
           baseUrl: project.baseUrl ?? "",
-          repositories: project.repositories.map((repository) => ({
-            id: repository.id,
-            gitUrl: repository.gitUrl,
-            branch: repository.branch,
-          })),
-          variables: project.variables.map((variable) => ({
-            id: variable.id,
-            name: variable.name,
-            value: variable.kind === "SECRET" ? "" : variable.value,
-            description: variable.description ?? "",
-            kind: variable.kind,
-          })),
         }}
       />
-    </div>
+    </ProjectSettingsPage>
   );
 }

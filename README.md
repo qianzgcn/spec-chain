@@ -7,7 +7,7 @@ SpecChain 是面向团队内部使用的需求与测试用例管理平台。首�
 ## 首版能力
 
 - 用户名和密码登录、数据库会话、管理员用户管理及修改密码。
-- 项目、代码仓库、普通变量和加密敏感变量管理。
+- 项目、代码仓库、GitHub/Gitee 加密凭据、连接检查和运行变量管理。
 - Feature 与用户故事统一需求列表，支持检索、筛选和 Markdown 复制。
 - 标准用户故事模板：`As`、`I want`、`so that` 及多条 `Given/When/Then` 验收标准。
 - 测试用例分组、优先级、结构化步骤、多用户故事关联和 Playwright TypeScript 脚本。
@@ -55,7 +55,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 - 将 `ADMIN_PASSWORD` 改为至少 8 位的安全密码。
 - 本地使用 HTTP 时保持 `SESSION_COOKIE_SECURE="false"`。
 
-敏感变量加密后与当前 `APP_ENCRYPTION_KEY` 绑定。系统已有数据后不得随意更换该密钥，否则已保存的敏感变量将无法解密。
+敏感变量和仓库 PAT 加密后都与当前 `APP_ENCRYPTION_KEY` 绑定。系统已有数据后不得随意更换该密钥，否则已保存的敏感数据将无法解密。
 
 ### 3. 安装并运行
 
@@ -68,6 +68,14 @@ npm run dev
 访问 [http://localhost:3000](http://localhost:3000)。首次启动会自动创建 SQLite 文件、执行数据库迁移，并创建 `.env` 中配置的初始管理员。
 
 如果管理员已经存在，后续启动不会用 `ADMIN_PASSWORD` 覆盖其当前密码。
+
+## GitHub/Gitee 仓库连接
+
+每个项目可分别配置一份 GitHub PAT 和 Gitee PAT，同项目的仓库会根据地址自动选择对应凭据。PAT 使用 AES-256-GCM 加密保存，已配置值只显示固定掩码且不能直接修改；如需更换，必须先删除再新增。
+
+首版支持 `github.com` 和 `gitee.com` 的 HTTPS、SCP 风格 SSH 及标准 SSH 仓库根地址，不支持企业私有域名。建议 PAT 仅授予目标仓库所需的最小读取权限。
+
+“检查连接”通过托管平台 API 验证 PAT、仓库和指定分支是否可访问，不会执行 Git clone、pull 或 push，也不代表 Git 协议通道已经验证。
 
 ## 容器部署
 

@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import Database from "better-sqlite3";
+import path from "node:path";
 
 async function expectTablePageFillsWorkspace(page: Page) {
   const metrics = await page.locator("main").evaluate((main) => {
@@ -44,6 +46,42 @@ async function expectTablePageFillsWorkspace(page: Page) {
   expect(metrics.paginationBottomGap).toBeLessThanOrEqual(24);
 }
 
+async function expectTestCaseActionsAligned(page: Page) {
+  const alignment = await page.evaluate(() => {
+    const header = [
+      ...document.querySelectorAll<HTMLTableCellElement>(
+        ".ant-table-header th",
+      ),
+    ].find((cell) => cell.textContent?.trim() === "操作");
+    const row = document.querySelector<HTMLTableRowElement>(
+      "tbody tr:not(.ant-table-measure-row)",
+    );
+    const content = header
+      ? (row?.cells.item(header.cellIndex) as HTMLElement | null)
+      : null;
+    const actions = content?.querySelector<HTMLElement>(
+      '[data-testid="test-case-actions"]',
+    );
+
+    if (!header || !content || !actions) return null;
+    const headerRect = header.getBoundingClientRect();
+    const actionsRect = actions.getBoundingClientRect();
+
+    return {
+      headerCenter: (headerRect.left + headerRect.right) / 2,
+      actionsCenter: (actionsRect.left + actionsRect.right) / 2,
+    };
+  });
+
+  expect(alignment).not.toBeNull();
+  expect(
+    Math.abs(alignment!.headerCenter - alignment!.actionsCenter),
+  ).toBeLessThanOrEqual(1);
+  const moreButton = page.getByRole("button", { name: "更多操作" }).first();
+  await expect(moreButton).toBeVisible();
+  await expect(moreButton).toHaveText("");
+}
+
 test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await page.goto("/login");
 
@@ -62,7 +100,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await page
     .getByRole("textbox", { name: "项目描述" })
     .fill("自动化验收使用的独立项目");
-  await page.getByRole("button", { name: "创建项目" }).click();
+  await page.getByRole("button", { name: "创建项目", exact: true }).click();
   await expect(page).toHaveURL(/\/project-settings$/);
 
   await page.goto("/features/new");
@@ -121,9 +159,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
     await route.continue();
   });
   await page.getByRole("link", { name: "执行记录" }).click();
-  await expect(
-    page.getByRole("status", { name: "正在加载页面" }),
-  ).toBeVisible();
+  await expect(page.getByText("正在加载…")).toBeVisible();
   await expect(page).toHaveURL(/\/test-cases\/.+\/runs$/);
   await expect(page.getByRole("heading", { name: "执行记录" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "自动化运行" })).toBeVisible();
@@ -146,13 +182,99 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   ]) {
     await page.goto(path);
     await expectTablePageFillsWorkspace(page);
+    if (path === "/test-cases") {
+      await expectTestCaseActionsAligned(page);
+    }
   }
 
   await page.goto("/project-settings");
+  await expect(page.getByRole("heading", { name: "基础设置" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "保存" })).toBeDisabled();
+  await expect(page.getByText("当前设置已保存")).toHaveCount(0);
+
+  await page.goto("/project-settings/variables");
+  await expect(
+    page.getByRole("heading", { name: "项目变量", level: 1 }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "添加变量" }).click();
   const variableType = page.getByRole("combobox", { name: "类型" });
   await expect(variableType).toBeVisible();
   await variableType.click();
-  await page.getByRole("option", { name: "敏感变量" }).click();
+  await page
+    .locator(".ant-select-item-option", { hasText: "敏感变量" })
+    .click();
   await expect(page.getByLabel("值")).toHaveAttribute("type", "password");
+  await page.getByRole("textbox", { name: "变量名" }).fill("E2E_SECRET");
+  await page.getByLabel("值").fill("e2e-secret-value");
+  const saveVariablesButton = page.getByRole("button", { name: "保存" });
+  await saveVariablesButton.click();
+  await expect(saveVariablesButton).toBeDisabled();
+  await expect(page.getByText("当前设置已保存")).toHaveCount(0);
+
+  await page.goto("/project-settings/repositories");
+  await expect(
+    page.getByRole("heading", { name: "代码仓库", level: 1 }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "添加仓库" }).click();
+  await page
+    .getByRole("textbox", { name: "Git 地址" })
+    .fill("https://github.com/qianzgcn/spec-chain.git");
+  await page.getByRole("button", { name: "检查连接" }).click();
+  await expect(page.getByText("请先新增 GitHub PAT")).toBeVisible();
+
+  await page.getByRole("textbox", { name: "分支" }).fill("develop");
+  await expect(page.getByText("请先新增 GitHub PAT")).toHaveCount(0);
+  await page.getByRole("textbox", { name: "分支" }).fill("main");
+  const saveRepositoriesButton = page.getByRole("button", { name: "保存" });
+  await saveRepositoriesButton.click();
+  await expect(saveRepositoriesButton).toBeDisabled();
+  await expect(page.getByText("当前设置已保存")).toHaveCount(0);
+
+  const githubPat = "e2e-github-pat";
+  const githubPatInput = page.getByRole("textbox", {
+    name: "GitHub PAT",
+    exact: true,
+  });
+  await githubPatInput.fill(githubPat);
+  await page.getByRole("button", { name: "新增 GitHub PAT" }).click();
+
+  const maskedGithubPat = page.getByRole("textbox", {
+    name: "GitHub PAT（已脱敏）",
+  });
+  await expect(maskedGithubPat).toHaveValue("••••••••••••");
+  await expect(maskedGithubPat).toHaveAttribute("readonly", "");
+  await expect(githubPatInput).toHaveCount(0);
+  await expect(page.getByText("已配置", { exact: true })).toBeVisible();
+
+  const databasePath = path.resolve(process.cwd(), "data", "e2e.db");
+  const database = new Database(databasePath, { readonly: true });
+  const encryptedCredential = database
+    .prepare(
+      'SELECT "githubPatEncrypted" FROM "Project" WHERE "name" = ? AND "deletedAt" IS NULL',
+    )
+    .get("E2E 验收项目") as { githubPatEncrypted: string };
+  database.close();
+
+  expect(encryptedCredential.githubPatEncrypted).not.toContain(githubPat);
+
+  await page.getByRole("button", { name: "删除 GitHub PAT" }).click();
+  const deletePatDialog = page.getByRole("dialog");
+  await expect(deletePatDialog).toBeVisible();
+  await deletePatDialog
+    .getByRole("button", { name: "确认删除 GitHub PAT" })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "GitHub PAT", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("未配置", { exact: true })).toHaveCount(2);
+
+  const clearedDatabase = new Database(databasePath, { readonly: true });
+  const clearedCredential = clearedDatabase
+    .prepare(
+      'SELECT "githubPatEncrypted" FROM "Project" WHERE "name" = ? AND "deletedAt" IS NULL',
+    )
+    .pluck()
+    .get("E2E 验收项目");
+  clearedDatabase.close();
+  expect(clearedCredential).toBeNull();
 });

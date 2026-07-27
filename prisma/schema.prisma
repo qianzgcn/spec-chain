@@ -68,13 +68,15 @@ model Session {
 }
 
 model Project {
-  id          String    @id @default(cuid())
-  name        String
-  description String?
-  baseUrl     String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  id                 String    @id @default(cuid())
+  name               String
+  description        String?
+  baseUrl            String?
+  githubPatEncrypted String?
+  giteePatEncrypted  String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
 
   repositories Repository[]
   variables    ProjectVariable[]

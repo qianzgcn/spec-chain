@@ -15,8 +15,24 @@
   border-bottom: 1px solid var(--border);
 }
 
+.section:last-child {
+  border-bottom: 0;
+}
+
 .sectionIntro {
   margin-bottom: 20px;
+}
+
+.sectionHeader {
+  display: flex;
+  margin-bottom: 20px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.sectionHeader .sectionIntro {
+  margin-bottom: 0;
 }
 
 .sectionIntro h2 {
@@ -59,6 +75,52 @@
   gap: 12px;
 }
 
+.credentialList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.credentialRow {
+  display: grid;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  grid-template-columns: 82px minmax(0, 1fr) 96px 56px;
+  align-items: center;
+  gap: 12px;
+}
+
+.credentialRow strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.credentialRow :global(.ant-tag) {
+  margin: 0;
+  text-align: center;
+}
+
+.credentialRow :global(.ant-btn) {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.credentialMask {
+  background: #f7f9fa !important;
+  color: #536473 !important;
+  letter-spacing: 0.12em;
+}
+
+.credentialHelp {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .repositoryRow,
 .variableRow {
   border: 1px solid var(--border);
@@ -68,7 +130,7 @@
 
 .repositoryRow {
   padding: 14px 14px 15px;
-  grid-template-columns: minmax(0, 1fr) 180px 36px;
+  grid-template-columns: minmax(0, 1fr) 160px 196px 36px;
   gap: 12px;
   align-items: start;
 }
@@ -90,6 +152,41 @@
 
 .deleteButton {
   margin-top: 26px;
+}
+
+.repositoryConnection {
+  display: flex;
+  min-height: 32px;
+  margin-top: 26px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.repositoryConnection :global(.ant-tag) {
+  min-width: 60px;
+  margin: 0;
+  text-align: center;
+}
+
+.connectionSuccess,
+.connectionError {
+  display: flex;
+  grid-column: 1 / -1;
+  min-height: 20px;
+  margin-top: -2px;
+  font-size: 13px;
+  line-height: 1.5;
+  align-items: center;
+  gap: 7px;
+}
+
+.connectionSuccess {
+  color: #2f7d48;
+}
+
+.connectionError {
+  color: #c23b3b;
 }
 
 .addButton {
@@ -136,47 +233,6 @@
   margin-bottom: 14px;
 }
 
-.saveBar {
-  position: sticky;
-  bottom: 0;
-  z-index: 8;
-  display: flex;
-  min-height: 66px;
-  padding: 14px 32px;
-  border-radius: 0 0 10px 10px;
-  background: var(--surface);
-  box-shadow:
-    0 -1px 0 var(--border),
-    0 -10px 24px rgb(20 36 50 / 5%);
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-}
-
-.saveState {
-  display: flex;
-  color: var(--text-secondary);
-  font-size: 13px;
-  align-items: center;
-  gap: 8px;
-}
-
-.savedDot,
-.unsavedDot {
-  width: 7px;
-  height: 7px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-}
-
-.savedDot {
-  background: #52a36a;
-}
-
-.unsavedDot {
-  background: #d5932d;
-}
-
 @media (max-width: 1440px) {
   .section {
     padding: 26px 28px;
@@ -186,8 +242,11 @@
     margin-bottom: 18px;
   }
 
-  .saveBar {
-    padding-right: 28px;
-    padding-left: 28px;
+  .sectionHeader {
+    margin-bottom: 18px;
+  }
+
+  .repositoryRow {
+    grid-template-columns: minmax(0, 1fr) 145px 184px 36px;
   }
 }

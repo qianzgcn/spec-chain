@@ -52,6 +52,12 @@ function resolveSelectedKey(pathname: string) {
   if (pathname.startsWith("/user-stories")) return "/requirements";
   if (pathname.startsWith("/test-case-groups")) return "/test-case-groups";
   if (pathname.startsWith("/test-cases")) return "/test-cases";
+  if (pathname.startsWith("/project-settings/repositories")) {
+    return "/project-settings/repositories";
+  }
+  if (pathname.startsWith("/project-settings/variables")) {
+    return "/project-settings/variables";
+  }
   if (pathname.startsWith("/project-settings")) return "/project-settings";
   if (pathname.startsWith("/projects")) return "/projects";
   if (pathname.startsWith("/users")) return "/users";
@@ -98,9 +104,23 @@ export function AppShell({
         ],
       },
       {
-        key: "/project-settings",
+        key: "project-settings-root",
         icon: <SettingOutlined />,
         label: "项目设置",
+        children: [
+          {
+            key: "/project-settings",
+            label: "基础设置",
+          },
+          {
+            key: "/project-settings/repositories",
+            label: "代码仓库",
+          },
+          {
+            key: "/project-settings/variables",
+            label: "项目变量",
+          },
+        ],
       },
       {
         key: "/projects",
@@ -189,7 +209,7 @@ export function AppShell({
             mode="inline"
             items={menuItems}
             selectedKeys={[resolveSelectedKey(pathname)]}
-            defaultOpenKeys={["test-cases-root"]}
+            defaultOpenKeys={["test-cases-root", "project-settings-root"]}
             onClick={navigateFromMenu}
           />
         </Sider>

@@ -203,10 +203,11 @@ export function TestCasesList({
     },
     {
       title: "操作",
-      width: 170,
+      width: 150,
       fixed: "right",
+      align: "center",
       render: (_, item) => (
-        <Space size={2}>
+        <Space size={2} data-testid="test-case-actions">
           <Button type="link" size="small" href={`/test-cases/${item.id}`}>
             查看
           </Button>
@@ -228,9 +229,12 @@ export function TestCasesList({
               ],
             }}
           >
-            <Button type="text" size="small" icon={<MoreOutlined />}>
-              更多
-            </Button>
+            <Button
+              type="text"
+              size="small"
+              icon={<MoreOutlined />}
+              aria-label="更多操作"
+            />
           </Dropdown>
         </Space>
       ),

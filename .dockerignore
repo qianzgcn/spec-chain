@@ -1,6 +1,7 @@
 .git
 .gitignore
 .next
+.next-e2e
 .playwright-cli
 data
 node_modules

@@ -4,7 +4,10 @@ const encryptionKey = Buffer.alloc(32, 7).toString("base64");
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  timeout: 60_000,
+  timeout: 120_000,
+  expect: {
+    timeout: 30_000,
+  },
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -17,9 +20,9 @@ export default defineConfig({
   },
   webServer: {
     command:
-      "node scripts/reset-e2e-database.mjs && npm run dev -- --hostname 127.0.0.1 --port 3100",
+      "node scripts/reset-e2e-database.mjs && npm run build && npm run start -- --hostname 127.0.0.1 --port 3100",
     url: "http://127.0.0.1:3100/login",
-    timeout: 120_000,
+    timeout: 180_000,
     reuseExistingServer: false,
     env: {
       DATABASE_URL: "file:./data/e2e.db",
@@ -27,6 +30,7 @@ export default defineConfig({
       ADMIN_PASSWORD: "admin12345",
       APP_ENCRYPTION_KEY: encryptionKey,
       SESSION_COOKIE_SECURE: "false",
+      SPECCHAIN_E2E: "true",
     },
   },
 });
