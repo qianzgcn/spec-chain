@@ -1,0 +1,99 @@
+.page {
+  display: grid;
+  grid-template-columns: minmax(520px, 0.95fr) minmax(580px, 1.05fr);
+  min-height: 100vh;
+  background: #f5f7f9;
+}
+
+.brandPanel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 44px 64px;
+  background: #15232e;
+  color: #fff;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.brandMark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 26%);
+  border-radius: 6px;
+  background: #087ca7;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.brandCopy {
+  width: min(520px, 100%);
+  margin: auto 0;
+}
+
+.eyebrow {
+  margin: 0 0 22px;
+  color: #62c4e5;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+}
+
+.brandCopy h1 {
+  margin: 0;
+  font-size: clamp(38px, 4vw, 56px);
+  font-weight: 620;
+  letter-spacing: -0.045em;
+  line-height: 1.18;
+}
+
+.brandCopy > p:last-child {
+  max-width: 490px;
+  margin: 30px 0 0;
+  color: #b9c8d2;
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.version {
+  margin: 0;
+  color: #708492;
+  font-size: 12px;
+}
+
+.formArea {
+  display: grid;
+  min-height: 100vh;
+  padding: 48px;
+  place-items: center;
+}
+
+.formBox {
+  width: 400px;
+}
+
+.formHeading {
+  margin-bottom: 30px;
+}
+
+.formHeading h2 {
+  margin: 0;
+  color: #17212b;
+  font-size: 28px;
+  font-weight: 650;
+}
+
+.formHeading p {
+  margin: 8px 0 0;
+  color: #6c7b88;
+  line-height: 1.6;
+}

@@ -1,26 +1,122 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --app-bg: #f3f5f7;
+  --surface: #ffffff;
+  --text: #17212b;
+  --text-secondary: #607080;
+  --border: #dce2e8;
+  --accent: #087ca7;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  min-height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--text);
+  font-family:
+    "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.page-shell {
+  width: 100%;
+  max-width: 1560px;
+  margin: 0 auto;
+}
+
+.page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.page-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.page-description {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.content-panel {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.form-panel {
+  max-width: 980px;
+  padding: 28px 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.markdown-content {
+  color: #273747;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+  margin-top: 1.4em;
+  margin-bottom: 0.65em;
+  color: #17212b;
+}
+
+.markdown-content p:first-child,
+.markdown-content h1:first-child,
+.markdown-content h2:first-child {
+  margin-top: 0;
+}
+
+.markdown-content pre {
+  overflow-x: auto;
+  padding: 14px 16px;
+  border-radius: 6px;
+  background: #111c24;
+  color: #e7edf2;
+}
+
+.markdown-content code {
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 }

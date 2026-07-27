@@ -1,0 +1,40 @@
+import type { Metadata } from "next";
+
+import { Button, Empty } from "antd";
+
+import { FeatureForm } from "@/components/requirements/feature-form";
+import { getCurrentProject } from "@/server/projects/current-project";
+
+export const metadata: Metadata = {
+  title: "新建 FE",
+};
+
+export default async function NewFeaturePage() {
+  const currentProject = await getCurrentProject();
+
+  if (!currentProject) {
+    return (
+      <div className="page-shell">
+        <Empty description="请先创建项目">
+          <Button type="primary" href="/projects">
+            前往项目管理
+          </Button>
+        </Empty>
+      </div>
+    );
+  }
+
+  return (
+    <div className="page-shell">
+      <div className="page-heading">
+        <div>
+          <h1 className="page-title">新建 FE</h1>
+          <p className="page-description">
+            FE 是复杂需求的组织单元；保存后再从 FE 内逐个创建子 US。
+          </p>
+        </div>
+      </div>
+      <FeatureForm />
+    </div>
+  );
+}

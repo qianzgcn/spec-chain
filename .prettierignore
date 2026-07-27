@@ -1,0 +1,8 @@
+.next
+AGENTS.md
+CLAUDE.md
+node_modules
+src/generated
+data
+test-results
+playwright-report

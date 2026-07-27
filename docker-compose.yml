@@ -1,0 +1,31 @@
+services:
+  specchain:
+    build:
+      context: .
+    image: specchain:1.0.0
+    container_name: specchain
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    ports:
+      - "${SPECCHAIN_PORT:-3000}:3000"
+    volumes:
+      - specchain-data:/app/data
+    shm_size: "1gb"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/login').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  specchain-data:
+    name: specchain-data
