@@ -279,10 +279,10 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   expect(clearedCredential).toBeNull();
 
   await page.goto("/ai-settings");
-  await expect(page.getByRole("heading", { name: "AI 设置" })).toBeVisible();
-  await page.getByRole("button", { name: "新建模型档案" }).click();
+  await expect(page.getByRole("heading", { name: "模型配置" })).toBeVisible();
+  await page.getByRole("button", { name: "新建模型" }).click();
   await page
-    .getByRole("textbox", { name: "档案名称" })
+    .getByRole("textbox", { name: "模型名称" })
     .fill("E2E OpenAI 兼容模型");
   await page
     .getByRole("textbox", { name: "OpenAI 兼容 Base URL" })

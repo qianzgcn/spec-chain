@@ -81,7 +81,7 @@ npm run dev
 
 ## AI 辅助生成 US
 
-管理员在“AI 设置”中创建一个或多个模型档案，并为“生成 US”指定默认模型。当前版本接入实现了 OpenAI Chat Completions 兼容接口的服务，配置项包括档案名称、Base URL、模型 ID 和 API Key。
+管理员在“模型配置”中创建一个或多个模型，并为“生成 US”指定默认模型。当前版本接入实现了 OpenAI Chat Completions 兼容接口的服务，配置项包括模型名称、Base URL、模型 ID 和 API Key。
 
 - API Key 使用 AES-256-GCM 加密，保存后只显示固定掩码。
 - “检查模型”会实际验证认证、接口连通性和结构化输出能力。
@@ -121,18 +121,21 @@ SESSION_COOKIE_SECURE="true"
 
 ## 常用命令
 
-| 命令                   | 用途                                   |
-| ---------------------- | -------------------------------------- |
-| `npm run dev`          | 启动本地开发服务，启动前自动准备数据库 |
-| `npm run build`        | 生成 Prisma 客户端并构建生产版本       |
-| `npm run start`        | 启动生产服务，启动前自动迁移数据库     |
-| `npm run db:migrate`   | 在开发环境创建并应用迁移               |
-| `npm run db:studio`    | 打开 Prisma 数据查看工具               |
-| `npm run typecheck`    | 检查 TypeScript 类型                   |
-| `npm run lint`         | 检查代码规范                           |
-| `npm run format:check` | 检查代码格式                           |
-| `npm test`             | 运行领域逻辑和服务端单元测试           |
-| `npm run test:e2e`     | 使用独立数据库运行浏览器端到端测试     |
+| 命令                   | 用途                               |
+| ---------------------- | ---------------------------------- |
+| `npm run dev`          | 准备数据库并启动本地开发服务       |
+| `npm run build`        | 构建生产版本                       |
+| `npm run start`        | 准备数据库并启动生产服务           |
+| `npm run db:migrate`   | 在开发环境创建并应用迁移           |
+| `npm run db:studio`    | 打开 Prisma 数据查看工具           |
+| `npm run format`       | 格式化代码和文档                   |
+| `npm run format:check` | 检查代码格式                       |
+| `npm run typecheck`    | 检查 TypeScript 类型               |
+| `npm run lint`         | 检查代码规范                       |
+| `npm test`             | 运行单元测试                       |
+| `npm run test:e2e`     | 使用独立数据库运行浏览器端到端测试 |
+
+安装依赖时会自动生成 Prisma 客户端，`dev` 和 `start` 会自动执行已有迁移并初始化管理员，无需单独运行数据库准备命令。AI 与 Playwright Worker 由应用在收到任务后按需启动，不需要人工运行。
 
 端到端测试使用 `data/e2e.db`，每次运行前自动重置，不会修改日常开发数据库。
 

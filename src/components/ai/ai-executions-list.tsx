@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 
-import EyeOutlined from "@ant-design/icons/EyeOutlined";
-import FileSearchOutlined from "@ant-design/icons/FileSearchOutlined";
 import { Button, Space, Table, Tag, Typography } from "antd";
 import type { TableProps } from "antd";
 import {
@@ -97,7 +95,7 @@ function AiExecutionsTable({
     {
       title: "状态",
       dataIndex: "status",
-      width: 105,
+      width: 90,
       render: (status: AiExecutionSummary["status"]) => {
         const meta = AI_EXECUTION_STATUS_META[status];
         return <Tag color={meta.color}>{meta.label}</Tag>;
@@ -106,37 +104,40 @@ function AiExecutionsTable({
     {
       title: "当前阶段",
       dataIndex: "stage",
-      width: 180,
+      width: 140,
+      responsive: ["lg"],
       render: (stage: AiExecutionSummary["stage"]) =>
         AI_EXECUTION_STAGE_LABELS[stage],
     },
     {
       title: "发起用户",
       dataIndex: "requestedBy",
-      width: 120,
+      width: 100,
+      responsive: ["xl"],
     },
     {
       title: "发起时间",
       dataIndex: "queuedAt",
-      width: 175,
+      width: 145,
+      responsive: ["lg"],
       render: (value: string) => formatDateTime(value),
     },
     {
       title: "耗时",
       dataIndex: "durationMs",
-      width: 105,
+      width: 80,
+      responsive: ["xxl"],
       render: formatDuration,
     },
     {
       title: "操作",
       key: "actions",
-      width: 190,
+      width: 150,
       render: (_, execution) => (
         <Space size={2}>
           <Button
             type="link"
             size="small"
-            icon={<EyeOutlined />}
             href={`/ai-executions/${execution.id}`}
           >
             查看
@@ -145,7 +146,6 @@ function AiExecutionsTable({
             <Button
               type="link"
               size="small"
-              icon={<FileSearchOutlined />}
               href={
                 execution.draft.confirmedUserStoryId
                   ? `/user-stories/${execution.draft.confirmedUserStoryId}`
@@ -174,7 +174,8 @@ function AiExecutionsTable({
         rowKey="id"
         columns={columns}
         dataSource={executionsQuery.data}
-        scroll={{ x: 1_100, y: "100%" }}
+        tableLayout="fixed"
+        scroll={{ y: "100%" }}
         pagination={{
           pageSize: 20,
           showSizeChanger: false,

@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { toModelProviderError } from "@/ai/model-provider";
+import {
+  buildStructuredSystemPrompt,
+  toModelProviderError,
+} from "@/ai/model-provider";
 import { aiModelProfileInputSchema } from "@/lib/ai/model-profile";
 
 describe("AI 模型配置", () => {
+  it("结构化请求明确要求模型返回 JSON", () => {
+    const prompt = buildStructuredSystemPrompt("生成用户故事");
+
+    expect(prompt).toContain("JSON");
+    expect(prompt).toContain("生成用户故事");
+  });
+
   it("规范化合法的 OpenAI 兼容 Base URL", () => {
     const result = aiModelProfileInputSchema.parse({
       name: "DeepSeek",

@@ -193,7 +193,7 @@ function AiExecutionDetailContent({
           <Descriptions.Item label="耗时">
             {formatDuration(execution.durationMs)}
           </Descriptions.Item>
-          <Descriptions.Item label="模型档案">
+          <Descriptions.Item label="模型配置">
             {execution.modelProfileNameSnapshot ?? "—"}
           </Descriptions.Item>
           <Descriptions.Item label="模型 ID">

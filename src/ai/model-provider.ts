@@ -10,6 +10,8 @@ import type { LanguageModelUsage } from "ai";
 import { z } from "zod";
 
 const MODEL_CALL_TIMEOUT_MS = 90_000;
+const STRUCTURED_OUTPUT_INSTRUCTION =
+  "请仅返回符合指定结构的 JSON，不要添加 Markdown 代码块或其他说明。";
 
 export type ModelProfileConfig = {
   name: string;
@@ -31,6 +33,10 @@ export type StructuredGenerationOptions<OUTPUT> = {
   abortSignal?: AbortSignal;
   maxOutputTokens?: number;
 };
+
+export function buildStructuredSystemPrompt(system: string) {
+  return `${STRUCTURED_OUTPUT_INSTRUCTION}\n\n${system}`;
+}
 
 export interface ModelProvider {
   generateStructured<OUTPUT>(
@@ -162,7 +168,7 @@ export function createModelProvider(
       try {
         const result = await generateText({
           model,
-          system,
+          system: buildStructuredSystemPrompt(system),
           prompt,
           output: Output.object({ schema }),
           temperature: 0.1,
@@ -194,6 +200,6 @@ export async function checkModelProvider(profile: ModelProfileConfig) {
     schema: modelCheckSchema,
     system: "你正在执行模型配置检查。只需按指定结构返回结果。",
     prompt: '请返回 ok=true，message="连接正常"。',
-    maxOutputTokens: 128,
+    maxOutputTokens: 512,
   });
 }

@@ -26,8 +26,8 @@ export const aiModelProfileInputSchema = z.object({
   name: z
     .string()
     .trim()
-    .min(1, "请输入模型档案名称")
-    .max(100, "模型档案名称不能超过 100 个字符"),
+    .min(1, "请输入模型名称")
+    .max(100, "模型名称不能超过 100 个字符"),
   baseUrl: z
     .string()
     .trim()

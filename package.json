@@ -8,26 +8,17 @@
     "npm": "11.11.x"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "prisma migrate deploy && prisma db seed && next dev",
     "build": "prisma generate && next build",
-    "start": "next start",
-    "predev": "npm run db:setup",
-    "prestart": "npm run db:setup",
+    "start": "prisma migrate deploy && prisma db seed && next start",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit --incremental false",
     "test": "vitest run",
-    "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "db:generate": "prisma generate",
-    "db:setup": "prisma migrate deploy && prisma db seed",
     "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
-    "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "ai:worker": "tsx src/ai-worker/worker.ts",
-    "runner:worker": "tsx src/runner/worker.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

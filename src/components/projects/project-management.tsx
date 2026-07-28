@@ -4,8 +4,6 @@ import { useState, useTransition } from "react";
 
 import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
 import PlusOutlined from "@ant-design/icons/PlusOutlined";
-import SettingOutlined from "@ant-design/icons/SettingOutlined";
-import SwapOutlined from "@ant-design/icons/SwapOutlined";
 import {
   Button,
   Empty,
@@ -102,7 +100,7 @@ export function ProjectManagement({
     {
       title: "项目名称",
       dataIndex: "name",
-      width: 210,
+      width: 190,
       render: (name: string, item) => (
         <Space size={8}>
           <strong>{name}</strong>
@@ -120,7 +118,8 @@ export function ProjectManagement({
     },
     {
       title: "业务内容",
-      width: 180,
+      width: 150,
+      responsive: ["lg"],
       render: (_, item) => (
         <span className="text-slate-600">
           FE {item._count.features} · US {item._count.userStories} · 用例{" "}
@@ -131,28 +130,28 @@ export function ProjectManagement({
     {
       title: "Base URL",
       dataIndex: "baseUrl",
-      width: 200,
+      width: 180,
       ellipsis: true,
+      responsive: ["xl"],
       render: (baseUrl: string | null) => baseUrl || "未配置",
     },
     {
       title: "更新时间",
       dataIndex: "updatedAt",
-      width: 155,
+      width: 145,
+      responsive: ["xxl"],
       render: (value: string) => formatDateTime(value),
     },
     {
       title: "操作",
       key: "actions",
-      width: 230,
-      fixed: "right",
+      width: 155,
       render: (_, item) => (
         <Space size={4}>
           {item.id !== currentProjectId ? (
             <Button
               type="link"
               size="small"
-              icon={<SwapOutlined />}
               onClick={() => switchProject(item.id)}
               disabled={isPending}
             >
@@ -162,7 +161,6 @@ export function ProjectManagement({
           <Button
             type="link"
             size="small"
-            icon={<SettingOutlined />}
             onClick={() => switchProject(item.id, "/project-settings")}
             disabled={isPending}
           >
@@ -177,14 +175,13 @@ export function ProjectManagement({
             onConfirm={() => deleteProject(item.id)}
           >
             <Button
-              type="link"
+              type="text"
               size="small"
               danger
               icon={<DeleteOutlined />}
+              aria-label="删除"
               disabled={isPending}
-            >
-              删除
-            </Button>
+            />
           </Popconfirm>
         </Space>
       ),
@@ -212,12 +209,13 @@ export function ProjectManagement({
           rowKey="id"
           columns={columns}
           dataSource={projects}
+          tableLayout="fixed"
           pagination={{
             pageSize: 20,
             showSizeChanger: false,
             showTotal: (count) => `共 ${count} 个项目`,
           }}
-          scroll={{ x: 1150, y: "100%" }}
+          scroll={{ y: "100%" }}
           locale={{
             emptyText: (
               <Empty

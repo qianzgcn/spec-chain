@@ -6,7 +6,7 @@ import { requireAdmin } from "@/server/auth/session";
 import { db } from "@/server/db";
 
 export const metadata: Metadata = {
-  title: "AI 设置",
+  title: "模型配置",
 };
 
 export default async function AiSettingsPage() {
@@ -30,10 +30,10 @@ export default async function AiSettingsPage() {
   ]);
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell--table">
       <div className="page-heading">
         <div>
-          <h1 className="page-title">AI 设置</h1>
+          <h1 className="page-title">模型配置</h1>
           <p className="page-description">
             管理 OpenAI 兼容模型，并指定 AI 辅助生成 US 使用的默认模型。
           </p>

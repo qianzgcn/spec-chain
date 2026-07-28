@@ -51,7 +51,7 @@ export async function createAiModelProfileAction(
   }
 
   if (await hasDuplicateName(parsed.data.name)) {
-    return { ok: false, message: "模型档案名称已存在" };
+    return { ok: false, message: "模型名称已存在" };
   }
 
   const profile = await db.aiModelProfile.create({
@@ -65,7 +65,7 @@ export async function createAiModelProfileAction(
   });
 
   revalidatePath("/ai-settings");
-  return { ok: true, message: "模型档案已创建", data: profile };
+  return { ok: true, message: "模型配置已创建", data: profile };
 }
 
 export async function updateAiModelProfileAction(
@@ -86,10 +86,10 @@ export async function updateAiModelProfileAction(
     select: { id: true, apiKeyEncrypted: true },
   });
   if (!profile) {
-    return { ok: false, message: "模型档案不存在或已删除" };
+    return { ok: false, message: "模型配置不存在或已删除" };
   }
   if (await hasDuplicateName(parsed.data.name, profile.id)) {
-    return { ok: false, message: "模型档案名称已存在" };
+    return { ok: false, message: "模型名称已存在" };
   }
 
   await db.aiModelProfile.update({
@@ -105,7 +105,7 @@ export async function updateAiModelProfileAction(
   });
 
   revalidatePath("/ai-settings");
-  return { ok: true, message: "模型档案已保存" };
+  return { ok: true, message: "模型配置已保存" };
 }
 
 export async function deleteAiModelProfileAction(
@@ -114,7 +114,7 @@ export async function deleteAiModelProfileAction(
   await requireAdmin();
   const parsedId = profileIdSchema.safeParse(profileId);
   if (!parsedId.success) {
-    return { ok: false, message: "模型档案无效" };
+    return { ok: false, message: "模型配置无效" };
   }
 
   const profile = await db.aiModelProfile.findFirst({
@@ -125,7 +125,7 @@ export async function deleteAiModelProfileAction(
     },
   });
   if (!profile) {
-    return { ok: false, message: "模型档案不存在或已删除" };
+    return { ok: false, message: "模型配置不存在或已删除" };
   }
   if (profile.capabilityBindings.length > 0) {
     return {
@@ -140,7 +140,7 @@ export async function deleteAiModelProfileAction(
   });
 
   revalidatePath("/ai-settings");
-  return { ok: true, message: "模型档案已删除" };
+  return { ok: true, message: "模型配置已删除" };
 }
 
 export async function bindUserStoryModelAction(
@@ -157,7 +157,7 @@ export async function bindUserStoryModelAction(
     select: { id: true },
   });
   if (!profile) {
-    return { ok: false, message: "模型档案不存在或已删除" };
+    return { ok: false, message: "模型配置不存在或已删除" };
   }
 
   await db.aiCapabilityBinding.upsert({
@@ -179,7 +179,7 @@ export async function checkAiModelProfileAction(
   await requireAdmin();
   const parsedId = profileIdSchema.safeParse(profileId);
   if (!parsedId.success) {
-    return { ok: false, message: "模型档案无效" };
+    return { ok: false, message: "模型配置无效" };
   }
 
   const profile = await db.aiModelProfile.findFirst({
@@ -192,7 +192,7 @@ export async function checkAiModelProfileAction(
     },
   });
   if (!profile) {
-    return { ok: false, message: "模型档案不存在或已删除" };
+    return { ok: false, message: "模型配置不存在或已删除" };
   }
 
   let apiKey: string;

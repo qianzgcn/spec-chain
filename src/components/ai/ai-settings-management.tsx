@@ -2,9 +2,7 @@
 
 import { useState, useTransition } from "react";
 
-import ApiOutlined from "@ant-design/icons/ApiOutlined";
 import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import EditOutlined from "@ant-design/icons/EditOutlined";
 import PlusOutlined from "@ant-design/icons/PlusOutlined";
 import {
   Button,
@@ -29,7 +27,7 @@ import {
   deleteAiModelProfileAction,
   updateAiModelProfileAction,
 } from "@/app/actions/ai-settings";
-import { formatDateTime } from "@/lib/date-time";
+import { formatCompactDateTime } from "@/lib/date-time";
 
 type ModelProfileItem = {
   id: string;
@@ -147,9 +145,9 @@ export function AiSettingsManagement({
 
   const columns: TableProps<ModelProfileItem>["columns"] = [
     {
-      title: "档案名称",
+      title: "模型名称",
       dataIndex: "name",
-      width: 180,
+      ellipsis: true,
       render: (name: string, profile) => (
         <Space>
           <Typography.Text strong>{name}</Typography.Text>
@@ -162,7 +160,9 @@ export function AiSettingsManagement({
     {
       title: "Base URL",
       dataIndex: "baseUrl",
+      width: 220,
       ellipsis: true,
+      responsive: ["lg"],
       render: (value: string) => (
         <Typography.Text code title={value}>
           {value}
@@ -172,7 +172,7 @@ export function AiSettingsManagement({
     {
       title: "模型 ID",
       dataIndex: "modelId",
-      width: 210,
+      width: 180,
       ellipsis: true,
       render: (value: string) => (
         <Typography.Text code title={value}>
@@ -183,25 +183,26 @@ export function AiSettingsManagement({
     {
       title: "API Key",
       key: "apiKey",
-      width: 130,
-      render: () => <span className="text-slate-500">••••••••••••</span>,
+      width: 90,
+      responsive: ["xl"],
+      render: () => <span className="text-slate-500">••••••••</span>,
     },
     {
       title: "更新时间",
       dataIndex: "updatedAt",
-      width: 180,
-      render: (value: string) => formatDateTime(value),
+      width: 145,
+      responsive: ["xl"],
+      render: (value: string) => formatCompactDateTime(value),
     },
     {
       title: "操作",
       key: "actions",
-      width: 235,
+      width: 155,
       render: (_, profile) => (
         <Space size={2}>
           <Button
             type="link"
             size="small"
-            icon={<ApiOutlined />}
             loading={checkingProfileId === profile.id}
             disabled={
               isPending &&
@@ -210,18 +211,13 @@ export function AiSettingsManagement({
             }
             onClick={() => checkProfile(profile.id)}
           >
-            检查模型
+            检查
           </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => openEdit(profile)}
-          >
+          <Button type="link" size="small" onClick={() => openEdit(profile)}>
             编辑
           </Button>
           <Popconfirm
-            title="删除模型档案"
+            title="删除模型配置"
             description="删除后 API Key 将立即清除，且不能恢复。"
             okText="删除"
             cancelText="取消"
@@ -229,14 +225,13 @@ export function AiSettingsManagement({
             onConfirm={() => deleteProfile(profile.id)}
           >
             <Button
-              type="link"
+              type="text"
               size="small"
               danger
               icon={<DeleteOutlined />}
+              aria-label="删除"
               disabled={profile.id === defaultProfileId}
-            >
-              删除
-            </Button>
+            />
           </Popconfirm>
         </Space>
       ),
@@ -246,7 +241,7 @@ export function AiSettingsManagement({
   return (
     <>
       {messageContext}
-      <div className="content-panel">
+      <div className="content-panel table-page-panel">
         <div className="table-toolbar">
           <span className="text-sm font-medium text-slate-700">
             生成 US 默认模型
@@ -272,7 +267,7 @@ export function AiSettingsManagement({
             icon={<PlusOutlined />}
             onClick={openCreate}
           >
-            新建模型档案
+            新建模型
           </Button>
         </div>
 
@@ -280,14 +275,19 @@ export function AiSettingsManagement({
           rowKey="id"
           columns={columns}
           dataSource={profiles}
-          pagination={false}
-          scroll={{ x: 1_100 }}
-          locale={{ emptyText: "尚未配置模型档案" }}
+          tableLayout="fixed"
+          scroll={{ y: "100%" }}
+          pagination={{
+            pageSize: 20,
+            showSizeChanger: false,
+            showTotal: (count) => `共 ${count} 个模型`,
+          }}
+          locale={{ emptyText: "尚未配置模型" }}
         />
       </div>
 
       <Modal
-        title={editingProfile ? "编辑模型档案" : "新建模型档案"}
+        title={editingProfile ? "编辑模型" : "新建模型"}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         footer={null}
@@ -303,8 +303,8 @@ export function AiSettingsManagement({
         >
           <Form.Item
             name="name"
-            label="档案名称"
-            rules={[{ required: true, message: "请输入模型档案名称" }]}
+            label="模型名称"
+            rules={[{ required: true, message: "请输入模型名称" }]}
           >
             <Input maxLength={100} placeholder="例如：DeepSeek 生产模型" />
           </Form.Item>

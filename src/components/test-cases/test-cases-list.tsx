@@ -120,7 +120,8 @@ export function TestCasesList({
     {
       title: "编号",
       dataIndex: "code",
-      width: 185,
+      width: 170,
+      responsive: ["lg"],
       render: (code: string) => (
         <span className="font-mono text-xs text-slate-600">{code}</span>
       ),
@@ -141,13 +142,14 @@ export function TestCasesList({
     {
       title: "分组",
       dataIndex: "groupName",
-      width: 150,
+      width: 120,
       ellipsis: true,
+      responsive: ["lg"],
     },
     {
       title: "优先级",
       dataIndex: "priority",
-      width: 80,
+      width: 70,
       render: (priority: TestPriority) => (
         <Tag color={TEST_PRIORITY_META[priority].color}>{priority}</Tag>
       ),
@@ -155,13 +157,15 @@ export function TestCasesList({
     {
       title: "步骤",
       dataIndex: "stepCount",
-      width: 70,
+      width: 60,
+      responsive: ["xl"],
       render: (count: number) => `${count} 条`,
     },
     {
       title: "自动化",
       dataIndex: "hasScript",
-      width: 90,
+      width: 80,
+      responsive: ["xl"],
       render: (hasScript: boolean) =>
         hasScript ? (
           <Tag color="cyan">已配置</Tag>
@@ -172,7 +176,8 @@ export function TestCasesList({
     {
       title: "最近运行",
       dataIndex: "lastRunStatus",
-      width: 100,
+      width: 90,
+      responsive: ["lg"],
       render: (status: RunStatus | null) =>
         status ? (
           <Tag color={RUN_STATUS_META[status].color}>
@@ -185,7 +190,7 @@ export function TestCasesList({
     {
       title: "启用",
       dataIndex: "enabled",
-      width: 70,
+      width: 60,
       render: (enabled: boolean, item) => (
         <Switch
           size="small"
@@ -198,13 +203,13 @@ export function TestCasesList({
     {
       title: "更新时间",
       dataIndex: "updatedAt",
-      width: 150,
+      width: 135,
+      responsive: ["xxl"],
       render: (value: string) => formatCompactDateTime(value),
     },
     {
       title: "操作",
-      width: 150,
-      fixed: "right",
+      width: 135,
       align: "center",
       render: (_, item) => (
         <Space size={2} data-testid="test-case-actions">
@@ -314,7 +319,8 @@ export function TestCasesList({
           columns={columns}
           dataSource={items}
           loading={isPending || isNavigating}
-          scroll={{ x: 1240, y: "100%" }}
+          tableLayout="fixed"
+          scroll={{ y: "100%" }}
           pagination={{
             current: filters.page,
             pageSize: 20,

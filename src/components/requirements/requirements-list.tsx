@@ -142,7 +142,7 @@ export function RequirementsList({
     {
       title: "编号",
       dataIndex: "code",
-      width: 185,
+      width: 175,
       render: (code: string) => (
         <span className="font-mono text-xs text-slate-600">{code}</span>
       ),
@@ -150,7 +150,7 @@ export function RequirementsList({
     {
       title: "类型",
       dataIndex: "type",
-      width: 75,
+      width: 65,
       render: (type: RequirementListItem["type"]) =>
         type === "FEATURE" ? (
           <Tag color="geekblue">FE</Tag>
@@ -180,8 +180,9 @@ export function RequirementsList({
     {
       title: "所属 FE",
       dataIndex: "featureName",
-      width: 185,
+      width: 150,
       ellipsis: true,
+      responsive: ["lg"],
       render: (featureName: string | null, item) => {
         if (item.type === "FEATURE") {
           return (
@@ -194,7 +195,7 @@ export function RequirementsList({
     {
       title: "状态",
       dataIndex: "status",
-      width: 115,
+      width: 105,
       render: (status: RequirementStatus, item) =>
         item.type === "USER_STORY" ? (
           <Select
@@ -218,14 +219,14 @@ export function RequirementsList({
     {
       title: "更新时间",
       dataIndex: "updatedAt",
-      width: 150,
+      width: 135,
+      responsive: ["xl"],
       render: (value: string) => formatCompactDateTime(value),
     },
     {
       title: "操作",
       key: "actions",
-      width: 190,
-      fixed: "right",
+      width: 155,
       render: (_, item) => {
         const detailPath =
           item.type === "FEATURE"
@@ -274,9 +275,12 @@ export function RequirementsList({
                 ],
               }}
             >
-              <Button type="text" size="small" icon={<MoreOutlined />}>
-                更多
-              </Button>
+              <Button
+                type="text"
+                size="small"
+                icon={<MoreOutlined />}
+                aria-label="更多操作"
+              />
             </Dropdown>
           </Space>
         );
@@ -360,7 +364,8 @@ export function RequirementsList({
           columns={columns}
           dataSource={items}
           loading={isPending || isNavigating}
-          scroll={{ x: 1150, y: "100%" }}
+          tableLayout="fixed"
+          scroll={{ y: "100%" }}
           pagination={{
             current: filters.page,
             pageSize: 20,

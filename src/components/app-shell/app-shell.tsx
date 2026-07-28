@@ -32,6 +32,7 @@ const { Header, Sider, Content } = Layout;
 const TABLE_PAGE_PATHS = new Set([
   "/requirements",
   "/ai-executions",
+  "/ai-settings",
   "/test-cases",
   "/test-case-groups",
   "/projects",
@@ -143,7 +144,7 @@ export function AppShell({
             {
               key: "/ai-settings",
               icon: <ApiOutlined />,
-              label: "AI 设置",
+              label: "模型配置",
             },
             {
               key: "/users",
