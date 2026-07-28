@@ -6,7 +6,7 @@ import {
   Output,
   wrapLanguageModel,
 } from "ai";
-import type { LanguageModelUsage } from "ai";
+import type { FinishReason, LanguageModelUsage } from "ai";
 import { z } from "zod";
 
 const MODEL_CALL_TIMEOUT_MS = 90_000;
@@ -49,6 +49,7 @@ export type ModelProviderErrorCode =
   | "PERMISSION"
   | "RATE_LIMIT"
   | "TIMEOUT"
+  | "OUTPUT_LIMIT"
   | "STRUCTURED_OUTPUT"
   | "SERVICE";
 
@@ -59,6 +60,15 @@ export class ModelProviderError extends Error {
   ) {
     super(message);
     this.name = "ModelProviderError";
+  }
+}
+
+export function assertStructuredOutputComplete(finishReason: FinishReason) {
+  if (finishReason === "length") {
+    throw new ModelProviderError(
+      "OUTPUT_LIMIT",
+      "模型输出达到长度限制，未能生成完整的结构化结果",
+    );
   }
 }
 
@@ -177,6 +187,7 @@ export function createModelProvider(
           timeout: MODEL_CALL_TIMEOUT_MS,
           abortSignal,
         });
+        assertStructuredOutputComplete(result.finishReason);
 
         return {
           output: result.output,
@@ -200,6 +211,5 @@ export async function checkModelProvider(profile: ModelProfileConfig) {
     schema: modelCheckSchema,
     system: "你正在执行模型配置检查。只需按指定结构返回结果。",
     prompt: '请返回 ok=true，message="连接正常"。',
-    maxOutputTokens: 512,
   });
 }

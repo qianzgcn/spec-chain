@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  assertStructuredOutputComplete,
   buildStructuredSystemPrompt,
   toModelProviderError,
 } from "@/ai/model-provider";
@@ -12,6 +13,20 @@ describe("AI 模型配置", () => {
 
     expect(prompt).toContain("JSON");
     expect(prompt).toContain("生成用户故事");
+  });
+
+  it("将模型输出截断与结构化能力不足明确区分", () => {
+    expect(() => assertStructuredOutputComplete("stop")).not.toThrow();
+
+    try {
+      assertStructuredOutputComplete("length");
+      expect.unreachable("应当识别输出长度限制");
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: "OUTPUT_LIMIT",
+        message: "模型输出达到长度限制，未能生成完整的结构化结果",
+      });
+    }
   });
 
   it("规范化合法的 OpenAI 兼容 Base URL", () => {
