@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 
 import ArrowLeftOutlined from "@ant-design/icons/ArrowLeftOutlined";
 import ThunderboltOutlined from "@ant-design/icons/ThunderboltOutlined";
-import { Alert, Button, Form, Input, Space, Tag, message } from "antd";
+import { Button, Form, Input, Space, message } from "antd";
 import { useRouter } from "next/navigation";
 
 import { createAiUserStoryExecutionAction } from "@/app/actions/ai-executions";
@@ -61,12 +61,10 @@ export function AiUserStoryGeneratorForm({
         description="输入需求后，系统会结合当前项目代码生成一份待评审的 US。"
         meta={
           feature ? (
-            <Space size={8}>
-              <Tag>所属 FE</Tag>
-              <span>
-                {feature.code} · {feature.name}
-              </span>
-            </Space>
+            <>
+              <span className="page-code">{feature.code}</span>
+              <span>{feature.name}</span>
+            </>
           ) : null
         }
         actions={
@@ -94,15 +92,6 @@ export function AiUserStoryGeneratorForm({
           onValuesChange={() => setDirty(true)}
           onFinish={submit}
         >
-          {feature ? (
-            <Alert
-              className="form-context-alert"
-              type="info"
-              showIcon
-              title={`所属 FE：${feature.code} · ${feature.name}`}
-              description="FE 正文和现有 US 摘要会自动加入生成上下文，归属在确认后保持不变。"
-            />
-          ) : null}
           <PageSection
             title="需求内容"
             description="描述要解决的问题、目标用户、期望结果和已知约束；信息不足时任务会明确失败。"

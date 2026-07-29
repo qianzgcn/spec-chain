@@ -65,8 +65,8 @@ function resolveSelectedKey(pathname: string) {
   if (pathname.startsWith("/project-settings/repositories")) {
     return "/project-settings/repositories";
   }
-  if (pathname.startsWith("/project-settings/variables")) {
-    return "/project-settings/variables";
+  if (pathname.startsWith("/project-settings/testing")) {
+    return "/project-settings/testing";
   }
   if (pathname.startsWith("/project-settings")) return "/project-settings";
   if (pathname.startsWith("/projects")) return "/projects";
@@ -142,8 +142,8 @@ export function AppShell({
             label: "代码仓库",
           },
           {
-            key: "/project-settings/variables",
-            label: "项目变量",
+            key: "/project-settings/testing",
+            label: "测试设置",
           },
         ],
       },

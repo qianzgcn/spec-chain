@@ -74,7 +74,6 @@ export function UserStoryFields({ showStatus }: { showStatus: boolean }) {
             name="asA"
             label="As"
             rules={[{ required: true, message: "As 不能为空" }]}
-            extra="谁需要这个能力？"
           >
             <Input.TextArea
               autoSize={{ minRows: 2, maxRows: 5 }}
@@ -85,7 +84,6 @@ export function UserStoryFields({ showStatus }: { showStatus: boolean }) {
             name="iWant"
             label="I want"
             rules={[{ required: true, message: "I want 不能为空" }]}
-            extra="希望完成什么目标？"
           >
             <Input.TextArea
               autoSize={{ minRows: 2, maxRows: 5 }}
@@ -96,7 +94,6 @@ export function UserStoryFields({ showStatus }: { showStatus: boolean }) {
             name="soThat"
             label="so that"
             rules={[{ required: true, message: "so that 不能为空" }]}
-            extra="最终带来什么业务价值？"
           >
             <Input.TextArea
               autoSize={{ minRows: 2, maxRows: 5 }}
@@ -113,17 +110,12 @@ export function UserStoryFields({ showStatus }: { showStatus: boolean }) {
         description="仅填写会影响实现或验收的规则；两项均支持 Markdown。"
       >
         <div className="user-story-constraints">
-          <Form.Item
-            name="businessRules"
-            label="业务规则（可选）"
-            extra="可记录权限矩阵、状态转换、页面交互、边界和限制。"
-          >
+          <Form.Item name="businessRules" label="业务规则（可选）">
             <MarkdownField rows={8} placeholder="没有业务规则时可以留空" />
           </Form.Item>
           <Form.Item
             name="nonFunctionalRequirements"
             label="非功能需求（可选）"
-            extra="可记录性能、安全、可用性、兼容性和可观测性要求。"
           >
             <MarkdownField rows={8} placeholder="没有非功能需求时可以留空" />
           </Form.Item>

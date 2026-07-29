@@ -54,9 +54,7 @@ export default async function UserStoryDetailPage({
               >
                 {story.feature.code} · {story.feature.name}
               </Button>
-            ) : (
-              <span>未归属 FE</span>
-            )}
+            ) : null}
           </>
         }
         actions={

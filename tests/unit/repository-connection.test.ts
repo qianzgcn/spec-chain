@@ -4,16 +4,73 @@ import { parseRepositoryUrl } from "@/lib/git/repository-url";
 
 vi.mock("server-only", () => ({}));
 
-const { checkRepositoryConnection } =
+const { checkRepositoryConnection, verifyGitCredential } =
   await import("@/server/projects/repository-connection");
 
-function response(status: number) {
-  return Promise.resolve(new Response("{}", { status }));
+function response(status: number, body = "{}") {
+  return Promise.resolve(new Response(body, { status }));
 }
 
 describe("仓库连接检查", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it.each([
+    [
+      "GITHUB" as const,
+      "https://api.github.com/user",
+      "Bearer github-secret",
+      "github-secret",
+      "qianzgcn",
+    ],
+    [
+      "GITEE" as const,
+      "https://gitee.com/api/v5/user",
+      "token gitee-secret",
+      "gitee-secret",
+      "nodepression",
+    ],
+  ])(
+    "验证 %s PAT 并返回所属账号",
+    async (provider, url, authorization, pat, account) => {
+      const fetchImplementation = vi.fn<typeof fetch>(() =>
+        response(200, JSON.stringify({ login: account })),
+      );
+
+      await expect(
+        verifyGitCredential(provider, pat, fetchImplementation),
+      ).resolves.toEqual({ provider, account });
+      expect(fetchImplementation).toHaveBeenCalledWith(
+        url,
+        expect.objectContaining({
+          cache: "no-store",
+          headers: expect.objectContaining({ Authorization: authorization }),
+        }),
+      );
+    },
+  );
+
+  it("拒绝无效 PAT 且不泄露明文", async () => {
+    const fetchImplementation = vi.fn<typeof fetch>(() => response(401));
+
+    await expect(
+      verifyGitCredential(
+        "GITHUB",
+        "never-return-this-token",
+        fetchImplementation,
+      ),
+    ).rejects.toThrow("PAT 无效或已过期");
+
+    try {
+      await verifyGitCredential(
+        "GITHUB",
+        "never-return-this-token",
+        fetchImplementation,
+      );
+    } catch (error) {
+      expect(String(error)).not.toContain("never-return-this-token");
+    }
   });
 
   it("使用 GitHub PAT 并正确编码带斜杠的分支", async () => {

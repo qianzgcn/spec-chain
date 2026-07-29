@@ -14,7 +14,6 @@ import { ProjectSettingsSaveButton } from "./project-settings-save-button";
 type BasicSettingsValues = {
   name: string;
   description: string;
-  baseUrl: string;
 };
 
 export function ProjectBasicSettingsForm({
@@ -61,30 +60,21 @@ export function ProjectBasicSettingsForm({
           <div className={styles.sectionHeader}>
             <div className={styles.sectionIntro}>
               <h2>基础信息</h2>
-              <p>用于识别当前项目，并为自动化运行提供目标地址。</p>
+              <p>用于识别当前项目并说明业务范围。</p>
             </div>
             <ProjectSettingsSaveButton dirty={dirty} pending={isPending}>
               保存
             </ProjectSettingsSaveButton>
           </div>
           <div className={styles.sectionContent}>
-            <div className={styles.twoColumns}>
-              <Form.Item
-                name="name"
-                label="项目名称"
-                rules={[{ required: true, message: "请输入项目名称" }]}
-              >
-                <Input maxLength={100} />
-              </Form.Item>
-              <Form.Item
-                name="baseUrl"
-                label="Base URL"
-                rules={[{ type: "url", message: "请输入有效的 URL" }]}
-                extra="运行自动化用例前必须配置。"
-              >
-                <Input placeholder="https://example.com" />
-              </Form.Item>
-            </div>
+            <Form.Item
+              className={styles.basicNameField}
+              name="name"
+              label="项目名称"
+              rules={[{ required: true, message: "请输入项目名称" }]}
+            >
+              <Input maxLength={100} />
+            </Form.Item>
             <Form.Item
               className={styles.lastFormItem}
               name="description"

@@ -10,7 +10,7 @@
   z-index: 20;
   overflow: hidden auto;
   border-right: 1px solid rgb(255 255 255 / 5%);
-  background: #111827 !important;
+  background: #171923 !important;
 }
 
 .logo {
@@ -30,17 +30,13 @@
 
 .logoName {
   font-size: 18px;
-  font-weight: 680;
+  font-weight: 650;
   letter-spacing: -0.025em;
 }
 
 .menu {
   padding: 14px 10px;
   border-inline-end: 0 !important;
-}
-
-.menu :global(.ant-menu-item-selected) {
-  box-shadow: inset 3px 0 #3b82f6;
 }
 
 .menu :global(.ant-menu-item),
@@ -88,8 +84,8 @@
   flex: 0 0 auto;
   place-items: center;
   border-radius: 7px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: #f0f1ff;
+  color: #5661e8;
   font-size: 16px;
 }
 
@@ -118,7 +114,7 @@
 
 .projectSelect :global(.ant-select-selection-item),
 .projectSelect :global(.ant-select-selection-placeholder) {
-  color: #18212f !important;
+  color: #202633 !important;
   font-size: 14px;
   font-weight: 600;
   line-height: 24px !important;
@@ -143,13 +139,13 @@
 }
 
 .emptyProject strong {
-  color: #2563eb;
+  color: #5661e8;
   font-size: 12px;
   font-weight: 600;
 }
 
 .emptyProject:hover strong {
-  color: #1d4ed8;
+  color: #4651d1;
 }
 
 .userButton {
@@ -173,8 +169,8 @@
 }
 
 .userAvatar {
-  background: #e8efff !important;
-  color: #2458c6 !important;
+  background: #eeefff !important;
+  color: #515bd4 !important;
   font-size: 12px !important;
   font-weight: 650;
 }
@@ -234,15 +230,15 @@
   inset: 0 0 auto;
   height: 3px;
   overflow: hidden;
-  background: rgb(37 99 235 / 12%);
+  background: rgb(86 97 232 / 12%);
 }
 
 .navigationProgress::after {
   position: absolute;
   inset: 0;
   width: 38%;
-  background: #2563eb;
-  box-shadow: 0 0 8px rgb(37 99 235 / 40%);
+  background: #5661e8;
+  box-shadow: 0 0 8px rgb(86 97 232 / 40%);
   content: "";
   animation: navigation-progress 1s ease-in-out infinite;
 }

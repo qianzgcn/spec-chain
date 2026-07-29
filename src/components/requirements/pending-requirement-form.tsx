@@ -130,11 +130,9 @@ export function PendingRequirementForm({
             <Tag color="gold">待评审</Tag>
             {feature ? (
               <span>
-                所属 FE：{feature.code} · {feature.name}
+                {feature.code} · {feature.name}
               </span>
-            ) : (
-              <span>未归属 FE</span>
-            )}
+            ) : null}
           </Space>
         }
         actions={

@@ -37,10 +37,10 @@ export type RequirementListItem = {
   type: "FEATURE" | "USER_STORY";
   code: string;
   title: string;
-  featureName: string | null;
   status: RequirementStatus;
   childCount: number | null;
   updatedAt: string;
+  children?: RequirementListItem[];
 };
 
 type RequirementFilters = {
@@ -142,7 +142,7 @@ export function RequirementsList({
     {
       title: "编号",
       dataIndex: "code",
-      width: 175,
+      width: 225,
       render: (code: string) => (
         <span className="font-mono text-xs text-slate-600">{code}</span>
       ),
@@ -164,42 +164,29 @@ export function RequirementsList({
             ? `/features/${item.id}`
             : `/user-stories/${item.id}`;
         return (
-          <Link
-            href={href}
-            className="font-medium text-slate-800 hover:text-blue-700"
-          >
-            {title}
-          </Link>
+          <div className="requirement-name">
+            <Link href={href}>{title}</Link>
+            {item.type === "FEATURE" ? (
+              <span>{item.childCount ?? 0} 个 US</span>
+            ) : null}
+          </div>
         );
-      },
-    },
-    {
-      title: "所属 FE",
-      dataIndex: "featureName",
-      width: 150,
-      ellipsis: true,
-      responsive: ["lg"],
-      render: (featureName: string | null, item) => {
-        if (item.type === "FEATURE") {
-          return (
-            <span className="text-slate-500">{item.childCount ?? 0} 个 US</span>
-          );
-        }
-        return featureName || <span className="text-slate-400">未归属 FE</span>;
       },
     },
     {
       title: "状态",
       dataIndex: "status",
-      width: 105,
+      width: 116,
+      onCell: () => ({ className: "requirement-status-cell" }),
       render: (status: RequirementStatus, item) =>
         item.type === "USER_STORY" ? (
           <Select
             size="small"
-            variant="borderless"
+            variant="filled"
             value={status}
             disabled={isPending}
-            className="w-24"
+            className="requirement-status-select"
+            popupMatchSelectWidth={104}
             onChange={(value) => changeStatus(item.id, value)}
             options={Object.values(RequirementStatus).map((value) => ({
               value,
@@ -361,6 +348,17 @@ export function RequirementsList({
           dataSource={items}
           loading={isPending || isNavigating}
           tableLayout="fixed"
+          expandable={{
+            childrenColumnName: "children",
+            indentSize: 24,
+            rowExpandable: (item) =>
+              item.type === "FEATURE" && Boolean(item.children?.length),
+          }}
+          rowClassName={(item) =>
+            item.type === "FEATURE"
+              ? "requirement-row requirement-row--feature"
+              : "requirement-row requirement-row--story"
+          }
           scroll={{ y: "100%" }}
           pagination={{
             current: filters.page,

@@ -31,7 +31,9 @@ export default async function ProjectRepositoriesPage() {
     select: {
       id: true,
       githubPatEncrypted: true,
+      githubPatAccount: true,
       giteePatEncrypted: true,
+      giteePatAccount: true,
       repositories: {
         where: { deletedAt: null },
         orderBy: { position: "asc" },
@@ -52,7 +54,9 @@ export default async function ProjectRepositoriesPage() {
         project={{
           id: project.id,
           hasGithubPat: Boolean(project.githubPatEncrypted),
+          githubPatAccount: project.githubPatAccount,
           hasGiteePat: Boolean(project.giteePatEncrypted),
+          giteePatAccount: project.giteePatAccount,
           repositories: project.repositories,
         }}
       />

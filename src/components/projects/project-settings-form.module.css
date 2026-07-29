@@ -1,29 +1,25 @@
 .form {
+  display: flex;
   width: 100%;
   max-width: none;
-  overflow: visible;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: 0 1px 2px rgb(16 24 40 / 4%);
+  flex-direction: column;
+  gap: 16px;
 }
 
 .section {
-  padding: 24px;
-  border-bottom: 1px solid var(--border);
-}
-
-.section:last-child {
-  border-bottom: 0;
+  padding: 22px 24px 24px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
 }
 
 .sectionIntro {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .sectionHeader {
   display: flex;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
@@ -34,82 +30,137 @@
 }
 
 .sectionIntro h2 {
-  margin: 0 0 5px;
+  margin: 0 0 4px;
   color: var(--text);
   font-size: 16px;
   font-weight: 650;
   letter-spacing: -0.01em;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .sectionIntro p {
   margin: 0;
   color: var(--text-secondary);
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.65;
 }
 
 .sectionContent {
   min-width: 0;
 }
 
-.twoColumns,
-.repositoryRow {
-  display: grid;
-}
-
-.twoColumns {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+.basicNameField,
+.baseUrlField {
+  max-width: 680px;
 }
 
 .lastFormItem {
   margin-bottom: 0 !important;
 }
 
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.credentialList {
+.list,
+.repositoryList {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.credentialRow {
+.credentialGrid {
   display: grid;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-subtle);
-  grid-template-columns: 82px minmax(0, 1fr) 96px 56px;
-  align-items: center;
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
-.credentialRow strong {
+.credentialCard {
+  min-width: 0;
+  padding: 16px;
+  border-radius: 9px;
+  background: var(--surface-subtle);
+}
+
+.credentialHeading {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+}
+
+.credentialHeading > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.credentialHeading strong {
   color: var(--text);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 650;
 }
 
-.credentialRow :global(.ant-tag) {
+.credentialHeading span:not(.credentialProviderMark) {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.credentialHeading :global(.ant-tag) {
   margin: 0;
-  text-align: center;
 }
 
-.credentialRow :global(.ant-btn) {
-  padding-right: 0;
-  padding-left: 0;
+.credentialProviderMark {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: #eceeff;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  place-items: center;
 }
 
-.credentialMask {
-  background: #f7f9fa !important;
-  color: #536473 !important;
-  letter-spacing: 0.12em;
+.credentialConfigured,
+.credentialAdd {
+  display: flex;
+  min-width: 0;
+  margin-top: 14px;
+  align-items: center;
+  gap: 10px;
+}
+
+.credentialConfigured {
+  justify-content: space-between;
+}
+
+.credentialConfigured code {
+  color: #6c7280;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.credentialConfigured > div {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.credentialConfigured :global(.ant-btn) {
+  padding-inline: 7px;
+}
+
+.credentialAdd :global(.ant-input-affix-wrapper) {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.credentialAdd :global(.ant-btn) {
+  flex: 0 0 auto;
 }
 
 .credentialHelp {
@@ -119,17 +170,25 @@
   line-height: 1.6;
 }
 
-.repositoryRow,
-.variableRow {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-subtle);
+.repositoryListHeader,
+.repositoryRow {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(260px, 1fr) 150px 78px 106px 34px;
+  gap: 10px;
+}
+
+.repositoryListHeader {
+  padding: 0 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .repositoryRow {
-  padding: 14px 14px 15px;
-  grid-template-columns: minmax(0, 1fr) 160px 196px 36px;
-  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: var(--surface-subtle);
   align-items: start;
 }
 
@@ -138,32 +197,9 @@
   margin-bottom: 0;
 }
 
-.variableRow {
-  display: grid;
-  padding: 12px 14px 13px;
-  grid-template-columns:
-    minmax(170px, 0.9fr) 174px minmax(220px, 1.1fr)
-    minmax(200px, 1.2fr) 36px;
-  gap: 12px;
-  align-items: start;
-}
-
-.deleteButton {
-  margin-top: 26px;
-}
-
-.repositoryConnection {
-  display: flex;
-  min-height: 32px;
-  margin-top: 26px;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.repositoryConnection :global(.ant-tag) {
-  min-width: 60px;
-  margin: 0;
+.repositoryProvider {
+  min-width: 62px;
+  margin: 7px 0 0 !important;
   text-align: center;
 }
 
@@ -172,7 +208,7 @@
   display: flex;
   grid-column: 1 / -1;
   min-height: 20px;
-  margin-top: -2px;
+  margin-top: -1px;
   font-size: 13px;
   line-height: 1.5;
   align-items: center;
@@ -180,11 +216,27 @@
 }
 
 .connectionSuccess {
-  color: #2f7d48;
+  color: #278156;
 }
 
 .connectionError {
-  color: #c23b3b;
+  color: #c43d4b;
+}
+
+.variableRow {
+  display: grid;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  grid-template-columns:
+    minmax(170px, 0.9fr) 158px minmax(210px, 1.1fr)
+    minmax(190px, 1.2fr) 34px;
+  gap: 10px;
+  align-items: start;
+}
+
+.deleteButton {
+  margin-top: 26px;
 }
 
 .addButton {
@@ -193,11 +245,10 @@
 
 .emptyList {
   display: flex;
-  min-height: 82px;
-  padding: 16px 18px;
-  border: 1px dashed var(--border-strong);
+  min-height: 80px;
+  padding: 15px 17px;
   border-radius: 8px;
-  background: #fbfcfd;
+  background: var(--surface-subtle);
   align-items: center;
   justify-content: space-between;
   gap: 20px;
@@ -207,11 +258,11 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .emptyList strong {
-  color: #344054;
+  color: var(--text);
   font-size: 14px;
   font-weight: 600;
 }
@@ -221,30 +272,19 @@
   font-size: 13px;
 }
 
-.emptyList :global(.ant-btn) {
-  border-color: #cbd5dc;
-  background: #fff;
-  color: #3c5261;
-}
-
-.variableNotice {
-  margin-bottom: 14px;
-}
-
 @media (max-width: 1440px) {
   .section {
-    padding: 22px;
+    padding: 20px 22px 22px;
   }
 
-  .sectionIntro {
-    margin-bottom: 18px;
-  }
-
-  .sectionHeader {
-    margin-bottom: 18px;
-  }
-
+  .repositoryListHeader,
   .repositoryRow {
-    grid-template-columns: minmax(0, 1fr) 145px 184px 36px;
+    grid-template-columns: minmax(240px, 1fr) 132px 72px 100px 32px;
+  }
+
+  .variableRow {
+    grid-template-columns:
+      minmax(150px, 0.9fr) 142px minmax(190px, 1.1fr)
+      minmax(170px, 1.2fr) 32px;
   }
 }

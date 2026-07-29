@@ -75,7 +75,6 @@ export default async function FeatureDetailPage({
 
         <PageSection
           title="US"
-          description="FE 状态取全部未删除关联 US 中进度最慢的状态；没有关联 US 时为设计。"
           actions={
             <span className="text-sm text-slate-500">
               共 {feature.userStories.length} 个

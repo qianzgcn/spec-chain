@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 
 import ThunderboltOutlined from "@ant-design/icons/ThunderboltOutlined";
-import { Alert, Button, Form, Space, Tag, message } from "antd";
+import { Button, Form, Space, message } from "antd";
 import { useRouter } from "next/navigation";
 
 import {
@@ -100,12 +100,10 @@ export function UserStoryForm({
           editing && code ? (
             <span className="page-code">{code}</span>
           ) : feature ? (
-            <Space size={8}>
-              <Tag>所属 FE</Tag>
-              <span>
-                {feature.code} · {feature.name}
-              </span>
-            </Space>
+            <>
+              <span className="page-code">{feature.code}</span>
+              <span>{feature.name}</span>
+            </>
           ) : null
         }
         actions={
@@ -144,15 +142,6 @@ export function UserStoryForm({
           onValuesChange={() => setDirty(true)}
           onFinish={submit}
         >
-          {feature ? (
-            <Alert
-              className="form-context-alert"
-              type="info"
-              showIcon
-              title={`所属 FE：${feature.code} · ${feature.name}`}
-              description="US 创建后不能迁移或解除归属。"
-            />
-          ) : null}
           <UserStoryFields showStatus />
         </Form>
       </FormPage>

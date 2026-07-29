@@ -13,6 +13,7 @@ import {
   checkRepositoryConnectionAction,
   deleteProjectPatAction,
   updateProjectRepositoriesAction,
+  verifyProjectPatAction,
 } from "@/app/actions/projects";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import {
@@ -37,6 +38,8 @@ type RepositoryFormValues = {
 type CredentialStatus = {
   hasGithubPat: boolean;
   hasGiteePat: boolean;
+  githubPatAccount: string | null;
+  giteePatAccount: string | null;
 };
 
 type ConnectionResult = {
@@ -71,6 +74,8 @@ export function ProjectRepositoriesForm({
   const [credentialStatus, setCredentialStatus] = useState<CredentialStatus>({
     hasGithubPat: project.hasGithubPat,
     hasGiteePat: project.hasGiteePat,
+    githubPatAccount: project.githubPatAccount,
+    giteePatAccount: project.giteePatAccount,
   });
   const [credentialDrafts, setCredentialDrafts] = useState<
     Record<GitProvider, string>
@@ -97,6 +102,12 @@ export function ProjectRepositoriesForm({
     return provider === "GITHUB"
       ? credentialStatus.hasGithubPat
       : credentialStatus.hasGiteePat;
+  }
+
+  function getCredentialAccount(provider: GitProvider) {
+    return provider === "GITHUB"
+      ? credentialStatus.githubPatAccount
+      : credentialStatus.giteePatAccount;
   }
 
   function updateCredentialDraft(provider: GitProvider, value: string) {
@@ -155,6 +166,30 @@ export function ProjectRepositoriesForm({
           setCredentialStatus(result.data);
         }
         setConnectionResults({});
+        messageApi.success(result.message);
+      } finally {
+        setCredentialPendingProvider(null);
+      }
+    });
+  }
+
+  function verifyCredential(provider: GitProvider) {
+    setCredentialPendingProvider(provider);
+    startCredentialTransition(async () => {
+      try {
+        const result = await verifyProjectPatAction({
+          projectId: project.id,
+          provider,
+        });
+
+        if (!result.ok) {
+          messageApi.error(result.message);
+          return;
+        }
+
+        if (result.data) {
+          setCredentialStatus(result.data);
+        }
         messageApi.success(result.message);
       } finally {
         setCredentialPendingProvider(null);
@@ -248,61 +283,84 @@ export function ProjectRepositoriesForm({
     });
   }
 
-  function renderCredentialRow(provider: GitProvider) {
+  function renderCredentialCard(provider: GitProvider) {
     const label = GIT_PROVIDER_LABELS[provider];
     const configured = isCredentialConfigured(provider);
+    const account = getCredentialAccount(provider);
     const pending =
       isCredentialPending && credentialPendingProvider === provider;
 
     return (
-      <div className={styles.credentialRow}>
-        <strong>{label}</strong>
+      <div className={styles.credentialCard}>
+        <div className={styles.credentialHeading}>
+          <span className={styles.credentialProviderMark}>
+            {provider === "GITHUB" ? "GH" : "GE"}
+          </span>
+          <div>
+            <strong>{label}</strong>
+            <span>
+              {configured
+                ? account
+                  ? `账号 ${account}`
+                  : "账号尚未验证"
+                : "尚未配置访问凭据"}
+            </span>
+          </div>
+          <Tag color={configured ? "success" : "default"}>
+            {configured ? "已配置" : "未配置"}
+          </Tag>
+        </div>
         {configured ? (
-          <Input
-            className={styles.credentialMask}
-            aria-label={`${label} PAT（已脱敏）`}
-            value="••••••••••••"
-            readOnly
-          />
+          <div className={styles.credentialConfigured}>
+            <code aria-label={`${label} PAT（已脱敏）`}>•••• •••• ••••</code>
+            <div>
+              {!account ? (
+                <Button
+                  type="link"
+                  loading={pending}
+                  disabled={isCredentialPending && !pending}
+                  onClick={() => verifyCredential(provider)}
+                >
+                  验证账号
+                </Button>
+              ) : null}
+              <Button
+                type="link"
+                danger
+                loading={pending && Boolean(account)}
+                disabled={isCredentialPending && !pending}
+                aria-label={`删除 ${label} PAT`}
+                onClick={() => confirmDeleteCredential(provider)}
+              >
+                删除
+              </Button>
+            </div>
+          </div>
         ) : (
-          <Input.Password
-            aria-label={`${label} PAT`}
-            autoComplete="new-password"
-            maxLength={500}
-            placeholder={`输入 ${label} PAT`}
-            value={credentialDrafts[provider]}
-            onChange={(event) =>
-              updateCredentialDraft(provider, event.target.value)
-            }
-          />
-        )}
-        <Tag color={configured ? "green" : "default"}>
-          {configured ? "已配置" : "未配置"}
-        </Tag>
-        {configured ? (
-          <Button
-            type="link"
-            danger
-            loading={pending}
-            disabled={isCredentialPending && !pending}
-            aria-label={`删除 ${label} PAT`}
-            onClick={() => confirmDeleteCredential(provider)}
-          >
-            删除
-          </Button>
-        ) : (
-          <Button
-            type="link"
-            loading={pending}
-            disabled={
-              !credentialDrafts[provider].trim() ||
-              (isCredentialPending && !pending)
-            }
-            aria-label={`新增 ${label} PAT`}
-            onClick={() => addCredential(provider)}
-          >
-            新增
-          </Button>
+          <div className={styles.credentialAdd}>
+            <Input.Password
+              aria-label={`${label} PAT`}
+              autoComplete="new-password"
+              maxLength={500}
+              placeholder={`输入 ${label} PAT`}
+              value={credentialDrafts[provider]}
+              onChange={(event) =>
+                updateCredentialDraft(provider, event.target.value)
+              }
+            />
+            <Button
+              type="primary"
+              loading={pending}
+              disabled={
+                !credentialDrafts[provider].trim() ||
+                (isCredentialPending && !pending)
+              }
+              aria-label={`新增 ${label} PAT`}
+              onClick={() => addCredential(provider)}
+            >
+              验证并新增
+            </Button>
+          </div>
         )}
       </div>
     );
@@ -324,13 +382,26 @@ export function ProjectRepositoriesForm({
         onFinish={submit}
       >
         <section className={styles.section}>
+          <div className={styles.sectionIntro}>
+            <h2>平台凭据</h2>
+            <p>仓库会根据地址自动使用对应平台的项目级 PAT。</p>
+          </div>
+          <div className={styles.sectionContent}>
+            <div className={styles.credentialGrid}>
+              {renderCredentialCard("GITHUB")}
+              {renderCredentialCard("GITEE")}
+            </div>
+            <p className={styles.credentialHelp}>
+              PAT 仅在服务端加密保存，建议只授予目标仓库的读取权限。
+            </p>
+          </div>
+        </section>
+
+        <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <div className={styles.sectionIntro}>
-              <h2>仓库凭据</h2>
-              <p>
-                每个项目分别保存一份 GitHub 和 Gitee
-                PAT，自动用于对应平台的仓库。
-              </p>
+              <h2>仓库列表</h2>
+              <p>配置仓库地址和目标分支，并检查当前凭据的读取权限。</p>
             </div>
             <ProjectSettingsSaveButton
               dirty={repositoriesDirty}
@@ -340,46 +411,40 @@ export function ProjectRepositoriesForm({
             </ProjectSettingsSaveButton>
           </div>
           <div className={styles.sectionContent}>
-            <div className={styles.credentialList}>
-              {renderCredentialRow("GITHUB")}
-              {renderCredentialRow("GITEE")}
-            </div>
-            <p className={styles.credentialHelp}>
-              已配置的 PAT
-              只显示固定掩码且不能直接修改；如需更换，请先删除再新增。建议仅授予目标仓库所需的读取权限。
-            </p>
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionIntro}>
-            <h2>仓库列表</h2>
-            <p>
-              支持 GitHub 和 Gitee 官方仓库，可检查
-              PAT、仓库及指定分支的读取权限。
-            </p>
-          </div>
-          <div className={styles.sectionContent}>
             <Form.List name="repositories">
-              {(fields, { add, remove }) =>
-                fields.length === 0 ? (
-                  <div className={styles.emptyList}>
-                    <div>
-                      <strong>尚未添加代码仓库</strong>
-                      <span>可按项目实际情况配置一个或多个仓库。</span>
+              {(fields, { add, remove }) => {
+                if (fields.length === 0) {
+                  return (
+                    <div className={styles.emptyList}>
+                      <div>
+                        <strong>尚未添加代码仓库</strong>
+                        <span>可按项目实际情况配置一个或多个仓库。</span>
+                      </div>
+                      <Button
+                        icon={<PlusOutlined />}
+                        onClick={() => {
+                          add({ gitUrl: "", branch: "main" });
+                          setRepositoriesDirty(true);
+                        }}
+                      >
+                        添加仓库
+                      </Button>
                     </div>
-                    <Button
-                      icon={<PlusOutlined />}
-                      onClick={() => {
-                        add({ gitUrl: "", branch: "main" });
-                        setRepositoriesDirty(true);
-                      }}
+                  );
+                }
+
+                return (
+                  <div className={styles.repositoryList}>
+                    <div
+                      className={styles.repositoryListHeader}
+                      aria-hidden="true"
                     >
-                      添加仓库
-                    </Button>
-                  </div>
-                ) : (
-                  <div className={styles.list}>
+                      <span>Git 地址</span>
+                      <span>目标分支</span>
+                      <span>平台</span>
+                      <span>连接</span>
+                      <span />
+                    </div>
                     {fields.map((field, index) => {
                       const connectionResult =
                         connectionResults[String(field.key)];
@@ -391,17 +456,18 @@ export function ProjectRepositoriesForm({
                           </Form.Item>
                           <Form.Item
                             name={[field.name, "gitUrl"]}
-                            label="Git 地址"
                             rules={[
                               { required: true, message: "请输入 Git 地址" },
                               { validator: validateRepositoryUrl },
                             ]}
                           >
-                            <Input placeholder="https://github.com/owner/repo.git" />
+                            <Input
+                              aria-label={`第 ${index + 1} 个仓库 Git 地址`}
+                              placeholder="https://github.com/owner/repo.git"
+                            />
                           </Form.Item>
                           <Form.Item
                             name={[field.name, "branch"]}
-                            label="分支"
                             rules={[
                               { required: true, message: "请输入分支" },
                               {
@@ -410,7 +476,10 @@ export function ProjectRepositoriesForm({
                               },
                             ]}
                           >
-                            <Input placeholder="main" />
+                            <Input
+                              aria-label={`第 ${index + 1} 个仓库目标分支`}
+                              placeholder="main"
+                            />
                           </Form.Item>
                           <Form.Item
                             noStyle
@@ -439,30 +508,26 @@ export function ProjectRepositoriesForm({
                               }
 
                               return (
-                                <div className={styles.repositoryConnection}>
-                                  <Tag>{providerLabel}</Tag>
-                                  <Button
-                                    size="small"
-                                    loading={
-                                      checkingRepositoryKey === field.key &&
-                                      isChecking
-                                    }
-                                    disabled={
-                                      isChecking &&
-                                      checkingRepositoryKey !== field.key
-                                    }
-                                    onClick={() =>
-                                      checkConnection(field.key, field.name)
-                                    }
-                                  >
-                                    检查连接
-                                  </Button>
-                                </div>
+                                <Tag className={styles.repositoryProvider}>
+                                  {providerLabel}
+                                </Tag>
                               );
                             }}
                           </Form.Item>
                           <Button
-                            className={styles.deleteButton}
+                            loading={
+                              checkingRepositoryKey === field.key && isChecking
+                            }
+                            disabled={
+                              isChecking && checkingRepositoryKey !== field.key
+                            }
+                            onClick={() =>
+                              checkConnection(field.key, field.name)
+                            }
+                          >
+                            检查连接
+                          </Button>
+                          <Button
                             type="text"
                             danger
                             icon={<DeleteOutlined />}
@@ -503,8 +568,8 @@ export function ProjectRepositoriesForm({
                       添加仓库
                     </Button>
                   </div>
-                )
-              }
+                );
+              }}
             </Form.List>
           </div>
         </section>

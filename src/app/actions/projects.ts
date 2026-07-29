@@ -20,6 +20,7 @@ import {
   checkRepositoryConnection,
   RepositoryConnectionError,
   type RepositoryConnectionSummary,
+  verifyGitCredential,
 } from "@/server/projects/repository-connection";
 
 const projectSchema = z.object({
@@ -86,7 +87,6 @@ const projectBasicSettingsSchema = z.object({
   projectId: z.string().min(1),
   name: projectSchema.shape.name,
   description: projectSchema.shape.description,
-  baseUrl: z.union([z.literal(""), z.url("请输入有效的 Base URL")]),
 });
 
 const projectRepositoriesSchema = z.object({
@@ -94,8 +94,9 @@ const projectRepositoriesSchema = z.object({
   repositories: z.array(repositorySchema),
 });
 
-const projectVariablesSchema = z.object({
+const projectTestingSettingsSchema = z.object({
   projectId: z.string().min(1),
+  baseUrl: z.union([z.literal(""), z.url("请输入有效的 Base URL")]),
   variables: z.array(variableSchema),
 });
 
@@ -120,15 +121,21 @@ const repositoryConnectionSchema = z.object({
 type CredentialStatus = {
   hasGithubPat: boolean;
   hasGiteePat: boolean;
+  githubPatAccount: string | null;
+  giteePatAccount: string | null;
 };
 
 function getCredentialStatus(project: {
   githubPatEncrypted: string | null;
   giteePatEncrypted: string | null;
+  githubPatAccount: string | null;
+  giteePatAccount: string | null;
 }): CredentialStatus {
   return {
     hasGithubPat: Boolean(project.githubPatEncrypted),
     hasGiteePat: Boolean(project.giteePatEncrypted),
+    githubPatAccount: project.githubPatAccount,
+    giteePatAccount: project.giteePatAccount,
   };
 }
 
@@ -216,7 +223,6 @@ export async function updateProjectBasicSettingsAction(
     data: {
       name: parsed.data.name,
       description: parsed.data.description || null,
-      baseUrl: parsed.data.baseUrl || null,
     },
   });
 
@@ -315,8 +321,11 @@ export async function updateProjectRepositoriesAction(input: unknown): Promise<
   };
 }
 
-export async function updateProjectVariablesAction(input: unknown): Promise<
+export async function updateProjectTestingSettingsAction(
+  input: unknown,
+): Promise<
   ActionResult<{
+    baseUrl: string;
     variables: Array<{
       id: string;
       name: string;
@@ -327,12 +336,12 @@ export async function updateProjectVariablesAction(input: unknown): Promise<
   }>
 > {
   await requireUser();
-  const parsed = projectVariablesSchema.safeParse(input);
+  const parsed = projectTestingSettingsSchema.safeParse(input);
 
   if (!parsed.success) {
     return {
       ok: false,
-      message: "请检查项目变量",
+      message: "请检查测试设置",
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -386,6 +395,11 @@ export async function updateProjectVariablesAction(input: unknown): Promise<
   }
 
   const variables = await db.$transaction(async (transaction) => {
+    await transaction.project.update({
+      where: { id: project.id },
+      data: { baseUrl: parsed.data.baseUrl || null },
+    });
+
     await transaction.projectVariable.updateMany({
       where: {
         projectId: project.id,
@@ -444,11 +458,12 @@ export async function updateProjectVariablesAction(input: unknown): Promise<
     });
   });
 
-  revalidatePath("/project-settings/variables");
+  revalidatePath("/project-settings/testing");
   return {
     ok: true,
-    message: "项目变量已保存",
+    message: "测试设置已保存",
     data: {
+      baseUrl: parsed.data.baseUrl,
       variables: variables.map((variable) => ({
         ...variable,
         value: variable.kind === VariableKind.SECRET ? "" : variable.value,
@@ -476,7 +491,9 @@ export async function addProjectPatAction(
     select: {
       id: true,
       githubPatEncrypted: true,
+      githubPatAccount: true,
       giteePatEncrypted: true,
+      giteePatAccount: true,
     },
   });
 
@@ -497,6 +514,16 @@ export async function addProjectPatAction(
     };
   }
 
+  let identity: Awaited<ReturnType<typeof verifyGitCredential>>;
+  try {
+    identity = await verifyGitCredential(parsed.data.provider, parsed.data.pat);
+  } catch (error) {
+    if (error instanceof RepositoryConnectionError) {
+      return { ok: false, message: error.message };
+    }
+    return { ok: false, message: `${providerLabel} PAT 验证失败` };
+  }
+
   const encryptedPat = encryptAesGcm(parsed.data.pat, env.ENCRYPTION_KEY);
   const updateResult = await db.project.updateMany({
     where:
@@ -513,8 +540,14 @@ export async function addProjectPatAction(
           },
     data:
       parsed.data.provider === "GITHUB"
-        ? { githubPatEncrypted: encryptedPat }
-        : { giteePatEncrypted: encryptedPat },
+        ? {
+            githubPatEncrypted: encryptedPat,
+            githubPatAccount: identity.account,
+          }
+        : {
+            giteePatEncrypted: encryptedPat,
+            giteePatAccount: identity.account,
+          },
   });
 
   if (updateResult.count === 0) {
@@ -526,8 +559,16 @@ export async function addProjectPatAction(
 
   const updatedCredentials =
     parsed.data.provider === "GITHUB"
-      ? { ...project, githubPatEncrypted: encryptedPat }
-      : { ...project, giteePatEncrypted: encryptedPat };
+      ? {
+          ...project,
+          githubPatEncrypted: encryptedPat,
+          githubPatAccount: identity.account,
+        }
+      : {
+          ...project,
+          giteePatEncrypted: encryptedPat,
+          giteePatAccount: identity.account,
+        };
 
   revalidatePath("/project-settings/repositories");
   return {
@@ -552,7 +593,9 @@ export async function deleteProjectPatAction(
     select: {
       id: true,
       githubPatEncrypted: true,
+      githubPatAccount: true,
       giteePatEncrypted: true,
+      giteePatAccount: true,
     },
   });
 
@@ -574,14 +617,22 @@ export async function deleteProjectPatAction(
     where: { id: project.id },
     data:
       parsed.data.provider === "GITHUB"
-        ? { githubPatEncrypted: null }
-        : { giteePatEncrypted: null },
+        ? { githubPatEncrypted: null, githubPatAccount: null }
+        : { giteePatEncrypted: null, giteePatAccount: null },
   });
 
   const updatedCredentials =
     parsed.data.provider === "GITHUB"
-      ? { ...project, githubPatEncrypted: null }
-      : { ...project, giteePatEncrypted: null };
+      ? {
+          ...project,
+          githubPatEncrypted: null,
+          githubPatAccount: null,
+        }
+      : {
+          ...project,
+          giteePatEncrypted: null,
+          giteePatAccount: null,
+        };
 
   revalidatePath("/project-settings/repositories");
   return {
@@ -589,6 +640,75 @@ export async function deleteProjectPatAction(
     message: `${providerLabel} PAT 已删除`,
     data: getCredentialStatus(updatedCredentials),
   };
+}
+
+export async function verifyProjectPatAction(
+  input: unknown,
+): Promise<ActionResult<CredentialStatus>> {
+  await requireUser();
+  const parsed = deleteProjectPatSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return { ok: false, message: "请检查 PAT 配置" };
+  }
+
+  const project = await db.project.findFirst({
+    where: { id: parsed.data.projectId, deletedAt: null },
+    select: {
+      id: true,
+      githubPatEncrypted: true,
+      githubPatAccount: true,
+      giteePatEncrypted: true,
+      giteePatAccount: true,
+    },
+  });
+
+  if (!project) {
+    return { ok: false, message: "项目不存在或已删除" };
+  }
+
+  const encryptedPat =
+    parsed.data.provider === "GITHUB"
+      ? project.githubPatEncrypted
+      : project.giteePatEncrypted;
+  const providerLabel = GIT_PROVIDER_LABELS[parsed.data.provider];
+
+  if (!encryptedPat) {
+    return { ok: false, message: `${providerLabel} PAT 尚未配置` };
+  }
+
+  try {
+    const pat = decryptAesGcm(encryptedPat, env.ENCRYPTION_KEY);
+    const identity = await verifyGitCredential(parsed.data.provider, pat);
+
+    await db.project.update({
+      where: { id: project.id },
+      data:
+        parsed.data.provider === "GITHUB"
+          ? { githubPatAccount: identity.account }
+          : { giteePatAccount: identity.account },
+    });
+
+    const updatedCredentials =
+      parsed.data.provider === "GITHUB"
+        ? { ...project, githubPatAccount: identity.account }
+        : { ...project, giteePatAccount: identity.account };
+
+    revalidatePath("/project-settings/repositories");
+    return {
+      ok: true,
+      message: `${providerLabel} PAT 已验证`,
+      data: getCredentialStatus(updatedCredentials),
+    };
+  } catch (error) {
+    if (error instanceof RepositoryConnectionError) {
+      return { ok: false, message: error.message };
+    }
+    return {
+      ok: false,
+      message: `${providerLabel} PAT 无法读取，请删除后重新新增`,
+    };
+  }
 }
 
 export async function checkRepositoryConnectionAction(
@@ -687,7 +807,9 @@ export async function deleteProjectAction(
     data: {
       deletedAt: new Date(),
       githubPatEncrypted: null,
+      githubPatAccount: null,
       giteePatEncrypted: null,
+      giteePatAccount: null,
     },
   });
 

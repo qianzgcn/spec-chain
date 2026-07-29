@@ -16,6 +16,11 @@ export type RepositoryConnectionSummary = {
   branch: string;
 };
 
+export type GitCredentialIdentity = {
+  provider: GitProvider;
+  account: string;
+};
+
 export class RepositoryConnectionError extends Error {
   constructor(message: string) {
     super(message);
@@ -28,6 +33,32 @@ type ProviderRequest = {
   branchUrl: string;
   headers: Record<string, string>;
 };
+
+function buildIdentityRequest(
+  provider: GitProvider,
+  pat: string,
+): { url: string; headers: Record<string, string> } {
+  if (provider === "GITHUB") {
+    return {
+      url: "https://api.github.com/user",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${pat}`,
+        "User-Agent": USER_AGENT,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    };
+  }
+
+  return {
+    url: "https://gitee.com/api/v5/user",
+    headers: {
+      Accept: "application/json",
+      Authorization: `token ${pat}`,
+      "User-Agent": USER_AGENT,
+    },
+  };
+}
 
 function buildRequest(
   location: RepositoryLocation,
@@ -99,6 +130,60 @@ function throwForResponses(
   if (!branchResponse.ok) {
     throw new RepositoryConnectionError(
       `${providerLabel} 服务暂时不可用，请稍后重试`,
+    );
+  }
+}
+
+/**
+ * 保存 PAT 前先通过平台用户接口确认凭据有效，并记录凭据所属账号。
+ * 请求地址由平台枚举固定生成，不接受用户传入的 URL。
+ */
+export async function verifyGitCredential(
+  provider: GitProvider,
+  pat: string,
+  fetchImplementation: typeof fetch = fetch,
+): Promise<GitCredentialIdentity> {
+  const request = buildIdentityRequest(provider, pat);
+  const providerLabel = GIT_PROVIDER_LABELS[provider];
+
+  try {
+    const response = await fetchImplementation(request.url, {
+      cache: "no-store",
+      headers: request.headers,
+      signal: AbortSignal.timeout(CONNECTION_TIMEOUT_MS),
+    });
+
+    if (response.status === 401) {
+      throw new RepositoryConnectionError(`${providerLabel} PAT 无效或已过期`);
+    }
+    if (response.status === 403 || response.status === 429) {
+      throw new RepositoryConnectionError(
+        `${providerLabel} PAT 权限不足或接口调用受限`,
+      );
+    }
+    if (!response.ok) {
+      throw new RepositoryConnectionError(
+        `${providerLabel} 服务暂时不可用，请稍后重试`,
+      );
+    }
+
+    const data = (await response.json()) as { login?: unknown };
+    if (typeof data.login !== "string" || !data.login.trim()) {
+      throw new RepositoryConnectionError(
+        `${providerLabel} 未返回有效的账号信息`,
+      );
+    }
+
+    return { provider, account: data.login.trim() };
+  } catch (error) {
+    if (error instanceof RepositoryConnectionError) throw error;
+
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new RepositoryConnectionError("连接超时，请检查网络后重试");
+    }
+
+    throw new RepositoryConnectionError(
+      `无法连接 ${providerLabel}，请检查网络后重试`,
     );
   }
 }

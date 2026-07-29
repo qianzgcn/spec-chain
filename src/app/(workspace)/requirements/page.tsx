@@ -24,9 +24,11 @@ type SearchParams = {
   page?: string;
 };
 
-type FilterableRequirementListItem = RequirementListItem & {
-  featureId: string | null;
-};
+function matchesText(code: string, title: string, query: string) {
+  return (
+    !query || `${code} ${title}`.toLocaleLowerCase("zh-CN").includes(query)
+  );
+}
 
 export default async function RequirementsPage({
   searchParams,
@@ -56,7 +58,7 @@ export default async function RequirementsPage({
     );
   }
 
-  const [features, userStories] = await Promise.all([
+  const [features, independentStories] = await Promise.all([
     db.feature.findMany({
       where: { projectId: project.id, deletedAt: null },
       select: {
@@ -66,52 +68,32 @@ export default async function RequirementsPage({
         updatedAt: true,
         userStories: {
           where: { deletedAt: null },
-          select: { status: true },
+          orderBy: [{ updatedAt: "desc" }, { createdAt: "asc" }],
+          select: {
+            id: true,
+            code: true,
+            title: true,
+            status: true,
+            updatedAt: true,
+          },
         },
       },
     }),
     db.userStory.findMany({
-      where: { projectId: project.id, deletedAt: null },
+      where: {
+        projectId: project.id,
+        featureId: null,
+        deletedAt: null,
+      },
       select: {
         id: true,
         code: true,
         title: true,
-        featureId: true,
         status: true,
         updatedAt: true,
-        feature: {
-          select: { name: true },
-        },
       },
     }),
   ]);
-
-  const allItems: FilterableRequirementListItem[] = [
-    ...features.map((feature) => ({
-      id: feature.id,
-      type: "FEATURE" as const,
-      code: feature.code,
-      title: feature.name,
-      featureId: null,
-      featureName: null,
-      status: deriveFeatureStatus(
-        feature.userStories.map((story) => story.status),
-      ),
-      childCount: feature.userStories.length,
-      updatedAt: feature.updatedAt.toISOString(),
-    })),
-    ...userStories.map((story) => ({
-      id: story.id,
-      type: "USER_STORY" as const,
-      code: story.code,
-      title: story.title,
-      featureId: story.featureId,
-      featureName: story.feature?.name ?? null,
-      status: story.status,
-      childCount: null,
-      updatedAt: story.updatedAt.toISOString(),
-    })),
-  ];
 
   const query = params.q?.trim().toLocaleLowerCase("zh-CN") ?? "";
   const type =
@@ -125,53 +107,120 @@ export default async function RequirementsPage({
     : "";
   const featureFilter = params.feature ?? "";
 
-  const filteredItems = allItems
-    .filter((item) => {
-      if (
-        query &&
-        !`${item.code} ${item.title}`.toLocaleLowerCase("zh-CN").includes(query)
-      ) {
-        return false;
-      }
-      if (type && item.type !== type) return false;
-      if (status && item.status !== status) return false;
-      if (featureFilter) {
-        if (item.type !== "USER_STORY") return false;
-        if (featureFilter === "independent") return item.featureId === null;
-        return item.featureId === featureFilter;
-      }
-      return true;
-    })
-    .toSorted(
-      (left, right) =>
-        new Date(right.updatedAt).getTime() -
-        new Date(left.updatedAt).getTime(),
-    );
+  const featureItems = features.flatMap<RequirementListItem>((feature) => {
+    if (
+      featureFilter === "independent" ||
+      (featureFilter && featureFilter !== feature.id)
+    ) {
+      return [];
+    }
 
+    const featureStatus = deriveFeatureStatus(
+      feature.userStories.map((story) => story.status),
+    );
+    const allChildren: RequirementListItem[] = feature.userStories.map(
+      (story) => ({
+        id: story.id,
+        type: "USER_STORY",
+        code: story.code,
+        title: story.title,
+        status: story.status,
+        childCount: null,
+        updatedAt: story.updatedAt.toISOString(),
+      }),
+    );
+    const matchingChildren = allChildren.filter(
+      (story) =>
+        matchesText(story.code, story.title, query) &&
+        (!status || story.status === status),
+    );
+    const featureTextMatches = matchesText(feature.code, feature.name, query);
+    const featureMatches =
+      featureTextMatches && (!status || featureStatus === status);
+
+    if (type === "USER_STORY") {
+      return matchingChildren.length
+        ? [
+            {
+              id: feature.id,
+              type: "FEATURE",
+              code: feature.code,
+              title: feature.name,
+              status: featureStatus,
+              childCount: allChildren.length,
+              updatedAt: feature.updatedAt.toISOString(),
+              children: matchingChildren,
+            },
+          ]
+        : [];
+    }
+
+    if (type === "FEATURE" && !featureMatches) {
+      return [];
+    }
+    if (
+      !type &&
+      (query || status) &&
+      !featureMatches &&
+      !matchingChildren.length
+    ) {
+      return [];
+    }
+
+    const children =
+      type === "FEATURE" || (!query && !status) || featureTextMatches
+        ? allChildren.filter((story) => !status || story.status === status)
+        : matchingChildren;
+
+    return [
+      {
+        id: feature.id,
+        type: "FEATURE",
+        code: feature.code,
+        title: feature.name,
+        status: featureStatus,
+        childCount: allChildren.length,
+        updatedAt: feature.updatedAt.toISOString(),
+        children,
+      },
+    ];
+  });
+
+  const independentItems: RequirementListItem[] = independentStories
+    .filter(
+      (story) =>
+        type !== "FEATURE" &&
+        (!featureFilter || featureFilter === "independent") &&
+        matchesText(story.code, story.title, query) &&
+        (!status || story.status === status),
+    )
+    .map((story) => ({
+      id: story.id,
+      type: "USER_STORY",
+      code: story.code,
+      title: story.title,
+      status: story.status,
+      childCount: null,
+      updatedAt: story.updatedAt.toISOString(),
+    }));
+
+  const filteredItems = [...featureItems, ...independentItems].toSorted(
+    (left, right) =>
+      new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
+  );
   const requestedPage = Number.parseInt(params.page ?? "1", 10);
   const pageCount = Math.max(1, Math.ceil(filteredItems.length / 20));
   const page = Math.min(
     pageCount,
     Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1,
   );
-  const items: RequirementListItem[] = filteredItems
-    .slice((page - 1) * 20, page * 20)
-    .map((item) => ({
-      id: item.id,
-      type: item.type,
-      code: item.code,
-      title: item.title,
-      featureName: item.featureName,
-      status: item.status,
-      childCount: item.childCount,
-      updatedAt: item.updatedAt,
-    }));
+  const items = filteredItems.slice((page - 1) * 20, page * 20);
 
   return (
     <div className="page-shell page-shell--table">
       <PageHeader
         title="需求列表"
-        description="FE 与 US 在同一列表中管理；FE 状态由其全部关联 US 自动计算。"
+        description="展开 FE 即可查看其中的 US，独立 US 直接显示在列表中。"
       />
 
       <RequirementsList

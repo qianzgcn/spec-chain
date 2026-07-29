@@ -4,9 +4,9 @@ import { useState, useTransition } from "react";
 
 import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
 import PlusOutlined from "@ant-design/icons/PlusOutlined";
-import { Alert, Button, Form, Input, Select, message } from "antd";
+import { Button, Form, Input, Select, message } from "antd";
 
-import { updateProjectVariablesAction } from "@/app/actions/projects";
+import { updateProjectTestingSettingsAction } from "@/app/actions/projects";
 import { VariableKind } from "@/generated/prisma/enums";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 
@@ -21,24 +21,25 @@ type VariableValue = {
   kind: VariableKind;
 };
 
-type VariablesFormValues = {
+type TestingSettingsFormValues = {
+  baseUrl: string;
   variables: VariableValue[];
 };
 
-export function ProjectVariablesForm({
+export function ProjectTestingSettingsForm({
   project,
 }: {
-  project: { id: string; variables: VariableValue[] };
+  project: { id: string; baseUrl: string; variables: VariableValue[] };
 }) {
-  const [form] = Form.useForm<VariablesFormValues>();
+  const [form] = Form.useForm<TestingSettingsFormValues>();
   const [messageApi, messageContext] = message.useMessage();
   const [dirty, setDirty] = useState(false);
   const [isPending, startTransition] = useTransition();
   useUnsavedChanges(dirty);
 
-  function submit(values: VariablesFormValues) {
+  function submit(values: TestingSettingsFormValues) {
     startTransition(async () => {
-      const result = await updateProjectVariablesAction({
+      const result = await updateProjectTestingSettingsAction({
         ...values,
         projectId: project.id,
       });
@@ -49,7 +50,7 @@ export function ProjectVariablesForm({
       }
 
       if (result.data) {
-        form.setFieldsValue({ variables: result.data.variables });
+        form.setFieldsValue(result.data);
       }
       setDirty(false);
       messageApi.success(result.message);
@@ -59,33 +60,43 @@ export function ProjectVariablesForm({
   return (
     <>
       {messageContext}
-      <Form<VariablesFormValues>
+      <Form<TestingSettingsFormValues>
         form={form}
         className={styles.form}
         layout="vertical"
         requiredMark={false}
-        initialValues={{ variables: project.variables }}
+        initialValues={project}
         onValuesChange={() => setDirty(true)}
         onFinish={submit}
       >
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <div className={styles.sectionIntro}>
-              <h2>变量列表</h2>
-              <p>运行时注入环境变量；敏感值加密保存且不再回显。</p>
+              <h2>测试环境</h2>
+              <p>自动化运行会使用此地址和下方变量访问被测系统。</p>
             </div>
             <ProjectSettingsSaveButton dirty={dirty} pending={isPending}>
               保存
             </ProjectSettingsSaveButton>
           </div>
           <div className={styles.sectionContent}>
-            <Alert
-              className={styles.variableNotice}
-              type="info"
-              showIcon
-              title="敏感变量留空表示保留原值；需要修改时输入新值后保存。"
-            />
+            <Form.Item
+              className={styles.baseUrlField}
+              name="baseUrl"
+              label="Base URL"
+              rules={[{ type: "url", message: "请输入有效的 URL" }]}
+            >
+              <Input placeholder="https://example.com" />
+            </Form.Item>
+          </div>
+        </section>
 
+        <section className={styles.section}>
+          <div className={styles.sectionIntro}>
+            <h2>环境变量</h2>
+            <p>敏感值会加密保存；已有敏感变量留空表示保留原值。</p>
+          </div>
+          <div className={styles.sectionContent}>
             <Form.List name="variables">
               {(fields, { add, remove }) =>
                 fields.length === 0 ? (

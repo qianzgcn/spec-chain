@@ -104,7 +104,9 @@ model Project {
   description        String?
   baseUrl            String?
   githubPatEncrypted String?
+  githubPatAccount   String?
   giteePatEncrypted  String?
+  giteePatAccount    String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?

@@ -2,6 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import path from "node:path";
 
+import { encryptAesGcm } from "@/lib/security/aes-gcm";
+
 async function expectTablePageFillsWorkspace(page: Page) {
   const metrics = await page.locator("main").evaluate((main) => {
     const panel = main.querySelector<HTMLElement>(".table-page-panel");
@@ -91,6 +93,8 @@ async function expectTestCaseActionsAligned(page: Page) {
 }
 
 test("从登录到需求和测试用例的核心流程", async ({ page }) => {
+  const databasePath = path.resolve(process.cwd(), "data", "e2e.db");
+
   await page.goto("/login");
 
   await page.getByRole("textbox", { name: "用户名" }).fill("admin");
@@ -137,6 +141,13 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "客服提交退款" }),
   ).toBeVisible();
+
+  await page.goto("/requirements");
+  await expect(page.getByRole("columnheader", { name: "所属 FE" })).toHaveCount(
+    0,
+  );
+  await page.getByRole("button", { name: "展开行" }).click();
+  await expect(page.getByRole("link", { name: "客服提交退款" })).toBeVisible();
 
   await page.goto("/test-case-groups");
   await page.getByRole("button", { name: "新建分组" }).click();
@@ -203,10 +214,13 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await expect(page.getByRole("button", { name: "保存" })).toBeDisabled();
   await expect(page.getByText("当前设置已保存")).toHaveCount(0);
 
-  await page.goto("/project-settings/variables");
+  await page.goto("/project-settings/testing");
   await expect(
-    page.getByRole("heading", { name: "项目变量", level: 1 }),
+    page.getByRole("heading", { name: "测试设置", level: 1 }),
   ).toBeVisible();
+  await page
+    .getByRole("textbox", { name: "Base URL" })
+    .fill("https://example.com");
   await page.getByRole("button", { name: "添加变量" }).click();
   const variableType = page.getByRole("combobox", { name: "类型" });
   await expect(variableType).toBeVisible();
@@ -242,22 +256,26 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await expect(page.getByText("当前设置已保存")).toHaveCount(0);
 
   const githubPat = "e2e-github-pat";
-  const githubPatInput = page.getByRole("textbox", {
-    name: "GitHub PAT",
-    exact: true,
-  });
-  await githubPatInput.fill(githubPat);
-  await page.getByRole("button", { name: "新增 GitHub PAT" }).click();
+  const credentialDatabase = new Database(databasePath);
+  credentialDatabase
+    .prepare(
+      `UPDATE "Project"
+       SET "githubPatEncrypted" = ?, "githubPatAccount" = ?
+       WHERE "name" = ? AND "deletedAt" IS NULL`,
+    )
+    .run(
+      encryptAesGcm(githubPat, Buffer.alloc(32, 7)),
+      "qianzgcn",
+      "E2E 验收项目",
+    );
+  credentialDatabase.close();
+  await page.reload();
 
-  const maskedGithubPat = page.getByRole("textbox", {
-    name: "GitHub PAT（已脱敏）",
-  });
-  await expect(maskedGithubPat).toHaveValue("••••••••••••");
-  await expect(maskedGithubPat).toHaveAttribute("readonly", "");
-  await expect(githubPatInput).toHaveCount(0);
+  const maskedGithubPat = page.getByLabel("GitHub PAT（已脱敏）");
+  await expect(maskedGithubPat).toHaveText("•••• •••• ••••");
+  await expect(page.getByText("账号 qianzgcn")).toBeVisible();
   await expect(page.getByText("已配置", { exact: true })).toBeVisible();
 
-  const databasePath = path.resolve(process.cwd(), "data", "e2e.db");
   const database = new Database(databasePath, { readonly: true });
   const encryptedCredential = database
     .prepare(
@@ -274,9 +292,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await deletePatDialog
     .getByRole("button", { name: "确认删除 GitHub PAT" })
     .click();
-  await expect(
-    page.getByRole("textbox", { name: "GitHub PAT", exact: true }),
-  ).toBeVisible();
+  await expect(page.getByLabel("GitHub PAT", { exact: true })).toBeVisible();
   await expect(page.getByText("未配置", { exact: true })).toHaveCount(2);
 
   const clearedDatabase = new Database(databasePath, { readonly: true });
@@ -335,7 +351,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
     page.getByRole("heading", { name: "AI辅助生成US" }),
   ).toBeVisible();
   await expect(page.locator("form .ant-form-item")).toHaveCount(1);
-  await expect(page.getByText(/所属 FE：FE-/)).toBeVisible();
+  await expect(page.getByText(/FE-/)).toBeVisible();
   await page
     .getByRole("textbox", { name: "需求内容" })
     .fill("客服需要根据订单状态提交退款，并明确显示成功或失败原因。");

@@ -1,7 +1,5 @@
 "use client";
 
-import ArrowDownOutlined from "@ant-design/icons/ArrowDownOutlined";
-import ArrowUpOutlined from "@ant-design/icons/ArrowUpOutlined";
 import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
 import PlusOutlined from "@ant-design/icons/PlusOutlined";
 import { Button, Form, Input } from "antd";
@@ -26,7 +24,7 @@ export function AcceptanceCriteriaEditor() {
           },
         ]}
       >
-        {(fields, { add, remove, move }, { errors }) => (
+        {(fields, { add, remove }, { errors }) => (
           <div className="acceptance-editor">
             <div className="acceptance-editor__head" aria-hidden>
               <span>序号</span>
@@ -74,22 +72,6 @@ export function AcceptanceCriteriaEditor() {
                     />
                   </Form.Item>
                   <div className="acceptance-editor__actions">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<ArrowUpOutlined />}
-                      disabled={index === 0}
-                      aria-label={`上移验收标准 ${index + 1}`}
-                      onClick={() => move(index, index - 1)}
-                    />
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<ArrowDownOutlined />}
-                      disabled={index === fields.length - 1}
-                      aria-label={`下移验收标准 ${index + 1}`}
-                      onClick={() => move(index, index + 1)}
-                    />
                     <Button
                       type="text"
                       size="small"

@@ -226,8 +226,8 @@ function AiExecutionDetailContent({
         title="AI辅助生成US"
         description={
           execution.feature
-            ? `所属 FE：${execution.feature.code} · ${execution.feature.name}`
-            : "未归属 FE"
+            ? `${execution.feature.code} · ${execution.feature.name}`
+            : undefined
         }
         meta={
           <Space size={8}>
