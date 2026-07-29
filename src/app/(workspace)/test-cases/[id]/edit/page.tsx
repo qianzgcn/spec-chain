@@ -64,24 +64,17 @@ export default async function EditTestCasePage({
   };
 
   return (
-    <div className="page-shell">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">编辑测试用例</h1>
-          <p className="page-description">{testCase.code}</p>
-        </div>
-      </div>
-      <TestCaseForm
-        testCaseId={testCase.id}
-        groups={groups}
-        userStories={userStories.map((story) => ({
-          id: story.id,
-          code: story.code,
-          title: story.title,
-          featureName: story.feature?.name ?? null,
-        }))}
-        initialValues={initialValues}
-      />
-    </div>
+    <TestCaseForm
+      testCaseId={testCase.id}
+      code={testCase.code}
+      groups={groups}
+      userStories={userStories.map((story) => ({
+        id: story.id,
+        code: story.code,
+        title: story.title,
+        featureName: story.feature?.name ?? null,
+      }))}
+      initialValues={initialValues}
+    />
   );
 }

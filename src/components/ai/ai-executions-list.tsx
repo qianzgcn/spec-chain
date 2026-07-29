@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { Button, Space, Table, Tag, Typography } from "antd";
+import { Button, Table, Tag, Typography } from "antd";
 import type { TableProps } from "antd";
 import {
   QueryClient,
@@ -132,30 +132,16 @@ function AiExecutionsTable({
     {
       title: "操作",
       key: "actions",
-      width: 150,
+      width: 80,
+      align: "center",
       render: (_, execution) => (
-        <Space size={2}>
-          <Button
-            type="link"
-            size="small"
-            href={`/ai-executions/${execution.id}`}
-          >
-            查看
-          </Button>
-          {execution.draft && !execution.draft.deleted ? (
-            <Button
-              type="link"
-              size="small"
-              href={
-                execution.draft.confirmedUserStoryId
-                  ? `/user-stories/${execution.draft.confirmedUserStoryId}`
-                  : `/user-story-drafts/${execution.draft.id}`
-              }
-            >
-              {execution.draft.confirmedUserStoryId ? "查看US" : "评审草稿"}
-            </Button>
-          ) : null}
-        </Space>
+        <Button
+          type="link"
+          size="small"
+          href={`/ai-executions/${execution.id}`}
+        >
+          查看
+        </Button>
       ),
     },
   ];

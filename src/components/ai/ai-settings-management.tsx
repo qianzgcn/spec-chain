@@ -151,9 +151,7 @@ export function AiSettingsManagement({
       render: (name: string, profile) => (
         <Space>
           <Typography.Text strong>{name}</Typography.Text>
-          {profile.id === defaultProfileId ? (
-            <Tag color="cyan">生成 US 默认</Tag>
-          ) : null}
+          {profile.id === defaultProfileId ? <Tag>生成 US 默认</Tag> : null}
         </Space>
       ),
     },

@@ -99,7 +99,7 @@ export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
             pathname: "/test-cases",
             query: { group: group.id },
           }}
-          className="font-medium text-cyan-700 hover:text-cyan-800 hover:underline"
+          className="font-medium text-blue-700 hover:text-blue-800 hover:underline"
           aria-label={`查看 ${group.name} 分组的 ${count} 个测试用例`}
         >
           {count} 个
@@ -175,6 +175,7 @@ export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
           columns={columns}
           dataSource={groups}
           loading={isPending}
+          tableLayout="fixed"
           scroll={{ y: "100%" }}
           pagination={{
             pageSize: 20,

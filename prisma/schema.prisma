@@ -58,6 +58,12 @@ enum AiExecutionStage {
   COMPLETED
 }
 
+enum AiExecutionLogLevel {
+  INFO
+  WARN
+  ERROR
+}
+
 enum AiDraftStatus {
   PENDING
   CONFIRMED
@@ -364,10 +370,26 @@ model AiExecution {
   requestedBy User            @relation(fields: [requestedById], references: [id], onDelete: Restrict)
   feature     Feature?        @relation(fields: [featureId], references: [id], onDelete: Restrict)
   draft       UserStoryDraft?
+  logs        AiExecutionLog[]
 
   @@index([status, queuedAt])
   @@index([projectId, createdAt])
   @@index([featureId])
+}
+
+model AiExecutionLog {
+  id          String              @id @default(cuid())
+  executionId String
+  position    Int
+  level       AiExecutionLogLevel
+  stage       AiExecutionStage?
+  message     String
+  createdAt   DateTime            @default(now())
+
+  execution AiExecution @relation(fields: [executionId], references: [id], onDelete: Restrict)
+
+  @@unique([executionId, position])
+  @@index([executionId, createdAt])
 }
 
 model UserStoryDraft {

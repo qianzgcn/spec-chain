@@ -52,18 +52,11 @@ export default async function EditUserStoryPage({
   };
 
   return (
-    <div className="page-shell">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">编辑 US</h1>
-          <p className="page-description">{story.code}</p>
-        </div>
-      </div>
-      <UserStoryForm
-        userStoryId={story.id}
-        feature={story.feature}
-        initialValues={initialValues}
-      />
-    </div>
+    <UserStoryForm
+      userStoryId={story.id}
+      code={story.code}
+      feature={story.feature}
+      initialValues={initialValues}
+    />
   );
 }

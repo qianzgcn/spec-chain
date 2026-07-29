@@ -9,6 +9,7 @@ import { builtInSkillResolver } from "@/ai/skills";
 import {
   AiWorkflowError,
   createGenerateUserStoryWorkflow,
+  type WorkflowLogEvent,
 } from "@/ai/user-story-workflow";
 
 const snapshot: RepositoryTreeSnapshot = {
@@ -105,8 +106,13 @@ const workflowInput = {
 
 describe("AI 生成 US 工作流", () => {
   it("基于真实文件生成结构化草稿并只保存代码引用", async () => {
-    const result =
-      await createWorkflow(createFakeProvider()).run(workflowInput);
+    const logs: WorkflowLogEvent[] = [];
+    const result = await createWorkflow(createFakeProvider()).run({
+      ...workflowInput,
+      onLog: async (event) => {
+        logs.push(event);
+      },
+    });
 
     expect(result.draft.title).toBe("客服提交订单退款");
     expect(result.draft.acceptanceCriteria).toHaveLength(1);
@@ -120,6 +126,14 @@ describe("AI 生成 US 工作流", () => {
     expect(JSON.stringify(result)).not.toContain("must-not-leak");
     expect(JSON.stringify(result)).not.toContain("createRefund");
     expect(result.usage.totalTokens).toBe(30);
+    expect(logs.map((log) => log.message)).toEqual(
+      expect.arrayContaining([
+        "已读取 1 个仓库的文件树，共 1 个文件。",
+        "已定位 1 个候选文件，开始读取代码内容。",
+        "已读取 1 个相关代码文件。",
+        "US 草稿生成完成，本次模型调用共使用 30 Token。",
+      ]),
+    );
   });
 
   it("没有相关代码时直接失败且不生成草稿", async () => {

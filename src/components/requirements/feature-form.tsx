@@ -9,6 +9,8 @@ import {
   createFeatureAction,
   updateFeatureAction,
 } from "@/app/actions/requirements";
+import { FormPage } from "@/components/layout/form-page";
+import { PageSection } from "@/components/layout/page-section";
 import { MarkdownField } from "@/components/markdown/markdown-field";
 import {
   confirmLeaveIfDirty,
@@ -23,9 +25,11 @@ type FeatureValues = {
 
 export function FeatureForm({
   featureId,
+  code,
   initialValues,
 }: {
   featureId?: string;
+  code?: string;
   initialValues?: FeatureValues;
 }) {
   const router = useRouter();
@@ -62,53 +66,82 @@ export function FeatureForm({
   return (
     <>
       {messageContext}
-      <Form<FeatureValues>
-        className="form-panel"
-        layout="vertical"
-        requiredMark={false}
-        initialValues={initialValues}
-        onValuesChange={() => setDirty(true)}
-        onFinish={submit}
+      <FormPage
+        title={featureId ? "编辑 FE" : "新建 FE"}
+        description={
+          featureId
+            ? "调整 FE 的组织信息和业务背景。"
+            : "FE 是复杂需求的组织单元；保存后再从 FE 内创建 US。"
+        }
+        meta={code ? <span className="page-code">{code}</span> : null}
+        actions={
+          <>
+            <Button onClick={cancel}>取消</Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              form="feature-form"
+              loading={isPending}
+              disabled={Boolean(featureId) && !dirty}
+            >
+              保存
+            </Button>
+          </>
+        }
       >
-        <Form.Item
-          name="name"
-          label="FE 名称"
-          rules={[{ required: true, message: "请输入 FE 名称" }]}
+        <Form<FeatureValues>
+          id="feature-form"
+          className="form-page__form"
+          layout="vertical"
+          requiredMark={false}
+          initialValues={initialValues}
+          onValuesChange={() => setDirty(true)}
+          onFinish={submit}
         >
-          <Input maxLength={150} showCount placeholder="简洁描述这个复杂需求" />
-        </Form.Item>
+          <PageSection title="基本信息">
+            <div className="grid grid-cols-[5fr_7fr] gap-5">
+              <Form.Item
+                name="name"
+                label="FE 名称"
+                rules={[{ required: true, message: "请输入 FE 名称" }]}
+              >
+                <Input
+                  maxLength={150}
+                  showCount
+                  placeholder="简洁描述这个复杂需求"
+                />
+              </Form.Item>
+              <Form.Item
+                name="summary"
+                label="一句话描述"
+                rules={[{ required: true, message: "请输入一句话描述" }]}
+              >
+                <Input
+                  maxLength={300}
+                  showCount
+                  placeholder="用一句话说明要解决的问题或交付的能力"
+                />
+              </Form.Item>
+            </div>
+          </PageSection>
 
-        <Form.Item
-          name="summary"
-          label="一句话描述"
-          rules={[{ required: true, message: "请输入一句话描述" }]}
-        >
-          <Input
-            maxLength={300}
-            showCount
-            placeholder="用一句话说明要解决的问题或交付的能力"
-          />
-        </Form.Item>
-
-        <Form.Item
-          name="backgroundGoal"
-          label="业务背景与目标"
-          rules={[{ required: true, message: "请输入业务背景与目标" }]}
-          extra="支持 Markdown。说明为什么要做、解决什么业务问题，以及期望达到的结果。"
-        >
-          <MarkdownField
-            rows={12}
-            placeholder="例如：&#10;- 当前业务问题&#10;- 目标用户和使用场景&#10;- 本次需求希望达到的结果"
-          />
-        </Form.Item>
-
-        <div className="form-actions">
-          <Button onClick={cancel}>取消</Button>
-          <Button type="primary" htmlType="submit" loading={isPending}>
-            保存
-          </Button>
-        </div>
-      </Form>
+          <PageSection
+            title="业务背景与目标"
+            description="说明为什么要做、解决什么业务问题，以及期望达到的结果。支持 Markdown。"
+          >
+            <Form.Item
+              name="backgroundGoal"
+              rules={[{ required: true, message: "请输入业务背景与目标" }]}
+              className="!mb-0"
+            >
+              <MarkdownField
+                rows={14}
+                placeholder="例如：&#10;- 当前业务问题&#10;- 目标用户和使用场景&#10;- 本次需求希望达到的结果"
+              />
+            </Form.Item>
+          </PageSection>
+        </Form>
+      </FormPage>
     </>
   );
 }

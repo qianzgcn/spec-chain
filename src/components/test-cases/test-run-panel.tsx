@@ -194,7 +194,7 @@ function TestRunPanelContent({
   return (
     <>
       {messageContext}
-      <div className="content-panel mb-5 max-w-[1180px]">
+      <div className="content-panel mb-5">
         <div className="flex items-center justify-between border-b border-slate-200 px-7 py-5">
           <div>
             <h2 className="m-0 text-base font-semibold text-slate-800">

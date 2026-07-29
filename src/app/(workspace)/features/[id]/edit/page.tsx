@@ -24,21 +24,14 @@ export default async function EditFeaturePage({
   if (!feature) notFound();
 
   return (
-    <div className="page-shell">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">编辑 FE</h1>
-          <p className="page-description">{feature.code}</p>
-        </div>
-      </div>
-      <FeatureForm
-        featureId={feature.id}
-        initialValues={{
-          name: feature.name,
-          summary: feature.summary,
-          backgroundGoal: feature.backgroundGoal,
-        }}
-      />
-    </div>
+    <FeatureForm
+      featureId={feature.id}
+      code={feature.code}
+      initialValues={{
+        name: feature.name,
+        summary: feature.summary,
+        backgroundGoal: feature.backgroundGoal,
+      }}
+    />
   );
 }

@@ -32,17 +32,5 @@ export default async function NewFeaturePage() {
     );
   }
 
-  return (
-    <div className="page-shell">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">新建 FE</h1>
-          <p className="page-description">
-            FE 是复杂需求的组织单元；保存后再从 FE 内逐个创建 US。
-          </p>
-        </div>
-      </div>
-      <FeatureForm />
-    </div>
-  );
+  return <FeatureForm />;
 }

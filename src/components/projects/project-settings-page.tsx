@@ -1,5 +1,7 @@
 import { Button, Empty } from "antd";
 
+import { PageHeader } from "@/components/layout/page-header";
+
 export function ProjectSettingsPage({
   title,
   description,
@@ -11,12 +13,7 @@ export function ProjectSettingsPage({
 }) {
   return (
     <div className="page-shell">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">{title}</h1>
-          <p className="page-description">{description}</p>
-        </div>
-      </div>
+      <PageHeader title={title} description={description} />
       {children}
     </div>
   );

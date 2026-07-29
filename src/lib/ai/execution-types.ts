@@ -1,5 +1,6 @@
 import {
   AiDraftStatus,
+  AiExecutionLogLevel,
   AiExecutionStage,
   AiExecutionStatus,
 } from "@/generated/prisma/enums";
@@ -20,27 +21,20 @@ export type AiExecutionSummary = {
   startedAt: string | null;
   finishedAt: string | null;
   durationMs: number | null;
-  errorMessage: string | null;
   requestedBy: string;
   feature: { code: string; name: string } | null;
-  draft: AiExecutionDraftSummary | null;
 };
 
-export type AiRepositorySnapshot = {
-  repositoryId: string;
-  provider: "GITHUB" | "GITEE";
-  owner: string;
-  repository: string;
-  branch: string;
-  commitSha: string;
-};
-
-export type AiCodeReference = AiRepositorySnapshot & {
-  path: string;
-  reason: string;
+export type AiExecutionLogEntry = {
+  position: number;
+  level: AiExecutionLogLevel;
+  stage: AiExecutionStage | null;
+  message: string;
+  createdAt: string;
 };
 
 export type AiExecutionDetail = AiExecutionSummary & {
+  errorMessage: string | null;
   modelProfileNameSnapshot: string | null;
   modelIdSnapshot: string | null;
   skillNameSnapshot: string | null;
@@ -48,6 +42,6 @@ export type AiExecutionDetail = AiExecutionSummary & {
   promptTokens: number | null;
   completionTokens: number | null;
   totalTokens: number | null;
-  repositories: AiRepositorySnapshot[];
-  codeReferences: AiCodeReference[];
+  result: AiExecutionDraftSummary | null;
+  logs: AiExecutionLogEntry[];
 };

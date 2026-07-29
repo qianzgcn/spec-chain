@@ -4,6 +4,7 @@ import ArrowLeftOutlined from "@ant-design/icons/ArrowLeftOutlined";
 import { Button, Tag } from "antd";
 import { notFound } from "next/navigation";
 
+import { PageHeader } from "@/components/layout/page-header";
 import {
   TestRunPanel,
   type TestRunSummary,
@@ -61,12 +62,12 @@ export default async function TestCaseRunsPage({
 
   return (
     <div className="page-shell">
-      <div className="page-heading">
-        <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2">
-            <span className="font-mono text-xs text-slate-500">
-              {testCase.code}
-            </span>
+      <PageHeader
+        title="执行记录"
+        description={testCase.name}
+        meta={
+          <>
+            <span className="page-code">{testCase.code}</span>
             <Tag color={TEST_PRIORITY_META[testCase.priority].color}>
               {testCase.priority}
             </Tag>
@@ -76,17 +77,17 @@ export default async function TestCaseRunsPage({
             <span className="text-xs text-slate-500">
               {testCase.group.name}
             </span>
-          </div>
-          <h1 className="page-title">执行记录</h1>
-          <p className="page-description">{testCase.name}</p>
-        </div>
-        <Button
-          icon={<ArrowLeftOutlined />}
-          href={`/test-cases/${testCase.id}`}
-        >
-          返回用例详情
-        </Button>
-      </div>
+          </>
+        }
+        actions={
+          <Button
+            icon={<ArrowLeftOutlined />}
+            href={`/test-cases/${testCase.id}`}
+          >
+            返回用例详情
+          </Button>
+        }
+      />
 
       <TestRunPanel
         testCaseId={testCase.id}

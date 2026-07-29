@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { Tag } from "antd";
 import { notFound } from "next/navigation";
 
+import { PageHeader } from "@/components/layout/page-header";
+import { PageSection } from "@/components/layout/page-section";
 import { MarkdownView } from "@/components/markdown/markdown-view";
 import { FeatureChildrenTable } from "@/components/requirements/feature-children-table";
 import { RequirementDetailActions } from "@/components/requirements/requirement-detail-actions";
@@ -47,53 +49,47 @@ export default async function FeatureDetailPage({
 
   return (
     <div className="page-shell">
-      <div className="page-heading">
-        <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2">
-            <Tag color="geekblue">FE</Tag>
-            <span className="font-mono text-xs text-slate-500">
-              {feature.code}
-            </span>
+      <PageHeader
+        title={feature.name}
+        description={feature.summary}
+        meta={
+          <>
+            <Tag>FE</Tag>
+            <span className="page-code">{feature.code}</span>
             <RequirementStatusBadge status={status} />
-          </div>
-          <h1 className="page-title">{feature.name}</h1>
-          <p className="page-description">{feature.summary}</p>
-        </div>
-        <RequirementDetailActions
-          type="FEATURE"
-          id={feature.id}
-          childCount={feature.userStories.length}
-        />
-      </div>
+          </>
+        }
+        actions={
+          <RequirementDetailActions
+            type="FEATURE"
+            id={feature.id}
+            childCount={feature.userStories.length}
+          />
+        }
+      />
 
-      <div className="content-panel max-w-[1180px]">
-        <section className="border-b border-slate-200 px-7 py-6">
-          <h2 className="mb-4 text-base font-semibold text-slate-800">
-            业务背景与目标
-          </h2>
+      <div className="detail-sections">
+        <PageSection title="业务背景与目标">
           <MarkdownView content={feature.backgroundGoal} />
-        </section>
+        </PageSection>
 
-        <section>
-          <div className="flex items-center justify-between border-b border-slate-200 px-7 py-5">
-            <div>
-              <h2 className="m-0 text-base font-semibold text-slate-800">US</h2>
-              <p className="mt-1 mb-0 text-sm text-slate-500">
-                FE 状态取全部未删除关联 US 中进度最慢的状态；没有关联 US
-                时为设计。
-              </p>
-            </div>
+        <PageSection
+          title="US"
+          description="FE 状态取全部未删除关联 US 中进度最慢的状态；没有关联 US 时为设计。"
+          actions={
             <span className="text-sm text-slate-500">
               共 {feature.userStories.length} 个
             </span>
-          </div>
+          }
+          contentClassName="!p-0"
+        >
           <FeatureChildrenTable
             items={feature.userStories.map((story) => ({
               ...story,
               updatedAt: story.updatedAt.toISOString(),
             }))}
           />
-        </section>
+        </PageSection>
       </div>
     </div>
   );

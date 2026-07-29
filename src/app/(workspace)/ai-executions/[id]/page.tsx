@@ -12,16 +12,10 @@ export const metadata: Metadata = {
 
 export default async function AiExecutionDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ follow?: string }>;
 }) {
-  const [{ id }, query, project] = await Promise.all([
-    params,
-    searchParams,
-    getCurrentProject(),
-  ]);
+  const [{ id }, project] = await Promise.all([params, getCurrentProject()]);
   if (!project) notFound();
 
   const execution = await getAiExecutionDetail(project.id, id);
@@ -29,10 +23,7 @@ export default async function AiExecutionDetailPage({
 
   return (
     <div className="page-shell">
-      <AiExecutionDetailPanel
-        initialExecution={execution}
-        followResult={query.follow === "1"}
-      />
+      <AiExecutionDetailPanel initialExecution={execution} />
     </div>
   );
 }

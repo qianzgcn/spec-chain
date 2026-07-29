@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import type { ModelProvider, ModelUsage } from "@/ai/model-provider";
+import {
+  buildCodeSelectionPrompt,
+  buildUserStoryDraftPrompt,
+} from "@/ai/prompts/generate-user-story";
 import type {
   RepositoryAccess,
   RepositoryCodeSource,
@@ -16,6 +20,9 @@ const PATH_BATCH_SIZE = 1_000;
 const MAX_SELECTED_FILES = 20;
 const MAX_TOTAL_CODE_CHARACTERS = 240_000;
 const FILE_READ_CONCURRENCY = 4;
+// 最终输出同时包含模型推理和完整 US JSON；8192 是该任务的独立预算，
+// 避免被兼容网关常见的 4096 默认值截断，不影响模型检查和代码定位。
+const USER_STORY_GENERATION_OUTPUT_TOKENS = 8_192;
 
 const codeSelectionSchema = z.object({
   hasPotentialMatch: z.boolean(),
@@ -71,12 +78,19 @@ export type CodeReferenceRecord = RepositorySnapshotRecord & {
   reason: string;
 };
 
+export type WorkflowLogEvent = {
+  level: "INFO" | "WARN";
+  stage: AiExecutionStage;
+  message: string;
+};
+
 export type GenerateUserStoryWorkflowInput = {
   requirementText: string;
   featureContext: string | null;
   repositories: RepositoryAccess[];
   abortSignal?: AbortSignal;
   onStage?: (stage: AiExecutionStage) => Promise<void>;
+  onLog?: (event: WorkflowLogEvent) => Promise<void>;
   onRepositoriesLoaded?: (
     repositories: RepositorySnapshotRecord[],
   ) => Promise<void>;
@@ -122,63 +136,6 @@ function addUsage(target: ModelUsage, addition: ModelUsage) {
   target.inputTokens += addition.inputTokens;
   target.outputTokens += addition.outputTokens;
   target.totalTokens += addition.totalTokens;
-}
-
-function buildSelectionPrompt(
-  requirementText: string,
-  featureContext: string | null,
-  snapshot: RepositoryTreeSnapshot,
-  paths: string[],
-) {
-  return `请从下面这一批真实仓库路径中选择可能与需求直接相关、值得读取内容的源码或配置文件。
-
-需求内容：
-${requirementText}
-
-FE 上下文：
-${featureContext ?? "无"}
-
-仓库：${snapshot.owner}/${snapshot.repository}
-分支：${snapshot.branch}
-提交：${snapshot.commitSha}
-
-候选路径：
-${paths.map((path) => `- ${path}`).join("\n")}
-
-只允许返回候选路径中完整、精确的路径。不要因为文件名看起来通用就选择；优先选择页面、路由、接口、领域模型、权限、状态和相关测试代码。`;
-}
-
-function buildGenerationPrompt(
-  requirementText: string,
-  featureContext: string | null,
-  files: Array<SelectedFile & { content: string }>,
-) {
-  const codeContext = files
-    .map(
-      ({ snapshot, file, reason, content }) => `--- 代码证据开始 ---
-仓库：${snapshot.owner}/${snapshot.repository}
-路径：${file.path}
-提交：${snapshot.commitSha}
-选择原因：${reason}
-
-${content}
---- 代码证据结束 ---`,
-    )
-    .join("\n\n");
-
-  return `请根据需求、FE 上下文和真实代码证据判断信息是否足够，并生成一个结构化用户故事。
-
-需求内容：
-${requirementText}
-
-FE 上下文：
-${featureContext ?? "无"}
-
-真实代码证据：
-${codeContext}
-
-如果需求缺少关键角色、目标、业务价值、可验证结果，或者代码证据与需求没有实际关联，请设置 sufficient=false、填写具体 failureReason，并将 userStory 设为 null。
-如果信息足够，请设置 sufficient=true、failureReason 设为空字符串，并完整填写 userStory。`;
 }
 
 async function readSelectedFiles(
@@ -237,6 +194,7 @@ export function createGenerateUserStoryWorkflow({
       repositories,
       abortSignal,
       onStage,
+      onLog,
       onRepositoriesLoaded,
       onCodeSelected,
     }) {
@@ -269,6 +227,15 @@ export function createGenerateUserStoryWorkflow({
         commitSha: snapshot.commitSha,
       }));
       await onRepositoriesLoaded?.(repositoryRecords);
+      const repositoryFileCount = snapshots.reduce(
+        (total, snapshot) => total + snapshot.files.length,
+        0,
+      );
+      await onLog?.({
+        level: "INFO",
+        stage: AiExecutionStage.CHECKING_REPOSITORIES,
+        message: `已读取 ${snapshots.length} 个仓库的文件树，共 ${repositoryFileCount} 个文件。`,
+      });
 
       await onStage?.(AiExecutionStage.SELECTING_CODE);
       const selectedByKey = new Map<string, SelectedFile>();
@@ -277,6 +244,7 @@ export function createGenerateUserStoryWorkflow({
         const fileByPath = new Map(
           snapshot.files.map((file) => [file.path, file]),
         );
+        const batchCount = Math.ceil(snapshot.files.length / PATH_BATCH_SIZE);
 
         for (
           let offset = 0;
@@ -284,21 +252,31 @@ export function createGenerateUserStoryWorkflow({
           offset += PATH_BATCH_SIZE
         ) {
           const batch = snapshot.files.slice(offset, offset + PATH_BATCH_SIZE);
+          const batchNumber = Math.floor(offset / PATH_BATCH_SIZE) + 1;
+          await onLog?.({
+            level: "INFO",
+            stage: AiExecutionStage.SELECTING_CODE,
+            message: `正在分析 ${snapshot.owner}/${snapshot.repository} 的第 ${batchNumber}/${batchCount} 批路径（${batch.length} 个文件）。`,
+          });
           const selection = await modelProvider.generateStructured({
             schema: codeSelectionSchema,
-            system: `${skill.instructions}
-
-当前步骤只负责定位相关文件，不生成用户故事。`,
-            prompt: buildSelectionPrompt(
+            system: skill.instructions,
+            prompt: buildCodeSelectionPrompt({
               requirementText,
               featureContext,
-              snapshot,
-              batch.map((file) => file.path),
-            ),
+              repository: `${snapshot.owner}/${snapshot.repository}`,
+              branch: snapshot.branch,
+              commitSha: snapshot.commitSha,
+              candidatePaths: batch.map((file) => file.path),
+            }),
             abortSignal,
-            maxOutputTokens: 1_024,
           });
           addUsage(usage, selection.usage);
+          await onLog?.({
+            level: "INFO",
+            stage: AiExecutionStage.SELECTING_CODE,
+            message: `第 ${batchNumber}/${batchCount} 批路径分析完成，模型返回 ${selection.output.files.length} 个候选文件。`,
+          });
 
           if (!selection.output.hasPotentialMatch) continue;
           for (const selected of selection.output.files) {
@@ -324,6 +302,11 @@ export function createGenerateUserStoryWorkflow({
       if (selectedFiles.length === 0) {
         throw new AiWorkflowError("没有在项目仓库中找到与需求相关的代码");
       }
+      await onLog?.({
+        level: "INFO",
+        stage: AiExecutionStage.SELECTING_CODE,
+        message: `已定位 ${selectedFiles.length} 个候选文件，开始读取代码内容。`,
+      });
 
       const readableFiles = await readSelectedFiles(
         repositoryCodeSource,
@@ -333,6 +316,11 @@ export function createGenerateUserStoryWorkflow({
       if (readableFiles.length === 0) {
         throw new AiWorkflowError("相关代码文件无法读取，不能可靠生成 US");
       }
+      await onLog?.({
+        level: "INFO",
+        stage: AiExecutionStage.SELECTING_CODE,
+        message: `已读取 ${readableFiles.length} 个相关代码文件。`,
+      });
       const codeReferenceRecords = readableFiles.map(
         ({ snapshot, file, reason }) => ({
           repositoryId: snapshot.repositoryId,
@@ -351,22 +339,40 @@ export function createGenerateUserStoryWorkflow({
       const generation = await modelProvider.generateStructured({
         schema: generationDecisionSchema,
         system: skill.instructions,
-        prompt: buildGenerationPrompt(
+        prompt: buildUserStoryDraftPrompt({
           requirementText,
           featureContext,
-          readableFiles,
-        ),
+          codeEvidence: readableFiles.map(
+            ({ snapshot, file, reason, content }) => ({
+              repository: `${snapshot.owner}/${snapshot.repository}`,
+              path: file.path,
+              commitSha: snapshot.commitSha,
+              selectionReason: reason,
+              content,
+            }),
+          ),
+        }),
         abortSignal,
-        maxOutputTokens: 4_096,
+        maxOutputTokens: USER_STORY_GENERATION_OUTPUT_TOKENS,
       });
       addUsage(usage, generation.usage);
 
       if (!generation.output.sufficient || !generation.output.userStory) {
+        await onLog?.({
+          level: "WARN",
+          stage: AiExecutionStage.GENERATING_DRAFT,
+          message: "模型判断当前需求或代码信息不足，未生成 US 草稿。",
+        });
         throw new AiWorkflowError(
           generation.output.failureReason.trim() ||
             "需求信息不足，无法生成完整 US",
         );
       }
+      await onLog?.({
+        level: "INFO",
+        stage: AiExecutionStage.GENERATING_DRAFT,
+        message: `US 草稿生成完成，本次模型调用共使用 ${usage.totalTokens} Token。`,
+      });
 
       return {
         draft: generation.output.userStory,

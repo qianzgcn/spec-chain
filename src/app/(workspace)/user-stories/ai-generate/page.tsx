@@ -33,19 +33,5 @@ export default async function AiGenerateUserStoryPage({
     : null;
   if (featureId && !feature) notFound();
 
-  return (
-    <div className="page-shell">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">AI辅助生成US</h1>
-          <p className="page-description">
-            输入需求后，系统会结合 FE 上下文和当前项目代码生成待评审的 US
-            草稿；信息不足时会直接说明原因。
-          </p>
-        </div>
-      </div>
-
-      <AiUserStoryGeneratorForm feature={feature} />
-    </div>
-  );
+  return <AiUserStoryGeneratorForm feature={feature} />;
 }

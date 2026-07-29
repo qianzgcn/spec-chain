@@ -2,16 +2,6 @@ import "server-only";
 
 import { db } from "@/server/db";
 
-function parseJsonArray<T>(value: string | null): T[] {
-  if (!value) return [];
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) ? (parsed as T[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 export async function getAiExecutionSummaries(projectId: string) {
   const executions = await db.aiExecution.findMany({
     where: { projectId },
@@ -26,17 +16,8 @@ export async function getAiExecutionSummaries(projectId: string) {
       startedAt: true,
       finishedAt: true,
       durationMs: true,
-      errorMessage: true,
       requestedBy: { select: { username: true } },
       feature: { select: { code: true, name: true } },
-      draft: {
-        select: {
-          id: true,
-          status: true,
-          deletedAt: true,
-          confirmedUserStoryId: true,
-        },
-      },
     },
   });
 
@@ -49,17 +30,8 @@ export async function getAiExecutionSummaries(projectId: string) {
     startedAt: execution.startedAt?.toISOString() ?? null,
     finishedAt: execution.finishedAt?.toISOString() ?? null,
     durationMs: execution.durationMs,
-    errorMessage: execution.errorMessage,
     requestedBy: execution.requestedBy.username,
     feature: execution.feature,
-    draft: execution.draft
-      ? {
-          id: execution.draft.id,
-          status: execution.draft.status,
-          deleted: Boolean(execution.draft.deletedAt),
-          confirmedUserStoryId: execution.draft.confirmedUserStoryId,
-        }
-      : null,
   }));
 }
 
@@ -83,13 +55,21 @@ export async function getAiExecutionDetail(
       modelIdSnapshot: true,
       skillNameSnapshot: true,
       skillVersionSnapshot: true,
-      repositorySnapshot: true,
-      codeReferences: true,
       promptTokens: true,
       completionTokens: true,
       totalTokens: true,
       requestedBy: { select: { username: true } },
       feature: { select: { code: true, name: true } },
+      logs: {
+        orderBy: { position: "asc" },
+        select: {
+          position: true,
+          level: true,
+          stage: true,
+          message: true,
+          createdAt: true,
+        },
+      },
       draft: {
         select: {
           id: true,
@@ -102,37 +82,23 @@ export async function getAiExecutionDetail(
   });
   if (!execution) return null;
 
+  const { draft, logs, requestedBy, ...detail } = execution;
   return {
-    ...execution,
+    ...detail,
     queuedAt: execution.queuedAt.toISOString(),
     startedAt: execution.startedAt?.toISOString() ?? null,
     finishedAt: execution.finishedAt?.toISOString() ?? null,
-    requestedBy: execution.requestedBy.username,
-    repositories: parseJsonArray<{
-      repositoryId: string;
-      provider: "GITHUB" | "GITEE";
-      owner: string;
-      repository: string;
-      branch: string;
-      commitSha: string;
-    }>(execution.repositorySnapshot),
-    codeReferences: parseJsonArray<{
-      repositoryId: string;
-      provider: "GITHUB" | "GITEE";
-      owner: string;
-      repository: string;
-      branch: string;
-      commitSha: string;
-      path: string;
-      reason: string;
-    }>(execution.codeReferences),
-    repositorySnapshot: undefined,
-    draft: execution.draft
+    requestedBy: requestedBy.username,
+    logs: logs.map((log) => ({
+      ...log,
+      createdAt: log.createdAt.toISOString(),
+    })),
+    result: draft
       ? {
-          id: execution.draft.id,
-          status: execution.draft.status,
-          deleted: Boolean(execution.draft.deletedAt),
-          confirmedUserStoryId: execution.draft.confirmedUserStoryId,
+          id: draft.id,
+          status: draft.status,
+          deleted: Boolean(draft.deletedAt),
+          confirmedUserStoryId: draft.confirmedUserStoryId,
         }
       : null,
   };

@@ -152,11 +152,7 @@ export function RequirementsList({
       dataIndex: "type",
       width: 65,
       render: (type: RequirementListItem["type"]) =>
-        type === "FEATURE" ? (
-          <Tag color="geekblue">FE</Tag>
-        ) : (
-          <Tag color="cyan">US</Tag>
-        ),
+        type === "FEATURE" ? <Tag>FE</Tag> : <Tag>US</Tag>,
     },
     {
       title: "名称",
@@ -170,7 +166,7 @@ export function RequirementsList({
         return (
           <Link
             href={href}
-            className="font-medium text-slate-800 hover:text-cyan-700"
+            className="font-medium text-slate-800 hover:text-blue-700"
           >
             {title}
           </Link>

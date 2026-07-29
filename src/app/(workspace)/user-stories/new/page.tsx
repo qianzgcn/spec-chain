@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import ThunderboltOutlined from "@ant-design/icons/ThunderboltOutlined";
 import { Button, Empty } from "antd";
 
 import { UserStoryForm } from "@/components/requirements/user-story-form";
@@ -32,20 +31,5 @@ export default async function NewIndependentUserStoryPage() {
     );
   }
 
-  return (
-    <div className="page-shell">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">新建US</h1>
-          <p className="page-description">
-            编写边界清楚、可开发、可验证的用户故事。
-          </p>
-        </div>
-        <Button icon={<ThunderboltOutlined />} href="/user-stories/ai-generate">
-          AI辅助生成US
-        </Button>
-      </div>
-      <UserStoryForm feature={null} />
-    </div>
-  );
+  return <UserStoryForm feature={null} />;
 }

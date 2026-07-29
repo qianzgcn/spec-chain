@@ -135,7 +135,7 @@ export function UserManagement({
       render: (username: string, user) => (
         <Space>
           <strong>{username}</strong>
-          {user.id === currentUserId ? <Tag color="cyan">当前用户</Tag> : null}
+          {user.id === currentUserId ? <Tag>当前用户</Tag> : null}
         </Space>
       ),
     },
@@ -222,6 +222,7 @@ export function UserManagement({
           rowKey="id"
           columns={columns}
           dataSource={users}
+          tableLayout="fixed"
           scroll={{ y: "100%" }}
           pagination={{
             pageSize: 20,

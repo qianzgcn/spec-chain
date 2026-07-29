@@ -133,7 +133,7 @@ export function TestCasesList({
       render: (name: string, item) => (
         <Link
           href={`/test-cases/${item.id}`}
-          className="font-medium text-slate-800 hover:text-cyan-700"
+          className="font-medium text-slate-800 hover:text-blue-700"
         >
           {name}
         </Link>
@@ -168,7 +168,7 @@ export function TestCasesList({
       responsive: ["xl"],
       render: (hasScript: boolean) =>
         hasScript ? (
-          <Tag color="cyan">已配置</Tag>
+          <Tag>已配置</Tag>
         ) : (
           <span className="text-slate-400">未配置</span>
         ),
@@ -209,10 +209,14 @@ export function TestCasesList({
     },
     {
       title: "操作",
-      width: 135,
+      width: 160,
       align: "center",
       render: (_, item) => (
-        <Space size={2} data-testid="test-case-actions">
+        <Space
+          className="w-full justify-center"
+          size={2}
+          data-testid="test-case-actions"
+        >
           <Button type="link" size="small" href={`/test-cases/${item.id}`}>
             查看
           </Button>

@@ -11,7 +11,12 @@ import {
   AiWorkflowError,
   createGenerateUserStoryWorkflow,
 } from "@/ai/user-story-workflow";
-import { AiCapability, AiExecutionStatus } from "@/generated/prisma/enums";
+import {
+  AiCapability,
+  AiExecutionLogLevel,
+  AiExecutionStage,
+  AiExecutionStatus,
+} from "@/generated/prisma/enums";
 import {
   GIT_PROVIDER_LABELS,
   parseRepositoryUrl,
@@ -76,6 +81,61 @@ function getSafeErrorMessage(
     return error.message;
   }
   return "AI 任务执行失败，请稍后重试";
+}
+
+function getSafeErrorCode(
+  error: unknown,
+  timeoutSignal: AbortSignal,
+  leaseSignal: AbortSignal,
+) {
+  if (timeoutSignal.aborted) return "TASK_TIMEOUT";
+  if (leaseSignal.aborted) return "LEASE_LOST";
+  if (error instanceof ModelProviderError) return `MODEL_${error.code}`;
+  if (error instanceof RepositoryCodeError) return `REPOSITORY_${error.code}`;
+  if (error instanceof AiWorkflowError) return "WORKFLOW";
+  return "UNEXPECTED";
+}
+
+function getStageStartedMessage(stage: AiExecutionStage) {
+  switch (stage) {
+    case AiExecutionStage.CHECKING_REPOSITORIES:
+      return "正在检查并读取项目代码仓库。";
+    case AiExecutionStage.SELECTING_CODE:
+      return "正在根据需求定位相关代码。";
+    case AiExecutionStage.GENERATING_DRAFT:
+      return "正在根据需求和代码生成结构化 US 草稿。";
+    case AiExecutionStage.COMPLETED:
+      return "AI 任务已完成。";
+    case AiExecutionStage.QUEUED:
+      return "任务正在等待执行。";
+  }
+}
+
+async function createExecutionLogWriter(executionId: string) {
+  const latestLog = await aiWorkerDb.aiExecutionLog.findFirst({
+    where: { executionId },
+    orderBy: { position: "desc" },
+    select: { position: true },
+  });
+  // 全平台租约确保同一任务只由一个 Worker 顺序处理，可在内存中安全递增序号。
+  let nextPosition = (latestLog?.position ?? -1) + 1;
+
+  return async (
+    level: AiExecutionLogLevel,
+    stage: AiExecutionStage,
+    message: string,
+  ) => {
+    await aiWorkerDb.aiExecutionLog.create({
+      data: {
+        executionId,
+        position: nextPosition,
+        level,
+        stage,
+        message,
+      },
+    });
+    nextPosition += 1;
+  };
 }
 
 async function tryAcquireLease(ownerId: string) {
@@ -177,11 +237,18 @@ async function executeTask(
   });
   if (!execution || execution.status !== AiExecutionStatus.RUNNING) return;
 
+  const writeLog = await createExecutionLogWriter(execution.id);
+  let currentStage = execution.stage;
   const startedAt = execution.startedAt ?? new Date();
   const timeoutSignal = AbortSignal.timeout(TASK_TIMEOUT_MS);
   const taskSignal = AbortSignal.any([leaseSignal, timeoutSignal]);
 
   try {
+    await writeLog(
+      AiExecutionLogLevel.INFO,
+      currentStage,
+      "AI 执行器已开始处理任务。",
+    );
     if (execution.capability !== AiCapability.GENERATE_USER_STORY) {
       throw new AiWorkflowError("当前 AI 任务类型不受支持");
     }
@@ -251,6 +318,11 @@ async function executeTask(
         skillVersionSnapshot: skill.version,
       },
     });
+    await writeLog(
+      AiExecutionLogLevel.INFO,
+      currentStage,
+      `已加载模型配置“${binding.modelProfile.name}”（${binding.modelProfile.modelId}）。`,
+    );
 
     const workflow = createGenerateUserStoryWorkflow({
       modelProvider: createModelProvider({
@@ -271,7 +343,7 @@ async function executeTask(
       repositories,
       abortSignal: taskSignal,
       onStage: async (stage) => {
-        await aiWorkerDb.aiExecution.updateMany({
+        const updated = await aiWorkerDb.aiExecution.updateMany({
           where: {
             id: execution.id,
             status: AiExecutionStatus.RUNNING,
@@ -279,6 +351,23 @@ async function executeTask(
           },
           data: { stage },
         });
+        if (updated.count === 1) {
+          currentStage = stage;
+          await writeLog(
+            AiExecutionLogLevel.INFO,
+            stage,
+            getStageStartedMessage(stage),
+          );
+        }
+      },
+      onLog: async (event) => {
+        await writeLog(
+          event.level === "WARN"
+            ? AiExecutionLogLevel.WARN
+            : AiExecutionLogLevel.INFO,
+          event.stage,
+          event.message,
+        );
       },
       onRepositoriesLoaded: async (repositoriesSnapshot) => {
         await aiWorkerDb.aiExecution.updateMany({
@@ -335,7 +424,7 @@ async function executeTask(
         where: { id: execution.id },
         data: {
           status: AiExecutionStatus.SUCCEEDED,
-          stage: "COMPLETED",
+          stage: AiExecutionStage.COMPLETED,
           repositorySnapshot: JSON.stringify(result.repositories),
           codeReferences: JSON.stringify(result.codeReferences),
           promptTokens: result.usage.inputTokens,
@@ -347,8 +436,24 @@ async function executeTask(
         },
       });
     });
+    await writeLog(
+      AiExecutionLogLevel.INFO,
+      AiExecutionStage.COMPLETED,
+      "任务处理完成，US 草稿已保存。",
+    ).catch(() => undefined);
   } catch (error) {
     const finishedAt = new Date();
+    const safeErrorMessage = getSafeErrorMessage(
+      error,
+      timeoutSignal,
+      leaseSignal,
+    );
+    const safeErrorCode = getSafeErrorCode(error, timeoutSignal, leaseSignal);
+    await writeLog(
+      AiExecutionLogLevel.ERROR,
+      currentStage,
+      `任务失败（${safeErrorCode}）：${safeErrorMessage}`,
+    ).catch(() => undefined);
     await aiWorkerDb.aiExecution.updateMany({
       where: {
         id: execution.id,
@@ -357,7 +462,7 @@ async function executeTask(
       },
       data: {
         status: AiExecutionStatus.FAILED,
-        errorMessage: getSafeErrorMessage(error, timeoutSignal, leaseSignal),
+        errorMessage: safeErrorMessage,
         finishedAt,
         durationMs: finishedAt.getTime() - startedAt.getTime(),
         workerId: null,

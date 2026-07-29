@@ -10,26 +10,32 @@ async function expectTablePageFillsWorkspace(page: Page) {
       ".ant-table-pagination",
     );
 
-    if (!panel || !tableBody || !pagination) return null;
+    if (!panel || !tableBody) return null;
 
     const panelRect = panel.getBoundingClientRect();
     const tableBodyRect = tableBody.getBoundingClientRect();
-    const paginationRect = pagination.getBoundingClientRect();
+    const paginationRect = pagination?.getBoundingClientRect();
     const scrollingElement = document.scrollingElement;
 
     return {
       documentOverflow:
         (scrollingElement?.scrollHeight ?? 0) -
         (scrollingElement?.clientHeight ?? 0),
+      documentOverflowX:
+        (scrollingElement?.scrollWidth ?? 0) -
+        (scrollingElement?.clientWidth ?? 0),
       documentOverflowY: scrollingElement
         ? getComputedStyle(scrollingElement).overflowY
         : null,
       workspaceOverflow: main.scrollHeight - main.clientHeight,
+      workspaceOverflowX: main.scrollWidth - main.clientWidth,
       workspaceOverflowY: getComputedStyle(main).overflowY,
       panelHeight: panelRect.height,
       tableBodyHeight: tableBodyRect.height,
       tableBodyOverflowY: getComputedStyle(tableBody).overflowY,
-      paginationBottomGap: panelRect.bottom - paginationRect.bottom,
+      paginationBottomGap: paginationRect
+        ? panelRect.bottom - paginationRect.bottom
+        : null,
     };
   });
 
@@ -37,46 +43,48 @@ async function expectTablePageFillsWorkspace(page: Page) {
   if (!metrics) throw new Error("未找到完整的表格页面结构");
 
   expect(metrics.documentOverflow).toBeLessThanOrEqual(1);
+  expect(metrics.documentOverflowX).toBeLessThanOrEqual(1);
   expect(metrics.documentOverflowY).toBe("hidden");
   expect(metrics.workspaceOverflow).toBeLessThanOrEqual(1);
+  expect(metrics.workspaceOverflowX).toBeLessThanOrEqual(1);
   expect(metrics.workspaceOverflowY).toBe("hidden");
   expect(metrics.panelHeight).toBeGreaterThan(300);
   expect(metrics.tableBodyHeight).toBeGreaterThan(100);
   expect(["auto", "scroll"]).toContain(metrics.tableBodyOverflowY);
-  expect(metrics.paginationBottomGap).toBeLessThanOrEqual(24);
+  if (metrics.paginationBottomGap !== null) {
+    expect(metrics.paginationBottomGap).toBeLessThanOrEqual(24);
+  }
 }
 
 async function expectTestCaseActionsAligned(page: Page) {
-  const alignment = await page.evaluate(() => {
-    const header = [
-      ...document.querySelectorAll<HTMLTableCellElement>(
-        ".ant-table-header th",
-      ),
-    ].find((cell) => cell.textContent?.trim() === "操作");
-    const row = document.querySelector<HTMLTableRowElement>(
-      "tbody tr:not(.ant-table-measure-row)",
-    );
-    const content = header
-      ? (row?.cells.item(header.cellIndex) as HTMLElement | null)
-      : null;
-    const actions = content?.querySelector<HTMLElement>(
-      '[data-testid="test-case-actions"]',
-    );
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const header = [
+          ...document.querySelectorAll<HTMLTableCellElement>(
+            ".ant-table-header th",
+          ),
+        ].find((cell) => cell.textContent?.trim() === "操作");
+        const row = document.querySelector<HTMLTableRowElement>(
+          "tbody tr:not(.ant-table-measure-row)",
+        );
+        const content = header
+          ? (row?.cells.item(header.cellIndex) as HTMLElement | null)
+          : null;
+        const actions = content?.querySelector<HTMLElement>(
+          '[data-testid="test-case-actions"]',
+        );
+        if (!header || !actions) return Number.POSITIVE_INFINITY;
 
-    if (!header || !content || !actions) return null;
-    const headerRect = header.getBoundingClientRect();
-    const actionsRect = actions.getBoundingClientRect();
+        const headerRect = header.getBoundingClientRect();
+        const actionsRect = actions.getBoundingClientRect();
+        const headerCenter = (headerRect.left + headerRect.right) / 2;
+        const actionsCenter = (actionsRect.left + actionsRect.right) / 2;
+        return Math.abs(headerCenter - actionsCenter);
+      }),
+    )
+    .toBeLessThanOrEqual(1);
 
-    return {
-      headerCenter: (headerRect.left + headerRect.right) / 2,
-      actionsCenter: (actionsRect.left + actionsRect.right) / 2,
-    };
-  });
-
-  expect(alignment).not.toBeNull();
-  expect(
-    Math.abs(alignment!.headerCenter - alignment!.actionsCenter),
-  ).toBeLessThanOrEqual(1);
   const moreButton = page.getByRole("button", { name: "更多操作" }).first();
   await expect(moreButton).toBeVisible();
   await expect(moreButton).toHaveText("");
@@ -175,8 +183,11 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   for (const path of [
     "/requirements",
+    "/requirements/pending-review",
     "/test-cases",
     "/test-case-groups",
+    "/ai-executions",
+    "/ai-settings",
     "/projects",
     "/users",
   ]) {
@@ -329,9 +340,11 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
     .getByRole("textbox", { name: "需求内容" })
     .fill("客服需要根据订单状态提交退款，并明确显示成功或失败原因。");
   await page.getByRole("button", { name: "开始生成" }).click();
-  await expect(page).toHaveURL(/\/ai-executions\/.+\?follow=1$/);
+  await expect(page).toHaveURL(/\/ai-executions\/[^?]+$/);
   await expect(page.getByText("生成失败")).toBeVisible();
-  await expect(page.getByText("尚未配置 GitHub PAT")).toBeVisible();
+  await expect(
+    page.getByText("当前项目尚未配置 GitHub PAT", { exact: true }),
+  ).toBeVisible();
 
   const writableDatabase = new Database(databasePath);
   const projectAndFeature = writableDatabase
@@ -435,21 +448,77 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
       now,
       now,
     );
+  writableDatabase
+    .prepare(
+      `INSERT INTO "AiExecutionLog" (
+        "id", "executionId", "position", "level", "stage", "message", "createdAt"
+      ) VALUES (?, ?, 0, 'INFO', 'COMPLETED', ?, ?)`,
+    )
+    .run(
+      "e2e-ai-log",
+      "e2e-ai-success",
+      "结构化 US 已生成，等待用户评审。",
+      now,
+    );
   writableDatabase.close();
 
   await page.goto("/ai-executions");
   await expect(page.getByText("客服需要提交订单退款")).toBeVisible();
-  await page.getByRole("link", { name: "评审草稿" }).click();
-  await expect(page.getByRole("heading", { name: "评审US草稿" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "评审草稿" })).toHaveCount(0);
+  const successfulExecutionRow = page
+    .locator("tbody tr")
+    .filter({ hasText: "客服需要提交订单退款" });
+  await successfulExecutionRow.getByRole("link", { name: "查看" }).click();
+  await expect(
+    page.getByRole("heading", { name: "AI辅助生成US" }),
+  ).toBeVisible();
+  await expect(page.getByText("实际引用的代码")).toHaveCount(0);
+  await expect(page.getByText("src/app/refunds/page.tsx")).toHaveCount(0);
+  await expect(page.getByRole("log")).toContainText(
+    "结构化 US 已生成，等待用户评审。",
+  );
+  await expect(page.getByRole("log")).toContainText("INFO[生成完成]");
+
+  const executionPayload = await page.evaluate(async () => {
+    const response = await fetch("/api/ai-executions/e2e-ai-success");
+    return response.text();
+  });
+  expect(executionPayload).not.toContain("repositorySnapshot");
+  expect(executionPayload).not.toContain("codeReferences");
+  expect(executionPayload).not.toContain("src/app/refunds/page.tsx");
+
+  await page.getByRole("link", { name: "查看生成结果" }).click();
+  await expect(page).toHaveURL(/\/requirements\/pending-review\/e2e-ai-draft$/);
+  await expect(page.getByRole("heading", { name: "评审需求" })).toBeVisible();
   await page.getByRole("textbox", { name: "US 标题" }).fill("客服提交订单退款");
   await page.getByRole("button", { name: "保存草稿" }).click();
-  await expect(page.getByText("US 草稿已保存")).toBeVisible();
+  await expect(page.getByText("待评审需求已保存")).toBeVisible();
+
+  await page.goto("/requirements/pending-review");
+  await expect(page.getByText("客服提交订单退款")).toBeVisible();
+  await page.getByRole("link", { name: "评审" }).click();
   await page.getByRole("button", { name: "确认创建US" }).click();
   await expect(
     page.getByRole("heading", { name: "客服提交订单退款" }),
   ).toBeVisible();
 
+  await page.goto("/requirements/pending-review");
+  await expect(page.getByText("客服提交订单退款")).toHaveCount(0);
+
   await page.goto("/ai-executions");
   await expectTablePageFillsWorkspace(page);
-  await expect(page.getByRole("link", { name: "查看US" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "评审草稿" })).toHaveCount(0);
+
+  for (const width of [1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const pagePath of [
+      "/requirements",
+      "/requirements/pending-review",
+      "/test-cases",
+      "/ai-executions",
+    ]) {
+      await page.goto(pagePath);
+      await expectTablePageFillsWorkspace(page);
+    }
+  }
 });

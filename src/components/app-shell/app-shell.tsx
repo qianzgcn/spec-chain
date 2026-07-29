@@ -31,6 +31,7 @@ const { Header, Sider, Content } = Layout;
 
 const TABLE_PAGE_PATHS = new Set([
   "/requirements",
+  "/requirements/pending-review",
   "/ai-executions",
   "/ai-settings",
   "/test-cases",
@@ -51,10 +52,12 @@ type AppShellProps = {
 };
 
 function resolveSelectedKey(pathname: string) {
+  if (pathname.startsWith("/requirements/pending-review")) {
+    return "/requirements/pending-review";
+  }
   if (pathname.startsWith("/requirements")) return "/requirements";
   if (pathname.startsWith("/features")) return "/requirements";
   if (pathname.startsWith("/user-stories")) return "/requirements";
-  if (pathname.startsWith("/user-story-drafts")) return "/ai-executions";
   if (pathname.startsWith("/ai-executions")) return "/ai-executions";
   if (pathname.startsWith("/ai-settings")) return "/ai-settings";
   if (pathname.startsWith("/test-case-groups")) return "/test-case-groups";
@@ -91,9 +94,19 @@ export function AppShell({
   const menuItems = useMemo<MenuProps["items"]>(
     () => [
       {
-        key: "/requirements",
+        key: "requirements-root",
         icon: <FileTextOutlined />,
         label: "需求",
+        children: [
+          {
+            key: "/requirements",
+            label: "需求列表",
+          },
+          {
+            key: "/requirements/pending-review",
+            label: "待评审需求",
+          },
+        ],
       },
       {
         key: "/ai-executions",
@@ -208,7 +221,7 @@ export function AppShell({
     <>
       {messageContext}
       <Layout className={styles.layout}>
-        <Sider className={styles.sider} width={240}>
+        <Sider className={styles.sider} width={232}>
           <div className={styles.logo}>
             <Image
               className={styles.logoMark}
@@ -226,7 +239,11 @@ export function AppShell({
             mode="inline"
             items={menuItems}
             selectedKeys={[resolveSelectedKey(pathname)]}
-            defaultOpenKeys={["test-cases-root", "project-settings-root"]}
+            defaultOpenKeys={[
+              "requirements-root",
+              "test-cases-root",
+              "project-settings-root",
+            ]}
             onClick={navigateFromMenu}
           />
         </Sider>

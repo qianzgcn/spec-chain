@@ -10,14 +10,14 @@
   z-index: 20;
   overflow: hidden auto;
   border-right: 1px solid rgb(255 255 255 / 5%);
-  background: #12232e !important;
+  background: #111827 !important;
 }
 
 .logo {
   display: flex;
   align-items: center;
-  height: 68px;
-  padding: 0 20px;
+  height: 64px;
+  padding: 0 18px;
   gap: 12px;
   border-bottom: 1px solid rgb(255 255 255 / 7%);
   color: #fff;
@@ -40,7 +40,7 @@
 }
 
 .menu :global(.ant-menu-item-selected) {
-  box-shadow: inset 3px 0 #35a6c5;
+  box-shadow: inset 3px 0 #3b82f6;
 }
 
 .menu :global(.ant-menu-item),
@@ -55,7 +55,7 @@
   min-height: 0;
   overflow: hidden;
   min-width: 0;
-  margin-left: 240px;
+  margin-left: 232px;
 }
 
 .header {
@@ -63,12 +63,12 @@
   top: 0;
   z-index: 15;
   display: flex;
-  flex: 0 0 68px;
+  flex: 0 0 64px;
   align-items: center;
   justify-content: space-between;
-  height: 68px;
-  padding: 0 32px;
-  border-bottom: 1px solid #e2e7eb;
+  height: 64px;
+  padding: 0 28px;
+  border-bottom: 1px solid #e4e7ec;
   background: #fff !important;
   box-shadow: 0 1px 0 rgb(20 36 50 / 2%);
   line-height: normal;
@@ -88,8 +88,8 @@
   flex: 0 0 auto;
   place-items: center;
   border-radius: 7px;
-  background: #edf6f8;
-  color: #0b7f9f;
+  background: #eff6ff;
+  color: #2563eb;
   font-size: 16px;
 }
 
@@ -101,7 +101,7 @@
 }
 
 .projectContextLabel {
-  color: #85929e;
+  color: #98a2b3;
   font-size: 11px;
   line-height: 15px;
 }
@@ -118,14 +118,14 @@
 
 .projectSelect :global(.ant-select-selection-item),
 .projectSelect :global(.ant-select-selection-placeholder) {
-  color: #21303d !important;
+  color: #18212f !important;
   font-size: 14px;
   font-weight: 600;
   line-height: 24px !important;
 }
 
 .projectSelect :global(.ant-select-arrow) {
-  color: #83919d;
+  color: #98a2b3;
 }
 
 .emptyProject {
@@ -134,7 +134,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: #2c3b48;
+  color: #344054;
   font-size: 14px;
   line-height: 24px;
   cursor: pointer;
@@ -143,13 +143,13 @@
 }
 
 .emptyProject strong {
-  color: #0b7898;
+  color: #2563eb;
   font-size: 12px;
   font-weight: 600;
 }
 
 .emptyProject:hover strong {
-  color: #08637d;
+  color: #1d4ed8;
 }
 
 .userButton {
@@ -159,7 +159,7 @@
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #2b3a47;
+  color: #344054;
   cursor: pointer;
   transition:
     background 160ms ease,
@@ -169,12 +169,12 @@
 }
 
 .userButton:hover {
-  background: #f3f6f8;
+  background: #f2f4f7;
 }
 
 .userAvatar {
-  background: #dceff4 !important;
-  color: #086f8c !important;
+  background: #e8efff !important;
+  color: #2458c6 !important;
   font-size: 12px !important;
   font-weight: 650;
 }
@@ -188,14 +188,14 @@
 }
 
 .userChevron {
-  color: #8a97a2;
+  color: #98a2b3;
   font-size: 10px;
 }
 
 .content {
   display: flex;
   min-height: 0;
-  padding: 30px 32px 48px;
+  padding: 24px 28px 36px;
   overflow: auto;
   flex: 1 1 auto;
   flex-direction: column;
@@ -213,11 +213,11 @@
 }
 
 .identity strong {
-  color: #273747;
+  color: #344054;
 }
 
 .identity span {
-  color: #84919c;
+  color: #98a2b3;
   font-size: 12px;
 }
 
@@ -234,31 +234,31 @@
   inset: 0 0 auto;
   height: 3px;
   overflow: hidden;
-  background: rgb(20 148 181 / 12%);
+  background: rgb(37 99 235 / 12%);
 }
 
 .navigationProgress::after {
   position: absolute;
   inset: 0;
   width: 38%;
-  background: #1597b9;
-  box-shadow: 0 0 8px rgb(21 151 185 / 45%);
+  background: #2563eb;
+  box-shadow: 0 0 8px rgb(37 99 235 / 40%);
   content: "";
   animation: navigation-progress 1s ease-in-out infinite;
 }
 
 .navigationMessage {
   position: fixed;
-  top: 80px;
+  top: 76px;
   right: 24px;
   display: flex;
   height: 34px;
   padding: 0 12px;
-  border: 1px solid #dce5e9;
-  border-radius: 6px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
   background: rgb(255 255 255 / 96%);
-  box-shadow: 0 6px 18px rgb(26 49 65 / 10%);
-  color: #43606f;
+  box-shadow: 0 6px 18px rgb(16 24 40 / 10%);
+  color: #475467;
   font-size: 12px;
   align-items: center;
   gap: 7px;
@@ -295,10 +295,10 @@
 
 @media (max-width: 1440px) {
   .header {
-    padding: 0 24px;
+    padding: 0 22px;
   }
 
   .content {
-    padding: 26px 24px 40px;
+    padding: 22px 22px 32px;
   }
 }

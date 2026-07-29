@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { Button, Tag } from "antd";
 import { notFound } from "next/navigation";
 
+import { PageHeader } from "@/components/layout/page-header";
+import { PageSection } from "@/components/layout/page-section";
 import { MarkdownView } from "@/components/markdown/markdown-view";
 import { RequirementDetailActions } from "@/components/requirements/requirement-detail-actions";
 import { UserStoryStatusSelect } from "@/components/requirements/user-story-status-select";
@@ -37,13 +39,12 @@ export default async function UserStoryDetailPage({
 
   return (
     <div className="page-shell">
-      <div className="page-heading">
-        <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2">
-            <Tag color="cyan">US</Tag>
-            <span className="font-mono text-xs text-slate-500">
-              {story.code}
-            </span>
+      <PageHeader
+        title={story.title}
+        meta={
+          <>
+            <Tag>US</Tag>
+            <span className="page-code">{story.code}</span>
             {story.feature ? (
               <Button
                 type="link"
@@ -54,94 +55,67 @@ export default async function UserStoryDetailPage({
                 {story.feature.code} · {story.feature.name}
               </Button>
             ) : (
-              <span className="text-xs text-slate-500">未归属 FE</span>
+              <span>未归属 FE</span>
             )}
-          </div>
-          <h1 className="page-title">{story.title}</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <UserStoryStatusSelect id={story.id} status={story.status} />
-          <RequirementDetailActions type="USER_STORY" id={story.id} />
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            <UserStoryStatusSelect id={story.id} status={story.status} />
+            <RequirementDetailActions type="USER_STORY" id={story.id} />
+          </>
+        }
+      />
 
-      <div className="content-panel max-w-[1180px]">
-        <section className="border-b border-slate-200 px-7 py-6">
-          <h2 className="mb-5 text-base font-semibold text-slate-800">
-            用户故事
-          </h2>
-          <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-5 gap-y-4 text-sm">
-            <dt className="font-semibold text-slate-500">As</dt>
-            <dd className="m-0 whitespace-pre-wrap text-slate-800">
-              {story.asA}
-            </dd>
-            <dt className="font-semibold text-slate-500">I want</dt>
-            <dd className="m-0 whitespace-pre-wrap text-slate-800">
-              {story.iWant}
-            </dd>
-            <dt className="font-semibold text-slate-500">so that</dt>
-            <dd className="m-0 whitespace-pre-wrap text-slate-800">
-              {story.soThat}
-            </dd>
+      <div className="detail-sections">
+        <PageSection title="用户故事">
+          <dl className="user-story-triplet user-story-triplet--detail">
+            <div>
+              <dt>As</dt>
+              <dd>{story.asA}</dd>
+            </div>
+            <div>
+              <dt>I want</dt>
+              <dd>{story.iWant}</dd>
+            </div>
+            <div>
+              <dt>so that</dt>
+              <dd>{story.soThat}</dd>
+            </div>
           </dl>
-        </section>
+        </PageSection>
 
-        <section className="border-b border-slate-200 px-7 py-6">
-          <h2 className="mb-5 text-base font-semibold text-slate-800">
-            验收标准
-          </h2>
-          <div className="divide-y divide-slate-200 border-y border-slate-200">
+        <PageSection title="验收标准">
+          <div className="acceptance-detail">
+            <div className="acceptance-detail__head" aria-hidden>
+              <span>序号</span>
+              <span>Given</span>
+              <span>When</span>
+              <span>Then</span>
+            </div>
             {story.acceptanceCriteria.map((criterion, index) => (
-              <div
-                key={criterion.id}
-                className="grid grid-cols-[48px_repeat(3,minmax(0,1fr))] gap-5 py-5"
-              >
-                <span className="text-sm font-semibold text-slate-400">
-                  {index + 1}
-                </span>
-                <div>
-                  <div className="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                    Given
-                  </div>
-                  <p className="m-0 text-sm leading-6 whitespace-pre-wrap text-slate-800">
-                    {criterion.given}
-                  </p>
-                </div>
-                <div>
-                  <div className="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                    When
-                  </div>
-                  <p className="m-0 text-sm leading-6 whitespace-pre-wrap text-slate-800">
-                    {criterion.when}
-                  </p>
-                </div>
-                <div>
-                  <div className="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                    Then
-                  </div>
-                  <p className="m-0 text-sm leading-6 whitespace-pre-wrap text-slate-800">
-                    {criterion.then}
-                  </p>
-                </div>
+              <div className="acceptance-detail__row" key={criterion.id}>
+                <span>{index + 1}</span>
+                <p>{criterion.given}</p>
+                <p>{criterion.when}</p>
+                <p>{criterion.then}</p>
               </div>
             ))}
           </div>
-        </section>
+        </PageSection>
 
-        <section className="grid grid-cols-2 divide-x divide-slate-200">
-          <div className="px-7 py-6">
-            <h2 className="mb-4 text-base font-semibold text-slate-800">
-              业务规则
-            </h2>
-            <MarkdownView content={story.businessRules} />
+        <PageSection title="补充约束">
+          <div className="detail-two-columns">
+            <div>
+              <h3>业务规则</h3>
+              <MarkdownView content={story.businessRules} />
+            </div>
+            <div>
+              <h3>非功能需求</h3>
+              <MarkdownView content={story.nonFunctionalRequirements} />
+            </div>
           </div>
-          <div className="px-7 py-6">
-            <h2 className="mb-4 text-base font-semibold text-slate-800">
-              非功能需求
-            </h2>
-            <MarkdownView content={story.nonFunctionalRequirements} />
-          </div>
-        </section>
+        </PageSection>
       </div>
     </div>
   );

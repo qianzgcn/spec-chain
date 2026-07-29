@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { Button, Empty } from "antd";
 
+import { PageHeader } from "@/components/layout/page-header";
 import {
   RequirementsList,
   type RequirementListItem,
@@ -40,12 +41,10 @@ export default async function RequirementsPage({
   if (!project) {
     return (
       <div className="page-shell">
-        <div className="page-heading">
-          <div>
-            <h1 className="page-title">需求</h1>
-            <p className="page-description">请先创建项目，再开始编写需求。</p>
-          </div>
-        </div>
+        <PageHeader
+          title="需求列表"
+          description="请先创建项目，再开始编写需求。"
+        />
         <div className="content-panel empty-panel">
           <Empty description="当前没有可用项目">
             <Button type="primary" href="/projects">
@@ -170,14 +169,10 @@ export default async function RequirementsPage({
 
   return (
     <div className="page-shell page-shell--table">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">需求</h1>
-          <p className="page-description">
-            FE 与 US 在同一列表中管理；FE 状态由其全部关联 US 自动计算。
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="需求列表"
+        description="FE 与 US 在同一列表中管理；FE 状态由其全部关联 US 自动计算。"
+      />
 
       <RequirementsList
         items={items}

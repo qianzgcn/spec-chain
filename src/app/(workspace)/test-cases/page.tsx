@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { Button, Empty } from "antd";
 
+import { PageHeader } from "@/components/layout/page-header";
 import {
   TestCasesList,
   type TestCaseListItem,
@@ -35,14 +36,10 @@ export default async function TestCasesPage({
   if (!project) {
     return (
       <div className="page-shell">
-        <div className="page-heading">
-          <div>
-            <h1 className="page-title">测试用例</h1>
-            <p className="page-description">
-              请先创建项目，再开始编写测试用例。
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          title="测试用例"
+          description="请先创建项目，再开始编写测试用例。"
+        />
         <div className="content-panel empty-panel">
           <Empty description="当前没有可用项目">
             <Button type="primary" href="/projects">
@@ -133,15 +130,10 @@ export default async function TestCasesPage({
 
   return (
     <div className="page-shell page-shell--table">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">测试用例</h1>
-          <p className="page-description">
-            使用自然语言步骤验证需求，也可以为用例编写 Playwright TypeScript
-            脚本。
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="测试用例"
+        description="使用自然语言步骤验证需求，也可以为用例编写 Playwright TypeScript 脚本。"
+      />
       <TestCasesList
         items={items}
         total={total}

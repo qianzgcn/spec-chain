@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { AiSettingsManagement } from "@/components/ai/ai-settings-management";
+import { PageHeader } from "@/components/layout/page-header";
 import { AiCapability } from "@/generated/prisma/enums";
 import { requireAdmin } from "@/server/auth/session";
 import { db } from "@/server/db";
@@ -31,14 +32,10 @@ export default async function AiSettingsPage() {
 
   return (
     <div className="page-shell page-shell--table">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">模型配置</h1>
-          <p className="page-description">
-            管理 OpenAI 兼容模型，并指定 AI 辅助生成 US 使用的默认模型。
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="模型配置"
+        description="管理 OpenAI 兼容模型，并指定 AI 辅助生成 US 使用的默认模型。"
+      />
 
       <AiSettingsManagement
         profiles={profiles.map((profile) => ({

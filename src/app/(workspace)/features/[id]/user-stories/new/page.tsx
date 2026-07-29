@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 
-import ThunderboltOutlined from "@ant-design/icons/ThunderboltOutlined";
-import { Button } from "antd";
 import { notFound } from "next/navigation";
 
 import { UserStoryForm } from "@/components/requirements/user-story-form";
@@ -26,23 +24,5 @@ export default async function NewFeatureUserStoryPage({
   });
   if (!feature) notFound();
 
-  return (
-    <div className="page-shell">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">新建US</h1>
-          <p className="page-description">
-            编写边界清楚、可开发、可验证的用户故事。
-          </p>
-        </div>
-        <Button
-          icon={<ThunderboltOutlined />}
-          href={`/user-stories/ai-generate?featureId=${feature.id}`}
-        >
-          AI辅助生成US
-        </Button>
-      </div>
-      <UserStoryForm feature={feature} />
-    </div>
-  );
+  return <UserStoryForm feature={feature} />;
 }

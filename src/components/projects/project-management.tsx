@@ -104,9 +104,7 @@ export function ProjectManagement({
       render: (name: string, item) => (
         <Space size={8}>
           <strong>{name}</strong>
-          {item.id === currentProjectId ? (
-            <Tag color="cyan">当前项目</Tag>
-          ) : null}
+          {item.id === currentProjectId ? <Tag>当前项目</Tag> : null}
         </Space>
       ),
     },

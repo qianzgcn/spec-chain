@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { ProjectManagement } from "@/components/projects/project-management";
+import { PageHeader } from "@/components/layout/page-header";
 import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
@@ -36,14 +37,10 @@ export default async function ProjectsPage() {
 
   return (
     <div className="page-shell page-shell--table">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">项目管理</h1>
-          <p className="page-description">
-            需求和测试用例始终归属于一个项目；有业务数据的项目不能删除。
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="项目管理"
+        description="需求和测试用例始终归属于一个项目；有业务数据的项目不能删除。"
+      />
 
       <ProjectManagement
         currentProjectId={currentProject?.id ?? null}

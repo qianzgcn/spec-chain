@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { Tag } from "antd";
 import { notFound } from "next/navigation";
 
+import { PageHeader } from "@/components/layout/page-header";
+import { PageSection } from "@/components/layout/page-section";
 import { MarkdownView } from "@/components/markdown/markdown-view";
 import { TestCaseDetailActions } from "@/components/test-cases/test-case-detail-actions";
 import { db } from "@/server/db";
@@ -46,12 +48,11 @@ export default async function TestCaseDetailPage({
 
   return (
     <div className="page-shell">
-      <div className="page-heading">
-        <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2">
-            <span className="font-mono text-xs text-slate-500">
-              {testCase.code}
-            </span>
+      <PageHeader
+        title={testCase.name}
+        meta={
+          <>
+            <span className="page-code">{testCase.code}</span>
             <Tag color={TEST_PRIORITY_META[testCase.priority].color}>
               {testCase.priority}
             </Tag>
@@ -61,31 +62,26 @@ export default async function TestCaseDetailPage({
             <span className="text-xs text-slate-500">
               {testCase.group.name}
             </span>
+          </>
+        }
+        actions={<TestCaseDetailActions id={testCase.id} />}
+      />
+
+      <div className="detail-sections">
+        <PageSection title="用例内容">
+          <div className="detail-two-columns detail-two-columns--weighted">
+            <div>
+              <h3>前置条件</h3>
+              <MarkdownView content={testCase.preconditions} />
+            </div>
+            <div>
+              <h3>测试步骤</h3>
+              <MarkdownView content={testCase.steps} />
+            </div>
           </div>
-          <h1 className="page-title">{testCase.name}</h1>
-        </div>
-        <TestCaseDetailActions id={testCase.id} />
-      </div>
+        </PageSection>
 
-      <div className="content-panel max-w-[1180px]">
-        <section className="border-b border-slate-200 px-7 py-6">
-          <h2 className="mb-4 text-base font-semibold text-slate-800">
-            前置条件
-          </h2>
-          <MarkdownView content={testCase.preconditions} />
-        </section>
-
-        <section className="border-b border-slate-200 px-7 py-6">
-          <h2 className="mb-4 text-base font-semibold text-slate-800">
-            测试步骤
-          </h2>
-          <MarkdownView content={testCase.steps} />
-        </section>
-
-        <section className="border-b border-slate-200 px-7 py-6">
-          <h2 className="mb-4 text-base font-semibold text-slate-800">
-            关联 US
-          </h2>
+        <PageSection title="关联 US">
           {testCase.userStoryLinks.length > 0 ? (
             <ul className="m-0 space-y-2 p-0">
               {testCase.userStoryLinks.map(({ userStory }) => (
@@ -96,7 +92,7 @@ export default async function TestCaseDetailPage({
                     </span>
                   ) : (
                     <a
-                      className="font-medium text-cyan-700 hover:text-cyan-800"
+                      className="font-medium text-blue-700 hover:text-blue-800"
                       href={`/user-stories/${userStory.id}`}
                     >
                       {userStory.code} · {userStory.title}
@@ -111,20 +107,17 @@ export default async function TestCaseDetailPage({
           ) : (
             <span className="text-sm text-slate-400">未关联 US</span>
           )}
-        </section>
+        </PageSection>
 
-        <section className="border-b border-slate-200 px-7 py-6">
-          <h2 className="mb-4 text-base font-semibold text-slate-800">
-            Playwright TypeScript 脚本
-          </h2>
+        <PageSection title="Playwright TypeScript 脚本">
           {testCase.script ? (
-            <pre className="m-0 max-h-[520px] overflow-auto rounded-md bg-slate-950 p-5 text-xs leading-6 text-slate-100">
+            <pre className="m-0 max-h-[520px] overflow-auto rounded-lg bg-slate-950 p-5 text-xs leading-6 text-slate-100">
               <code>{testCase.script}</code>
             </pre>
           ) : (
             <span className="text-sm text-slate-400">尚未编写自动化脚本</span>
           )}
-        </section>
+        </PageSection>
       </div>
     </div>
   );

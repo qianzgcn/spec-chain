@@ -75,24 +75,14 @@ export default async function NewTestCasePage() {
   }
 
   return (
-    <div className="page-shell">
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">新建测试用例</h1>
-          <p className="page-description">
-            所有步骤统一写在一个输入框中；需要验证的结果直接写在对应步骤中。
-          </p>
-        </div>
-      </div>
-      <TestCaseForm
-        groups={groups}
-        userStories={userStories.map((story) => ({
-          id: story.id,
-          code: story.code,
-          title: story.title,
-          featureName: story.feature?.name ?? null,
-        }))}
-      />
-    </div>
+    <TestCaseForm
+      groups={groups}
+      userStories={userStories.map((story) => ({
+        id: story.id,
+        code: story.code,
+        title: story.title,
+        featureName: story.feature?.name ?? null,
+      }))}
+    />
   );
 }
