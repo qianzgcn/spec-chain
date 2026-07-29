@@ -2,12 +2,12 @@
 
 import { useTransition } from "react";
 
-import { Select, message } from "antd";
+import { message } from "antd";
 import { useRouter } from "next/navigation";
 
 import { updateUserStoryStatusAction } from "@/app/actions/requirements";
+import { RequirementStatusSelectControl } from "@/components/requirements/requirement-status-select-control";
 import { RequirementStatus } from "@/generated/prisma/enums";
-import { REQUIREMENT_STATUS_META } from "@/lib/requirements/status";
 
 export function UserStoryStatusSelect({
   id,
@@ -35,15 +35,12 @@ export function UserStoryStatusSelect({
   return (
     <>
       {messageContext}
-      <Select
+      <RequirementStatusSelectControl
         value={status}
         onChange={change}
         loading={isPending}
-        className="w-28"
-        options={Object.values(RequirementStatus).map((value) => ({
-          value,
-          label: REQUIREMENT_STATUS_META[value].label,
-        }))}
+        disabled={isPending}
+        size="middle"
       />
     </>
   );

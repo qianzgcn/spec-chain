@@ -1,81 +1,105 @@
 "use client";
 
 import { ConfigProvider } from "antd";
+import type { ThemeConfig } from "antd";
 import zhCN from "antd/locale/zh_CN";
+
+import { designTokens } from "@/theme/tokens";
+
+const { colors, controlHeight, radius, shadows, status, typography } =
+  designTokens;
+
+const antdTheme = {
+  token: {
+    colorPrimary: colors.brand,
+    colorPrimaryHover: colors.brandHover,
+    colorPrimaryActive: colors.brandActive,
+    colorInfo: colors.brand,
+    colorSuccess: status.success.text,
+    colorWarning: status.warning.text,
+    colorError: colors.danger,
+    colorLink: colors.brand,
+    colorLinkHover: colors.brandHover,
+    colorText: colors.text,
+    colorTextSecondary: colors.textSecondary,
+    colorBgBase: colors.surface,
+    colorBgLayout: colors.appBackground,
+    colorFillAlter: colors.surfaceSubtle,
+    colorBorder: colors.borderStrong,
+    colorBorderSecondary: colors.border,
+    borderRadius: radius.control,
+    borderRadiusLG: radius.large,
+    fontSize: typography.fontSizeBody,
+    controlHeight,
+    boxShadowSecondary: shadows.popup,
+    fontFamily: typography.fontFamily,
+  },
+  components: {
+    Button: {
+      colorPrimary: colors.action,
+      colorPrimaryHover: colors.actionHover,
+      colorPrimaryActive: colors.actionActive,
+      primaryColor: colors.surface,
+      defaultColor: colors.text,
+      defaultBorderColor: colors.borderStrong,
+      defaultHoverColor: colors.action,
+      defaultHoverBorderColor: colors.textMuted,
+      defaultHoverBg: colors.surfaceSubtle,
+      fontWeight: 600,
+      primaryShadow: "none",
+      defaultShadow: "none",
+    },
+    Layout: {
+      bodyBg: colors.appBackground,
+      headerBg: colors.surface,
+      siderBg: colors.sidebar,
+    },
+    Menu: {
+      itemBg: colors.sidebar,
+      subMenuItemBg: colors.sidebar,
+      itemColor: colors.textSecondary,
+      itemSelectedBg: colors.brandSoft,
+      itemSelectedColor: colors.brandHover,
+      subMenuItemSelectedColor: colors.brandHover,
+      itemHoverBg: colors.surfaceMuted,
+      itemHoverColor: colors.text,
+      itemActiveBg: colors.brandSoftStrong,
+      itemBorderRadius: radius.control,
+      itemHeight: 40,
+    },
+    Table: {
+      headerBg: colors.surfaceSubtle,
+      headerColor: colors.textSecondary,
+      borderColor: colors.border,
+      rowHoverBg: colors.rowHover,
+      cellPaddingBlock: 12,
+      cellPaddingInline: 16,
+    },
+    Input: {
+      activeBorderColor: colors.brand,
+      hoverBorderColor: colors.textMuted,
+      activeShadow: `0 0 0 2px ${colors.focusRing}`,
+    },
+    Select: {
+      activeBorderColor: colors.brand,
+      hoverBorderColor: colors.textMuted,
+      activeOutlineColor: colors.focusRing,
+      optionActiveBg: colors.surfaceMuted,
+      optionSelectedBg: colors.brandSoft,
+    },
+    Form: {
+      labelColor: colors.text,
+    },
+    Tag: {
+      defaultBg: colors.surfaceMuted,
+      defaultColor: colors.textSecondary,
+    },
+  },
+} satisfies ThemeConfig;
 
 export function AntdProvider({ children }: { children: React.ReactNode }) {
   return (
-    <ConfigProvider
-      locale={zhCN}
-      theme={{
-        token: {
-          colorPrimary: "#5661e8",
-          colorPrimaryHover: "#4651d1",
-          colorInfo: "#5661e8",
-          colorLink: "#5661e8",
-          colorLinkHover: "#4651d1",
-          colorText: "#202633",
-          colorTextSecondary: "#687083",
-          colorBgBase: "#ffffff",
-          colorBgLayout: "#f6f7fb",
-          colorFillAlter: "#f7f8fc",
-          colorBorder: "#d9dde7",
-          colorBorderSecondary: "#e8eaf0",
-          borderRadius: 8,
-          borderRadiusLG: 10,
-          fontSize: 14,
-          controlHeight: 36,
-          boxShadowSecondary: "0 14px 36px rgba(31, 38, 51, 0.12)",
-          fontFamily:
-            '"Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
-        },
-        components: {
-          Button: {
-            fontWeight: 500,
-            primaryShadow: "none",
-            defaultShadow: "none",
-          },
-          Layout: {
-            bodyBg: "#f6f7fb",
-            headerBg: "#ffffff",
-            siderBg: "#171923",
-          },
-          Menu: {
-            darkItemBg: "#171923",
-            darkSubMenuItemBg: "#171923",
-            darkItemColor: "#aeb3c1",
-            darkItemSelectedBg: "#292c39",
-            darkItemSelectedColor: "#ffffff",
-            darkItemHoverBg: "#222530",
-            darkItemHoverColor: "#ffffff",
-            itemBorderRadius: 8,
-            itemHeight: 40,
-          },
-          Table: {
-            headerBg: "#f7f8fc",
-            headerColor: "#596174",
-            borderColor: "#eceef3",
-            rowHoverBg: "#f5f6fc",
-            cellPaddingBlock: 12,
-            cellPaddingInline: 16,
-          },
-          Input: {
-            activeBorderColor: "#5661e8",
-            hoverBorderColor: "#aeb4c1",
-            activeShadow: "0 0 0 2px rgba(86, 97, 232, 0.10)",
-          },
-          Select: {
-            activeBorderColor: "#5661e8",
-            hoverBorderColor: "#aeb4c1",
-            activeOutlineColor: "rgba(86, 97, 232, 0.10)",
-            optionSelectedBg: "#eceeff",
-          },
-          Form: {
-            labelColor: "#344054",
-          },
-        },
-      }}
-    >
+    <ConfigProvider locale={zhCN} theme={antdTheme}>
       {children}
     </ConfigProvider>
   );

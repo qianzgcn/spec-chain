@@ -15,14 +15,14 @@ import TeamOutlined from "@ant-design/icons/TeamOutlined";
 import UserOutlined from "@ant-design/icons/UserOutlined";
 import { Avatar, Dropdown, Layout, Menu, Select, message } from "antd";
 import type { MenuProps } from "antd";
-import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 
 import { logoutAction } from "@/app/actions/auth";
 import { switchProjectAction } from "@/app/actions/projects";
-import { UserRole } from "@/generated/prisma/enums";
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
 import { ChangePasswordModal } from "@/components/auth/change-password-modal";
+import { SpecChainMark } from "@/components/brand/specchain-mark";
+import { UserRole } from "@/generated/prisma/enums";
 import { confirmLeaveIfDirty } from "@/hooks/use-unsaved-changes";
 
 import styles from "./app-shell.module.css";
@@ -221,21 +221,15 @@ export function AppShell({
     <>
       {messageContext}
       <Layout className={styles.layout}>
-        <Sider className={styles.sider} width={232}>
+        <Sider className={styles.sider} width={224}>
           <div className={styles.logo}>
-            <Image
-              className={styles.logoMark}
-              src="/specchain.svg"
-              alt=""
-              width={34}
-              height={34}
-            />
+            <SpecChainMark className={styles.logoMark} size={34} />
             <span className={styles.logoName}>SpecChain</span>
           </div>
 
           <Menu
             className={styles.menu}
-            theme="dark"
+            theme="light"
             mode="inline"
             items={menuItems}
             selectedKeys={[resolveSelectedKey(pathname)]}

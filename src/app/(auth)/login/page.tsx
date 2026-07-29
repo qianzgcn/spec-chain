@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import Image from "next/image";
 import { redirect } from "next/navigation";
 
 import { LoginForm } from "@/app/(auth)/login/login-form";
+import { SpecChainMark } from "@/components/brand/specchain-mark";
 import { getCurrentUser } from "@/server/auth/session";
 
 import styles from "./page.module.css";
@@ -29,13 +29,7 @@ export default async function LoginPage({
     <main className={styles.page}>
       <section className={styles.brandPanel}>
         <div className={styles.brand}>
-          <Image
-            className={styles.brandMark}
-            src="/specchain.svg"
-            alt=""
-            width={34}
-            height={34}
-          />
+          <SpecChainMark className={styles.brandMark} size={34} />
           <span>SpecChain</span>
         </div>
         <div className={styles.brandCopy}>

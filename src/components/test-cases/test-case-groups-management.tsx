@@ -99,7 +99,7 @@ export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
             pathname: "/test-cases",
             query: { group: group.id },
           }}
-          className="font-medium text-blue-700 hover:text-blue-800 hover:underline"
+          className="entity-link entity-link--accent"
           aria-label={`查看 ${group.name} 分组的 ${count} 个测试用例`}
         >
           {count} 个

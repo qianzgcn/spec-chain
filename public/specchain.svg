@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SpecChain">
-  <rect width="64" height="64" rx="8" fill="#5661e8"/>
+  <rect width="64" height="64" rx="10" fill="#2f766d"/>
   <path
     d="M26.5 38.5l-3.8 3.8a8 8 0 0 1-11.3-11.3l7-7a8 8 0 0 1 11.3 0l2.2 2.2m5.6-.7l3.8-3.8A8 8 0 0 1 52.6 33l-7 7a8 8 0 0 1-11.3 0l-2.2-2.2M24.5 39.5l15-15"
     fill="none"

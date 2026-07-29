@@ -4,7 +4,7 @@
   height: 100%;
   min-height: 0;
   overflow: auto;
-  background: #f6f7fb;
+  background: var(--app-bg);
 }
 
 .brandPanel {
@@ -12,8 +12,9 @@
   flex-direction: column;
   min-height: 100vh;
   padding: 44px 64px;
-  background: #171923;
-  color: #fff;
+  border-right: 1px solid var(--border);
+  background: var(--accent-soft);
+  color: var(--text);
 }
 
 .brand {
@@ -29,6 +30,7 @@
   width: 34px;
   height: 34px;
   border-radius: 7px;
+  color: var(--accent);
 }
 
 .brandCopy {
@@ -38,7 +40,7 @@
 
 .eyebrow {
   margin: 0 0 22px;
-  color: #9ca4ff;
+  color: var(--accent);
   font-size: 13px;
   font-weight: 650;
   letter-spacing: 0.12em;
@@ -55,21 +57,22 @@
 .brandCopy > p:last-child {
   max-width: 490px;
   margin: 30px 0 0;
-  color: #b8c0cc;
+  color: var(--text-secondary);
   font-size: 16px;
   line-height: 1.8;
 }
 
 .version {
   margin: 0;
-  color: #697386;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
 }
 
 .formArea {
   display: grid;
   min-height: 100vh;
   padding: 48px;
+  background: var(--surface);
   place-items: center;
 }
 
@@ -83,13 +86,13 @@
 
 .formHeading h2 {
   margin: 0;
-  color: #202633;
+  color: var(--text);
   font-size: 28px;
   font-weight: 650;
 }
 
 .formHeading p {
   margin: 8px 0 0;
-  color: #687083;
+  color: var(--text-secondary);
   line-height: 1.6;
 }

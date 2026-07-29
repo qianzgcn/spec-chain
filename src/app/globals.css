@@ -1,16 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --app-bg: #f6f7fb;
-  --surface: #ffffff;
-  --surface-subtle: #f7f8fc;
-  --text: #202633;
-  --text-secondary: #687083;
-  --text-muted: #969dac;
-  --border: #e8eaf0;
-  --border-strong: #d9dde7;
-  --accent: #5661e8;
-  --accent-hover: #4651d1;
+  color-scheme: light;
 }
 
 * {
@@ -29,10 +20,8 @@ body {
   margin: 0;
   background: var(--app-bg);
   color: var(--text);
-  font-family:
-    "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei",
-    system-ui, sans-serif;
-  font-size: 14px;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -50,8 +39,24 @@ a {
   text-decoration: none;
 }
 
+.entity-link {
+  color: var(--text);
+  font-weight: 600;
+  text-underline-offset: 3px;
+  transition: color 150ms ease;
+}
+
+.entity-link--accent {
+  color: var(--accent);
+}
+
+.entity-link:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
 ::selection {
-  background: rgb(86 97 232 / 16%);
+  background: var(--focus-ring);
 }
 
 .page-shell {
@@ -72,7 +77,7 @@ a {
 .page-heading {
   display: flex;
   min-width: 0;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
@@ -116,8 +121,8 @@ a {
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--text);
-  font-size: 25px;
-  font-weight: 680;
+  font-size: var(--font-size-page-title);
+  font-weight: 720;
   letter-spacing: -0.025em;
   line-height: 1.32;
 }
@@ -133,14 +138,14 @@ a {
 .page-code {
   color: var(--text-secondary);
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--font-size-small);
 }
 
 .content-panel {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+  box-shadow: var(--shadow-panel);
 }
 
 .content-panel {
@@ -180,7 +185,7 @@ a {
 .table-toolbar {
   display: flex;
   min-height: 62px;
-  padding: 12px 16px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   align-items: center;
@@ -219,24 +224,24 @@ a {
 
 .form-page__form > .page-section {
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-large);
   background: var(--surface);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
+  box-shadow: var(--shadow-panel);
 }
 
 .page-section {
   min-width: 0;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: var(--radius-large);
   background: var(--surface);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
+  box-shadow: var(--shadow-panel);
 }
 
 .page-section__header {
   display: flex;
   min-height: 62px;
   padding: 17px 24px 13px;
-  background: var(--surface-subtle);
+  background: var(--surface-header);
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
@@ -245,7 +250,7 @@ a {
 .page-section__title {
   margin: 0;
   color: var(--text);
-  font-size: 16px;
+  font-size: var(--font-size-section-title);
   font-weight: 650;
   letter-spacing: -0.01em;
   line-height: 1.45;
@@ -299,7 +304,7 @@ a {
 
 .detail-two-columns h3 {
   margin: 0 0 14px;
-  color: #344054;
+  color: var(--text);
   font-size: 14px;
   font-weight: 650;
 }
@@ -455,14 +460,18 @@ a {
 .requirement-name a {
   min-width: 0;
   overflow: hidden;
-  color: #31394a;
-  font-weight: 560;
+  color: var(--accent);
+  font-weight: 650;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 38%, transparent);
+  text-underline-offset: 3px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .requirement-name a:hover {
   color: var(--accent-hover);
+  text-decoration-color: currentColor;
 }
 
 .requirement-name span {
@@ -472,12 +481,12 @@ a {
 }
 
 .requirement-row--feature > td {
-  background: #fafaff !important;
+  background: var(--row-feature) !important;
 }
 
 .requirement-row--feature:hover > td,
 .requirement-row--story:hover > td {
-  background: #f5f6fc !important;
+  background: var(--row-hover) !important;
 }
 
 .requirement-status-cell {
@@ -485,17 +494,138 @@ a {
 }
 
 .requirement-status-select {
-  width: 100%;
+  width: 94px;
+  min-width: 94px;
+  outline: none !important;
+  border-radius: var(--radius-control);
+  background: var(--surface-muted) !important;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.requirement-status-select .ant-select-content {
+  padding-inline: 4px 18px !important;
+}
+
+.requirement-status-select .ant-select-suffix {
+  inset-inline-end: 8px;
+  color: var(--text-muted);
+}
+
+.requirement-status-select:not(.ant-select-disabled):hover {
+  background: var(--accent-soft) !important;
+}
+
+.requirement-status-select.ant-select-focused:not(.ant-select-open) {
+  background: var(--surface-muted) !important;
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.requirement-status-select.ant-select-open {
+  background: var(--accent-soft) !important;
+  box-shadow: none;
+}
+
+.requirement-status-select.ant-select-open .ant-select-content {
+  opacity: 1 !important;
+}
+
+.requirement-status-select.ant-select-disabled {
+  opacity: 1;
+}
+
+.requirement-status-select--loading.ant-select-disabled {
+  cursor: wait;
+}
+
+.requirement-status-select--loading.ant-select-disabled
+  .requirement-status-badge {
+  opacity: 0.72;
+}
+
+.requirement-status-display {
+  display: inline-flex;
+  width: 94px;
+  min-width: 94px;
+  min-height: 28px;
+  padding-inline: 4px;
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+  align-items: center;
+}
+
+.requirement-status-popup {
+  padding: 6px !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-large) !important;
+  box-shadow: var(--shadow-popup) !important;
+}
+
+.requirement-status-popup .ant-select-item {
+  min-height: 38px;
+  padding: 6px 8px;
+  border-radius: var(--radius-small);
+}
+
+.requirement-status-popup
+  .ant-select-item-option-active:not(.ant-select-item-option-selected) {
+  background: var(--surface-muted);
+}
+
+.requirement-status-popup .ant-select-item-option-selected {
+  background: var(--surface-muted) !important;
+}
+
+.requirement-status-badge {
+  display: inline-flex;
+  min-width: 48px;
+  min-height: 24px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+}
+
+.requirement-status-badge::before {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--requirement-status-color);
+  content: "";
+  opacity: 0.72;
+}
+
+.requirement-status-badge--design {
+  --requirement-status-color: var(--status-design-text);
+}
+
+.requirement-status-badge--development {
+  --requirement-status-color: var(--status-info-text);
+}
+
+.requirement-status-badge--testing {
+  --requirement-status-color: var(--status-warning-text);
+}
+
+.requirement-status-badge--completed {
+  --requirement-status-color: var(--status-completed-text);
+}
+
+.requirement-status-select .requirement-status-badge,
+.requirement-status-popup .requirement-status-badge {
   min-width: 0;
 }
 
-.requirement-status-select .ant-select-selector {
-  padding-inline: 9px !important;
-}
-
 .ant-table-wrapper .ant-table-row-expand-icon {
-  border-color: #d6d9e3;
-  color: #656d7e;
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
 }
 
 .test-case-basics {
@@ -609,7 +739,7 @@ a {
 }
 
 .markdown-content {
-  color: #344054;
+  color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.75;
   overflow-wrap: anywhere;
@@ -642,8 +772,8 @@ a {
 }
 
 .ant-form-item .ant-form-item-label > label {
-  color: #344054;
-  font-weight: 550;
+  color: var(--text);
+  font-weight: 600;
 }
 
 .ant-form-item .ant-form-item-extra {
@@ -657,15 +787,112 @@ a {
 }
 
 .ant-table-wrapper .ant-table-tbody > tr > td {
-  color: #344054;
+  color: var(--text-secondary);
 }
 
 .ant-btn {
   box-shadow: none;
+  transition:
+    color 150ms ease,
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.ant-btn-primary:not(:disabled) {
+  background: var(--action);
+}
+
+.ant-btn-primary:not(:disabled):hover {
+  background: var(--action-hover) !important;
+}
+
+.ant-table-wrapper .ant-table-tbody .ant-btn-link,
+.ant-table-wrapper .ant-table-tbody .ant-btn-text {
+  min-width: 32px;
+  height: 30px;
+  padding-inline: 10px;
+  border-radius: var(--radius-small);
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text);
+  font-weight: 550;
+}
+
+.ant-table-wrapper .ant-table-tbody .ant-btn-text {
+  padding-inline: 8px;
+}
+
+.ant-table-wrapper .ant-table-tbody .ant-btn-link:not(.ant-btn-dangerous):hover,
+.ant-table-wrapper
+  .ant-table-tbody
+  .ant-btn-text:not(.ant-btn-dangerous):hover {
+  border-color: var(--accent);
+  background: transparent;
+  color: var(--accent-hover) !important;
+}
+
+.ant-table-wrapper .ant-table-tbody .ant-btn-dangerous {
+  border-color: color-mix(in srgb, var(--status-error-text) 36%, var(--border));
+  background: transparent;
+  color: var(--status-error-text);
+}
+
+.ant-table-wrapper .ant-table-tbody .ant-btn-dangerous:hover {
+  border-color: var(--status-error-text) !important;
+  background: var(--status-error-bg) !important;
+  color: var(--status-error-text) !important;
+}
+
+.ant-table-wrapper .ant-table-tbody .ant-btn:active {
+  background: var(--surface-muted) !important;
+}
+
+.ant-tag {
+  border-color: transparent !important;
+  border-radius: 6px;
+  font-weight: 550;
+}
+
+.ant-tag-blue,
+.ant-tag-processing {
+  border-color: transparent !important;
+  background: var(--status-info-bg) !important;
+  color: var(--status-info-text) !important;
+}
+
+.ant-tag-orange,
+.ant-tag-gold,
+.ant-tag-warning {
+  border-color: transparent !important;
+  background: var(--status-warning-bg) !important;
+  color: var(--status-warning-text) !important;
+}
+
+.ant-tag-green,
+.ant-tag-success {
+  border-color: transparent !important;
+  background: var(--status-success-bg) !important;
+  color: var(--status-success-text) !important;
+}
+
+.ant-tag-red,
+.ant-tag-error {
+  border-color: transparent !important;
+  background: var(--status-error-bg) !important;
+  color: var(--status-error-text) !important;
+}
+
+.ant-pagination .ant-pagination-item-active {
+  border-color: var(--accent);
+}
+
+.ant-pagination .ant-pagination-item-active a {
+  color: var(--accent);
 }
 
 .ant-modal .ant-modal-title {
-  font-weight: 650;
+  color: var(--text);
+  font-weight: 680;
 }
 
 @media (max-width: 1440px) {

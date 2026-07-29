@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 
 import { AntdProvider } from "@/app/antd-provider";
+import { themeCssVariables } from "@/theme/tokens";
 
 import "./globals.css";
 
@@ -24,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" style={themeCssVariables}>
       <body>
         <AntdRegistry>
           <AntdProvider>{children}</AntdProvider>

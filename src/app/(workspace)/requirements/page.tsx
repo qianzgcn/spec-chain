@@ -20,7 +20,6 @@ type SearchParams = {
   q?: string;
   type?: string;
   status?: string;
-  feature?: string;
   page?: string;
 };
 
@@ -105,16 +104,8 @@ export default async function RequirementsPage({
   )
     ? (params.status as RequirementStatus)
     : "";
-  const featureFilter = params.feature ?? "";
 
   const featureItems = features.flatMap<RequirementListItem>((feature) => {
-    if (
-      featureFilter === "independent" ||
-      (featureFilter && featureFilter !== feature.id)
-    ) {
-      return [];
-    }
-
     const featureStatus = deriveFeatureStatus(
       feature.userStories.map((story) => story.status),
     );
@@ -149,6 +140,7 @@ export default async function RequirementsPage({
               status: featureStatus,
               childCount: allChildren.length,
               updatedAt: feature.updatedAt.toISOString(),
+              autoExpand: Boolean(query && matchingChildren.length),
               children: matchingChildren,
             },
           ]
@@ -181,7 +173,8 @@ export default async function RequirementsPage({
         status: featureStatus,
         childCount: allChildren.length,
         updatedAt: feature.updatedAt.toISOString(),
-        children,
+        autoExpand: Boolean(query && matchingChildren.length),
+        ...(children.length ? { children } : {}),
       },
     ];
   });
@@ -190,7 +183,6 @@ export default async function RequirementsPage({
     .filter(
       (story) =>
         type !== "FEATURE" &&
-        (!featureFilter || featureFilter === "independent") &&
         matchesText(story.code, story.title, query) &&
         (!status || story.status === status),
     )
@@ -230,18 +222,8 @@ export default async function RequirementsPage({
           q: params.q ?? "",
           type,
           status,
-          feature: featureFilter,
           page,
         }}
-        featureOptions={features
-          .map((feature) => ({
-            id: feature.id,
-            name: feature.name,
-            code: feature.code,
-          }))
-          .toSorted((left, right) =>
-            left.name.localeCompare(right.name, "zh-CN"),
-          )}
       />
     </div>
   );

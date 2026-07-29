@@ -2,21 +2,8 @@
 
 import { useState, useTransition } from "react";
 
-import CopyOutlined from "@ant-design/icons/CopyOutlined";
-import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import MoreOutlined from "@ant-design/icons/MoreOutlined";
 import PlusOutlined from "@ant-design/icons/PlusOutlined";
-import {
-  Button,
-  Dropdown,
-  Input,
-  Modal,
-  Select,
-  Space,
-  Table,
-  Tag,
-  message,
-} from "antd";
+import { Button, Input, Modal, Select, Space, Table, Tag, message } from "antd";
 import type { TableProps } from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -28,6 +15,8 @@ import {
   updateUserStoryStatusAction,
 } from "@/app/actions/requirements";
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
+import { RequirementStatusBadge } from "@/components/requirements/requirement-status-badge";
+import { RequirementStatusSelectControl } from "@/components/requirements/requirement-status-select-control";
 import { RequirementStatus } from "@/generated/prisma/enums";
 import { formatCompactDateTime } from "@/lib/date-time";
 import { REQUIREMENT_STATUS_META } from "@/lib/requirements/status";
@@ -40,6 +29,7 @@ export type RequirementListItem = {
   status: RequirementStatus;
   childCount: number | null;
   updatedAt: string;
+  autoExpand?: boolean;
   children?: RequirementListItem[];
 };
 
@@ -47,7 +37,6 @@ type RequirementFilters = {
   q: string;
   type: string;
   status: string;
-  feature: string;
   page: number;
 };
 
@@ -55,18 +44,28 @@ export function RequirementsList({
   items,
   total,
   filters,
-  featureOptions,
 }: {
   items: RequirementListItem[];
   total: number;
   filters: RequirementFilters;
-  featureOptions: Array<{ id: string; name: string; code: string }>;
 }) {
   const router = useRouter();
   const { isNavigating, navigate } = useNavigationFeedback();
   const [messageApi, messageContext] = message.useMessage();
   const [query, setQuery] = useState(filters.q);
   const [isPending, startTransition] = useTransition();
+  const [, startStatusTransition] = useTransition();
+  const [updatingStoryId, setUpdatingStoryId] = useState<string | null>(null);
+  const autoExpandedRowKeys = items
+    .filter((item) => item.type === "FEATURE" && item.autoExpand)
+    .map((item) => `FEATURE-${item.id}`);
+  const expansionKey = `${filters.q}\u0000${autoExpandedRowKeys.join(",")}`;
+  const [expansion, setExpansion] = useState({
+    key: expansionKey,
+    rowKeys: autoExpandedRowKeys,
+  });
+  const expandedRowKeys =
+    expansion.key === expansionKey ? expansion.rowKeys : autoExpandedRowKeys;
 
   function updateQuery(
     changes: Partial<Omit<RequirementFilters, "page">> & { page?: number },
@@ -76,7 +75,6 @@ export function RequirementsList({
     if (next.q) params.set("q", next.q);
     if (next.type) params.set("type", next.type);
     if (next.status) params.set("status", next.status);
-    if (next.feature) params.set("feature", next.feature);
     if (next.page > 1) params.set("page", String(next.page));
     navigate(`/requirements${params.size ? `?${params}` : ""}`);
   }
@@ -90,7 +88,7 @@ export function RequirementsList({
       }
       try {
         await navigator.clipboard.writeText(result.data.markdown);
-        messageApi.success("Markdown 已复制");
+        messageApi.success("需求内容已复制");
       } catch {
         messageApi.error("浏览器未允许访问剪贴板");
       }
@@ -98,14 +96,21 @@ export function RequirementsList({
   }
 
   function changeStatus(id: string, status: RequirementStatus) {
-    startTransition(async () => {
-      const result = await updateUserStoryStatusAction(id, status);
-      if (!result.ok) {
-        messageApi.error(result.message);
-        return;
+    if (updatingStoryId) return;
+
+    setUpdatingStoryId(id);
+    startStatusTransition(async () => {
+      try {
+        const result = await updateUserStoryStatusAction(id, status);
+        if (!result.ok) {
+          messageApi.error(result.message);
+          return;
+        }
+        messageApi.success(result.message);
+        router.refresh();
+      } finally {
+        setUpdatingStoryId(null);
       }
-      messageApi.success(result.message);
-      router.refresh();
     });
   }
 
@@ -140,21 +145,6 @@ export function RequirementsList({
 
   const columns: TableProps<RequirementListItem>["columns"] = [
     {
-      title: "编号",
-      dataIndex: "code",
-      width: 225,
-      render: (code: string) => (
-        <span className="font-mono text-xs text-slate-600">{code}</span>
-      ),
-    },
-    {
-      title: "类型",
-      dataIndex: "type",
-      width: 65,
-      render: (type: RequirementListItem["type"]) =>
-        type === "FEATURE" ? <Tag>FE</Tag> : <Tag>US</Tag>,
-    },
-    {
       title: "名称",
       dataIndex: "title",
       ellipsis: true,
@@ -174,29 +164,37 @@ export function RequirementsList({
       },
     },
     {
+      title: "编号",
+      dataIndex: "code",
+      width: 184,
+      render: (code: string) => (
+        <span className="font-mono text-xs text-slate-600">{code}</span>
+      ),
+    },
+    {
+      title: "类型",
+      dataIndex: "type",
+      width: 60,
+      render: (type: RequirementListItem["type"]) =>
+        type === "FEATURE" ? <Tag>FE</Tag> : <Tag>US</Tag>,
+    },
+    {
       title: "状态",
       dataIndex: "status",
       width: 116,
       onCell: () => ({ className: "requirement-status-cell" }),
       render: (status: RequirementStatus, item) =>
         item.type === "USER_STORY" ? (
-          <Select
-            size="small"
-            variant="filled"
+          <RequirementStatusSelectControl
             value={status}
-            disabled={isPending}
-            className="requirement-status-select"
-            popupMatchSelectWidth={104}
+            disabled={updatingStoryId === item.id}
+            loading={updatingStoryId === item.id}
             onChange={(value) => changeStatus(item.id, value)}
-            options={Object.values(RequirementStatus).map((value) => ({
-              value,
-              label: REQUIREMENT_STATUS_META[value].label,
-            }))}
           />
         ) : (
-          <Tag color={REQUIREMENT_STATUS_META[status].color}>
-            {REQUIREMENT_STATUS_META[status].label}
-          </Tag>
+          <span className="requirement-status-display">
+            <RequirementStatusBadge status={status} />
+          </span>
         ),
     },
     {
@@ -209,62 +207,45 @@ export function RequirementsList({
     {
       title: "操作",
       key: "actions",
-      width: 155,
+      width: 304,
       render: (_, item) => {
-        const detailPath =
+        const basePath =
           item.type === "FEATURE"
             ? `/features/${item.id}`
             : `/user-stories/${item.id}`;
-        const editPath = `${detailPath}/edit`;
         return (
-          <Space size={2}>
-            <Button type="link" size="small" href={detailPath}>
-              查看
-            </Button>
-            <Button type="link" size="small" href={editPath}>
+          <Space size={8} className="requirement-actions">
+            <Button type="link" size="small" href={`${basePath}/edit`}>
               编辑
             </Button>
-            <Dropdown
-              trigger={["click"]}
-              menu={{
-                items: [
-                  ...(item.type === "FEATURE"
-                    ? [
-                        {
-                          key: "child",
-                          icon: <PlusOutlined />,
-                          label: "新建US",
-                          onClick: () =>
-                            navigate(`/features/${item.id}/user-stories/new`),
-                        },
-                      ]
-                    : []),
-                  {
-                    key: "copy",
-                    icon: <CopyOutlined />,
-                    label: "复制 Markdown",
-                    disabled: isPending,
-                    onClick: () => copyRequirement(item),
-                  },
-                  { type: "divider" as const },
-                  {
-                    key: "delete",
-                    icon: <DeleteOutlined />,
-                    label: "删除",
-                    danger: true,
-                    disabled: isPending,
-                    onClick: () => confirmDeleteRequirement(item),
-                  },
-                ],
-              }}
-            >
+            {item.type === "FEATURE" ? (
               <Button
-                type="text"
+                type="link"
                 size="small"
-                icon={<MoreOutlined />}
-                aria-label="更多操作"
-              />
-            </Dropdown>
+                onClick={() =>
+                  navigate(`/features/${item.id}/user-stories/new`)
+                }
+              >
+                新建US
+              </Button>
+            ) : null}
+            <Button
+              type="link"
+              size="small"
+              disabled={isPending}
+              onClick={() => copyRequirement(item)}
+            >
+              复制内容
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              danger
+              disabled={isPending}
+              onClick={() => confirmDeleteRequirement(item)}
+            >
+              删除
+            </Button>
           </Space>
         );
       },
@@ -280,7 +261,11 @@ export function RequirementsList({
             className="table-search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            onSearch={() => updateQuery({ q: query.trim(), page: 1 })}
+            onSearch={(value) => {
+              const normalizedQuery = value.trim();
+              setQuery(normalizedQuery);
+              updateQuery({ q: normalizedQuery, page: 1 });
+            }}
             placeholder="搜索编号或名称"
             allowClear
           />
@@ -306,23 +291,7 @@ export function RequirementsList({
               label: REQUIREMENT_STATUS_META[status].label,
             }))}
           />
-          <Select
-            className="w-56"
-            value={filters.feature || undefined}
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            placeholder="全部 FE 归属"
-            onChange={(feature = "") => updateQuery({ feature, page: 1 })}
-            options={[
-              { value: "independent", label: "未归属 FE" },
-              ...featureOptions.map((feature) => ({
-                value: feature.id,
-                label: `${feature.code} · ${feature.name}`,
-              })),
-            ]}
-          />
-          {filters.q || filters.type || filters.status || filters.feature ? (
+          {filters.q || filters.type || filters.status ? (
             <Button
               type="link"
               onClick={() => {
@@ -353,6 +322,12 @@ export function RequirementsList({
             indentSize: 24,
             rowExpandable: (item) =>
               item.type === "FEATURE" && Boolean(item.children?.length),
+            expandedRowKeys,
+            onExpandedRowsChange: (rowKeys) =>
+              setExpansion({
+                key: expansionKey,
+                rowKeys: rowKeys.map(String),
+              }),
           }}
           rowClassName={(item) =>
             item.type === "FEATURE"

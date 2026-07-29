@@ -9,12 +9,12 @@ const REQUIREMENT_STATUS_ORDER: Record<RequirementStatus, number> = {
 
 export const REQUIREMENT_STATUS_META: Record<
   RequirementStatus,
-  { label: string; color: string }
+  { label: string }
 > = {
-  [RequirementStatus.DESIGN]: { label: "设计", color: "default" },
-  [RequirementStatus.DEVELOPMENT]: { label: "开发", color: "blue" },
-  [RequirementStatus.TESTING]: { label: "测试", color: "orange" },
-  [RequirementStatus.COMPLETED]: { label: "完成", color: "green" },
+  [RequirementStatus.DESIGN]: { label: "设计" },
+  [RequirementStatus.DEVELOPMENT]: { label: "开发" },
+  [RequirementStatus.TESTING]: { label: "测试" },
+  [RequirementStatus.COMPLETED]: { label: "完成" },
 };
 
 export function deriveFeatureStatus(statuses: RequirementStatus[]) {

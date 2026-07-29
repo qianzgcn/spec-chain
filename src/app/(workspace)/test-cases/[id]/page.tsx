@@ -92,7 +92,7 @@ export default async function TestCaseDetailPage({
                     </span>
                   ) : (
                     <a
-                      className="font-medium text-blue-700 hover:text-blue-800"
+                      className="entity-link"
                       href={`/user-stories/${userStory.id}`}
                     >
                       {userStory.code} · {userStory.title}

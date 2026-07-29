@@ -1,11 +1,11 @@
 "use client";
 
-import { Button, Space, Table, Tag } from "antd";
+import { Button, Space, Table } from "antd";
 import type { TableProps } from "antd";
 
+import { RequirementStatusBadge } from "@/components/requirements/requirement-status-badge";
 import { RequirementStatus } from "@/generated/prisma/enums";
 import { formatCompactDateTime } from "@/lib/date-time";
-import { REQUIREMENT_STATUS_META } from "@/lib/requirements/status";
 
 type ChildStory = {
   id: string;
@@ -31,9 +31,7 @@ export function FeatureChildrenTable({ items }: { items: ChildStory[] }) {
       dataIndex: "status",
       width: 110,
       render: (status: RequirementStatus) => (
-        <Tag color={REQUIREMENT_STATUS_META[status].color}>
-          {REQUIREMENT_STATUS_META[status].label}
-        </Tag>
+        <RequirementStatusBadge status={status} />
       ),
     },
     {

@@ -131,10 +131,7 @@ export function TestCasesList({
       dataIndex: "name",
       ellipsis: true,
       render: (name: string, item) => (
-        <Link
-          href={`/test-cases/${item.id}`}
-          className="font-medium text-slate-800 hover:text-blue-700"
-        >
+        <Link href={`/test-cases/${item.id}`} className="entity-link">
           {name}
         </Link>
       ),

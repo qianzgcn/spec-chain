@@ -39,7 +39,7 @@ export function RequirementDetailActions({
       }
       try {
         await navigator.clipboard.writeText(result.data.markdown);
-        messageApi.success("Markdown 已复制");
+        messageApi.success("需求内容已复制");
       } catch {
         messageApi.error("浏览器未允许访问剪贴板");
       }
@@ -75,7 +75,7 @@ export function RequirementDetailActions({
           </Button>
         ) : null}
         <Button icon={<CopyOutlined />} onClick={copy} loading={isPending}>
-          复制 Markdown
+          复制内容
         </Button>
         <Button icon={<EditOutlined />} href={`${basePath}/edit`}>
           编辑

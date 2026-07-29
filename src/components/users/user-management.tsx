@@ -144,11 +144,7 @@ export function UserManagement({
       dataIndex: "role",
       width: 150,
       render: (role: UserRole) =>
-        role === UserRole.ADMIN ? (
-          <Tag color="blue">管理员</Tag>
-        ) : (
-          <Tag>普通用户</Tag>
-        ),
+        role === UserRole.ADMIN ? <Tag>管理员</Tag> : <Tag>普通用户</Tag>,
     },
     {
       title: "创建时间",
