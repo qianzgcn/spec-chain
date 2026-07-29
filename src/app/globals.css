@@ -549,7 +549,7 @@ a {
   width: 94px;
   min-width: 94px;
   min-height: 28px;
-  padding-inline: 4px;
+  padding-inline: 12px 4px;
   border-radius: var(--radius-control);
   background: var(--surface-muted);
   align-items: center;
@@ -618,6 +618,7 @@ a {
   --requirement-status-color: var(--status-completed-text);
 }
 
+.requirement-status-display .requirement-status-badge,
 .requirement-status-select .requirement-status-badge,
 .requirement-status-popup .requirement-status-badge {
   min-width: 0;
