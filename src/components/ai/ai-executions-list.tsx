@@ -2,14 +2,20 @@
 
 import { useState } from "react";
 
-import { Button, Table, Tag, Typography } from "antd";
-import type { TableProps } from "antd";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
   QueryClient,
   QueryClientProvider,
   useQuery,
 } from "@tanstack/react-query";
+import Link from "next/link";
 
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableShell } from "@/components/data-table/data-table-shell";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   ACTIVE_AI_EXECUTION_STATUSES,
   AI_EXECUTION_STAGE_LABELS,
@@ -17,6 +23,8 @@ import {
 } from "@/lib/ai/meta";
 import type { AiExecutionSummary } from "@/lib/ai/execution-types";
 import { formatDateTime } from "@/lib/date-time";
+
+const PAGE_SIZE = 20;
 
 async function readExecutions() {
   const response = await fetch("/api/ai-executions", { cache: "no-store" });
@@ -62,6 +70,7 @@ function AiExecutionsTable({
 }: {
   initialExecutions: AiExecutionSummary[];
 }) {
+  const [page, setPage] = useState(1);
   const executionsQuery = useQuery({
     queryKey: ["ai-executions"],
     queryFn: readExecutions,
@@ -73,72 +82,89 @@ function AiExecutionsTable({
         ? 1_000
         : false,
   });
+  const executions = executionsQuery.data;
+  const pageCount = Math.max(1, Math.ceil(executions.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pageItems = executions.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
 
-  const columns: TableProps<AiExecutionSummary>["columns"] = [
+  const columns: ColumnDef<AiExecutionSummary>[] = [
     {
-      title: "需求内容",
-      dataIndex: "requirementText",
-      ellipsis: true,
-      render: (value: string, execution) => (
+      accessorKey: "requirementText",
+      header: "需求内容",
+      cell: ({ row }) => (
         <div className="min-w-0">
-          <Typography.Text strong ellipsis={{ tooltip: value }}>
-            {value}
-          </Typography.Text>
-          <div className="mt-1 text-xs text-slate-500">
-            {execution.feature
-              ? `${execution.feature.code} · ${execution.feature.name}`
+          <div
+            className="truncate font-medium"
+            title={row.original.requirementText}
+          >
+            {row.original.requirementText}
+          </div>
+          <div className="text-muted-foreground mt-1 truncate text-xs">
+            {row.original.feature
+              ? `${row.original.feature.code} · ${row.original.feature.name}`
               : "无 FE 归属"}
           </div>
         </div>
       ),
     },
     {
-      title: "状态",
-      dataIndex: "status",
-      width: 90,
-      render: (status: AiExecutionSummary["status"]) => {
-        const meta = AI_EXECUTION_STATUS_META[status];
-        return <Tag color={meta.color}>{meta.label}</Tag>;
+      accessorKey: "status",
+      header: "状态",
+      size: 96,
+      cell: ({ row }) => {
+        const meta = AI_EXECUTION_STATUS_META[row.original.status];
+        return <Badge variant={meta.badgeVariant}>{meta.label}</Badge>;
       },
     },
     {
-      title: "当前阶段",
-      dataIndex: "stage",
-      width: 140,
-      responsive: ["lg"],
-      render: (stage: AiExecutionSummary["stage"]) =>
-        AI_EXECUTION_STAGE_LABELS[stage],
+      accessorKey: "stage",
+      header: "当前阶段",
+      size: 160,
+      cell: ({ row }) => AI_EXECUTION_STAGE_LABELS[row.original.stage],
     },
     {
-      title: "发起用户",
-      dataIndex: "requestedBy",
-      width: 100,
-      responsive: ["xl"],
+      accessorKey: "requestedBy",
+      header: "发起用户",
+      size: 110,
+      meta: {
+        headerClassName: "max-[1450px]:hidden",
+        cellClassName: "max-[1450px]:hidden",
+      },
     },
     {
-      title: "发起时间",
-      dataIndex: "queuedAt",
-      width: 145,
-      responsive: ["lg"],
-      render: (value: string) => formatDateTime(value),
+      accessorKey: "queuedAt",
+      header: "发起时间",
+      size: 180,
+      meta: {
+        headerClassName: "max-[1580px]:hidden",
+        cellClassName: "max-[1580px]:hidden text-muted-foreground",
+      },
+      cell: ({ row }) => formatDateTime(row.original.queuedAt),
     },
     {
-      title: "耗时",
-      dataIndex: "durationMs",
-      width: 80,
-      responsive: ["xxl"],
-      render: formatDuration,
+      accessorKey: "durationMs",
+      header: "耗时",
+      size: 90,
+      meta: {
+        headerClassName: "max-[1720px]:hidden",
+        cellClassName: "max-[1720px]:hidden text-muted-foreground",
+      },
+      cell: ({ row }) => formatDuration(row.original.durationMs),
     },
     {
-      title: "操作",
-      key: "actions",
-      width: 80,
-      align: "center",
-      render: (_, execution) => (
+      id: "actions",
+      header: () => <span className="sr-only">操作</span>,
+      size: 76,
+      meta: { headerClassName: "text-right", cellClassName: "text-right" },
+      cell: ({ row }) => (
         <Button
-          type="link"
-          size="small"
-          href={`/ai-executions/${execution.id}`}
+          variant="ghost"
+          size="sm"
+          nativeButton={false}
+          render={<Link href={`/ai-executions/${row.original.id}`} />}
         >
           查看
         </Button>
@@ -147,28 +173,37 @@ function AiExecutionsTable({
   ];
 
   return (
-    <div className="content-panel table-page-panel">
-      <div className="table-toolbar">
-        <span className="table-toolbar__summary">
-          共 {executionsQuery.data.length} 条执行记录
-        </span>
-        {executionsQuery.isFetching ? (
-          <span className="ml-auto text-xs text-slate-500">正在更新状态…</span>
-        ) : null}
-      </div>
-      <Table<AiExecutionSummary>
-        rowKey="id"
+    <DataTableShell
+      toolbar={
+        <>
+          <span className="text-muted-foreground text-sm">
+            共 {executions.length} 条执行记录
+          </span>
+          {executionsQuery.isFetching ? (
+            <span className="text-muted-foreground ml-auto flex items-center gap-2 text-xs">
+              <Spinner />
+              正在更新状态…
+            </span>
+          ) : null}
+        </>
+      }
+      footer={
+        <DataTablePagination
+          page={safePage}
+          pageSize={PAGE_SIZE}
+          total={executions.length}
+          itemName="条记录"
+          onChange={setPage}
+        />
+      }
+    >
+      <DataTable
         columns={columns}
-        dataSource={executionsQuery.data}
-        tableLayout="fixed"
-        scroll={{ y: "100%" }}
-        pagination={{
-          pageSize: 20,
-          showSizeChanger: false,
-          showTotal: (count) => `共 ${count} 条记录`,
-        }}
-        locale={{ emptyText: "暂无 AI 执行记录" }}
+        data={pageItems}
+        loading={executionsQuery.isLoading}
+        emptyText="暂无 AI 执行记录"
+        getRowId={(execution) => execution.id}
       />
-    </div>
+    </DataTableShell>
   );
 }

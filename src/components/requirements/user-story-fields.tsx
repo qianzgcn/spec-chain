@@ -1,106 +1,138 @@
 "use client";
 
-import { Form, Input, Select } from "antd";
+import { Controller, useFormContext } from "react-hook-form";
 
 import { PageSection } from "@/components/layout/page-section";
 import { MarkdownField } from "@/components/markdown/markdown-field";
 import { AcceptanceCriteriaEditor } from "@/components/requirements/acceptance-criteria-editor";
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { RequirementStatus } from "@/generated/prisma/enums";
 import { REQUIREMENT_STATUS_META } from "@/lib/requirements/status";
+import type { UserStoryFormValues } from "@/lib/requirements/user-story-schema";
 
-export type CriterionValue = {
-  id?: string;
-  given: string;
-  when: string;
-  then: string;
-};
+export type { UserStoryFormValues } from "@/lib/requirements/user-story-schema";
 
-export type UserStoryFormValues = {
-  title: string;
-  asA: string;
-  iWant: string;
-  soThat: string;
-  status: RequirementStatus;
-  acceptanceCriteria: CriterionValue[];
-  businessRules: string;
-  nonFunctionalRequirements: string;
-};
+const STATUS_OPTIONS = Object.values(RequirementStatus).map((status) => ({
+  value: status,
+  label: REQUIREMENT_STATUS_META[status].label,
+}));
 
 export function UserStoryFields({ showStatus }: { showStatus: boolean }) {
+  const form = useFormContext<UserStoryFormValues>();
+  const errors = form.formState.errors;
+
   return (
     <>
       <PageSection title="基本信息">
-        <div
+        <FieldGroup
           className={
             showStatus
-              ? "grid grid-cols-[minmax(0,1fr)_180px] gap-5"
+              ? "grid grid-cols-[minmax(0,1fr)_11rem] gap-5"
               : undefined
           }
         >
-          <Form.Item
-            name="title"
-            label="US 标题"
-            rules={[{ required: true, message: "请输入 US 标题" }]}
-          >
+          <Field data-invalid={Boolean(errors.title)}>
+            <FieldLabel htmlFor="user-story-title">US 标题</FieldLabel>
             <Input
+              id="user-story-title"
               maxLength={150}
-              showCount
               placeholder="用一句话说明要交付的用户价值"
+              aria-invalid={Boolean(errors.title)}
+              {...form.register("title")}
             />
-          </Form.Item>
+            <FieldError errors={[errors.title]} />
+          </Field>
           {showStatus ? (
-            <Form.Item name="status" label="状态" rules={[{ required: true }]}>
-              <Select
-                options={Object.values(RequirementStatus).map((status) => ({
-                  value: status,
-                  label: REQUIREMENT_STATUS_META[status].label,
-                }))}
-              />
-            </Form.Item>
-          ) : (
-            <Form.Item name="status" hidden>
-              <Input />
-            </Form.Item>
-          )}
-        </div>
+            <Controller
+              control={form.control}
+              name="status"
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="user-story-status">状态</FieldLabel>
+                  <Select
+                    items={STATUS_OPTIONS}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger
+                      id="user-story-status"
+                      className="w-full"
+                      aria-invalid={fieldState.invalid}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {STATUS_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
+          ) : null}
+        </FieldGroup>
       </PageSection>
 
       <PageSection
         title="用户故事"
         description="明确使用者、期望能力以及要实现的业务价值。"
       >
-        <div className="user-story-triplet">
-          <Form.Item
-            name="asA"
-            label="As"
-            rules={[{ required: true, message: "As 不能为空" }]}
-          >
-            <Input.TextArea
-              autoSize={{ minRows: 2, maxRows: 5 }}
+        <FieldGroup className="grid grid-cols-[3fr_5fr_4fr] gap-4">
+          <Field data-invalid={Boolean(errors.asA)}>
+            <FieldLabel htmlFor="user-story-as">As</FieldLabel>
+            <Textarea
+              id="user-story-as"
+              rows={3}
               placeholder="例如：作为一名客服主管"
+              aria-invalid={Boolean(errors.asA)}
+              {...form.register("asA")}
             />
-          </Form.Item>
-          <Form.Item
-            name="iWant"
-            label="I want"
-            rules={[{ required: true, message: "I want 不能为空" }]}
-          >
-            <Input.TextArea
-              autoSize={{ minRows: 2, maxRows: 5 }}
+            <FieldError errors={[errors.asA]} />
+          </Field>
+          <Field data-invalid={Boolean(errors.iWant)}>
+            <FieldLabel htmlFor="user-story-want">I want</FieldLabel>
+            <Textarea
+              id="user-story-want"
+              rows={3}
               placeholder="例如：我希望批量分配待处理工单"
+              aria-invalid={Boolean(errors.iWant)}
+              {...form.register("iWant")}
             />
-          </Form.Item>
-          <Form.Item
-            name="soThat"
-            label="so that"
-            rules={[{ required: true, message: "so that 不能为空" }]}
-          >
-            <Input.TextArea
-              autoSize={{ minRows: 2, maxRows: 5 }}
+            <FieldError errors={[errors.iWant]} />
+          </Field>
+          <Field data-invalid={Boolean(errors.soThat)}>
+            <FieldLabel htmlFor="user-story-value">so that</FieldLabel>
+            <Textarea
+              id="user-story-value"
+              rows={3}
               placeholder="例如：从而减少重复操作并缩短响应时间"
+              aria-invalid={Boolean(errors.soThat)}
+              {...form.register("soThat")}
             />
-          </Form.Item>
-        </div>
+            <FieldError errors={[errors.soThat]} />
+          </Field>
+        </FieldGroup>
       </PageSection>
 
       <AcceptanceCriteriaEditor />
@@ -109,17 +141,48 @@ export function UserStoryFields({ showStatus }: { showStatus: boolean }) {
         title="补充约束"
         description="仅填写会影响实现或验收的规则；两项均支持 Markdown。"
       >
-        <div className="user-story-constraints">
-          <Form.Item name="businessRules" label="业务规则（可选）">
-            <MarkdownField rows={8} placeholder="没有业务规则时可以留空" />
-          </Form.Item>
-          <Form.Item
+        <FieldGroup className="grid grid-cols-2 gap-5">
+          <Controller
+            control={form.control}
+            name="businessRules"
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="business-rules">
+                  业务规则（可选）
+                </FieldLabel>
+                <MarkdownField
+                  id="business-rules"
+                  value={field.value}
+                  onChange={field.onChange}
+                  aria-invalid={fieldState.invalid}
+                  rows={8}
+                  placeholder="没有业务规则时可以留空"
+                />
+                <FieldError errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
+          <Controller
+            control={form.control}
             name="nonFunctionalRequirements"
-            label="非功能需求（可选）"
-          >
-            <MarkdownField rows={8} placeholder="没有非功能需求时可以留空" />
-          </Form.Item>
-        </div>
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="non-functional-requirements">
+                  非功能需求（可选）
+                </FieldLabel>
+                <MarkdownField
+                  id="non-functional-requirements"
+                  value={field.value}
+                  onChange={field.onChange}
+                  aria-invalid={fieldState.invalid}
+                  rows={8}
+                  placeholder="没有非功能需求时可以留空"
+                />
+                <FieldError errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
+        </FieldGroup>
       </PageSection>
     </>
   );

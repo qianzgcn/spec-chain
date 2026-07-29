@@ -9,12 +9,10 @@ import {
   useTransition,
 } from "react";
 
-import LoadingOutlined from "@ant-design/icons/LoadingOutlined";
 import { useRouter } from "next/navigation";
 
+import { Spinner } from "@/components/ui/spinner";
 import { confirmLeaveIfDirty } from "@/hooks/use-unsaved-changes";
-
-import styles from "./app-shell.module.css";
 
 type NavigateOptions = {
   scroll?: boolean;
@@ -107,9 +105,8 @@ export function NavigationFeedbackProvider({
     }
 
     document.addEventListener("click", handleInternalLink, true);
-    return () => {
+    return () =>
       document.removeEventListener("click", handleInternalLink, true);
-    };
   }, [navigate]);
 
   const contextValue = useMemo(
@@ -121,18 +118,22 @@ export function NavigationFeedbackProvider({
     <NavigationFeedbackContext value={contextValue}>
       {children}
       {isNavigating ? (
-        <div
-          className={styles.navigationFeedback}
-          role="status"
-          aria-live="polite"
-          aria-label="正在加载页面"
-        >
-          <span className={styles.navigationProgress} aria-hidden />
-          <span className={styles.navigationMessage}>
-            <LoadingOutlined spin />
+        <>
+          <div
+            className="bg-muted fixed inset-x-0 top-0 z-50 h-0.5 overflow-hidden"
+            aria-hidden
+          >
+            <div className="bg-primary h-full w-1/3 animate-pulse" />
+          </div>
+          <div
+            className="bg-popover text-popover-foreground fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs shadow-md"
+            role="status"
+            aria-live="polite"
+          >
+            <Spinner />
             正在加载…
-          </span>
-        </div>
+          </div>
+        </>
       ) : null}
     </NavigationFeedbackContext>
   );

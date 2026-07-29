@@ -43,23 +43,18 @@ export default async function ProjectRepositoriesPage() {
   });
 
   return (
-    <ProjectSettingsPage
-      title="代码仓库"
-      description="管理项目级仓库凭据、代码仓库和连接检查。"
-    >
-      <ProjectRepositoriesForm
-        key={`${project.id}:${project.repositories
-          .map((repository) => repository.id)
-          .join(",")}`}
-        project={{
-          id: project.id,
-          hasGithubPat: Boolean(project.githubPatEncrypted),
-          githubPatAccount: project.githubPatAccount,
-          hasGiteePat: Boolean(project.giteePatEncrypted),
-          giteePatAccount: project.giteePatAccount,
-          repositories: project.repositories,
-        }}
-      />
-    </ProjectSettingsPage>
+    <ProjectRepositoriesForm
+      key={`${project.id}:${project.repositories
+        .map((repository) => repository.id)
+        .join(",")}`}
+      project={{
+        id: project.id,
+        hasGithubPat: Boolean(project.githubPatEncrypted),
+        githubPatAccount: project.githubPatAccount,
+        hasGiteePat: Boolean(project.giteePatEncrypted),
+        giteePatAccount: project.giteePatAccount,
+        repositories: project.repositories,
+      }}
+    />
   );
 }

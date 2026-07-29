@@ -2,12 +2,27 @@ import { AiExecutionStage, AiExecutionStatus } from "@/generated/prisma/enums";
 
 export const AI_EXECUTION_STATUS_META: Record<
   AiExecutionStatus,
-  { label: string; color: string }
+  {
+    label: string;
+    badgeVariant: "default" | "secondary" | "destructive" | "outline";
+  }
 > = {
-  [AiExecutionStatus.QUEUED]: { label: "排队中", color: "default" },
-  [AiExecutionStatus.RUNNING]: { label: "运行中", color: "processing" },
-  [AiExecutionStatus.SUCCEEDED]: { label: "已成功", color: "success" },
-  [AiExecutionStatus.FAILED]: { label: "已失败", color: "error" },
+  [AiExecutionStatus.QUEUED]: {
+    label: "排队中",
+    badgeVariant: "outline",
+  },
+  [AiExecutionStatus.RUNNING]: {
+    label: "运行中",
+    badgeVariant: "default",
+  },
+  [AiExecutionStatus.SUCCEEDED]: {
+    label: "已成功",
+    badgeVariant: "secondary",
+  },
+  [AiExecutionStatus.FAILED]: {
+    label: "已失败",
+    badgeVariant: "destructive",
+  },
 };
 
 export const AI_EXECUTION_STAGE_LABELS: Record<AiExecutionStage, string> = {

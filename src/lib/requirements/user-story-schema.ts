@@ -27,3 +27,17 @@ export const userStoryDraftInputSchema = userStoryInputSchema.omit({
   featureId: true,
   status: true,
 });
+
+export const userStoryFormSchema = userStoryInputSchema
+  .omit({
+    featureId: true,
+  })
+  .extend({
+    businessRules: z.string().trim(),
+    nonFunctionalRequirements: z.string().trim(),
+  });
+
+export type UserStoryFormValues = z.infer<typeof userStoryFormSchema>;
+export type AcceptanceCriterionFormValue = z.infer<
+  typeof acceptanceCriterionInputSchema
+>;

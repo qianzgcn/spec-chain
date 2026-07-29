@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
-import { Button, Empty } from "antd";
-
+import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
+import { ProjectRequiredState } from "@/components/projects/project-required-state";
 import {
   PendingRequirementsList,
   type PendingRequirementListItem,
@@ -27,19 +27,13 @@ export default async function PendingReviewRequirementsPage({
 
   if (!project) {
     return (
-      <div className="page-shell">
+      <PageContainer className="flex flex-col gap-5">
         <PageHeader
           title="待评审需求"
           description="查看并确认 AI 生成的 US 草稿。"
         />
-        <div className="content-panel empty-panel">
-          <Empty description="请先创建项目">
-            <Button type="primary" href="/projects">
-              前往项目管理
-            </Button>
-          </Empty>
-        </div>
-      </div>
+        <ProjectRequiredState />
+      </PageContainer>
     );
   }
 
@@ -75,12 +69,12 @@ export default async function PendingReviewRequirementsPage({
   }));
 
   return (
-    <div className="page-shell page-shell--table">
+    <PageContainer table className="gap-5">
       <PageHeader
         title="待评审需求"
         description="集中检查 AI 生成的 US 内容；确认后才会进入正式需求列表。"
       />
       <PendingRequirementsList items={items} total={total} page={safePage} />
-    </div>
+    </PageContainer>
   );
 }

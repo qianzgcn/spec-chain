@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AiExecutionDetailPanel } from "@/components/ai/ai-execution-detail";
+import { PageContainer } from "@/components/layout/page-container";
 import { getAiExecutionDetail } from "@/server/ai/execution-dto";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -22,8 +23,8 @@ export default async function AiExecutionDetailPage({
   if (!execution) notFound();
 
   return (
-    <div className="page-shell">
+    <PageContainer>
       <AiExecutionDetailPanel initialExecution={execution} />
-    </div>
+    </PageContainer>
   );
 }

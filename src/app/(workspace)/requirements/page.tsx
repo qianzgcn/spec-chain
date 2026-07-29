@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
-import { Button, Empty } from "antd";
-
+import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
+import { ProjectRequiredState } from "@/components/projects/project-required-state";
 import {
   RequirementsList,
   type RequirementListItem,
@@ -41,19 +41,13 @@ export default async function RequirementsPage({
 
   if (!project) {
     return (
-      <div className="page-shell">
+      <PageContainer className="flex flex-col gap-5">
         <PageHeader
           title="需求列表"
           description="请先创建项目，再开始编写需求。"
         />
-        <div className="content-panel empty-panel">
-          <Empty description="当前没有可用项目">
-            <Button type="primary" href="/projects">
-              创建项目
-            </Button>
-          </Empty>
-        </div>
-      </div>
+        <ProjectRequiredState />
+      </PageContainer>
     );
   }
 
@@ -209,7 +203,7 @@ export default async function RequirementsPage({
   const items = filteredItems.slice((page - 1) * 20, page * 20);
 
   return (
-    <div className="page-shell page-shell--table">
+    <PageContainer table className="gap-5">
       <PageHeader
         title="需求列表"
         description="展开 FE 即可查看其中的 US，独立 US 直接显示在列表中。"
@@ -225,6 +219,6 @@ export default async function RequirementsPage({
           page,
         }}
       />
-    </div>
+    </PageContainer>
   );
 }

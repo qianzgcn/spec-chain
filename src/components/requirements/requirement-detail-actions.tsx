@@ -1,12 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
-import CopyOutlined from "@ant-design/icons/CopyOutlined";
-import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import EditOutlined from "@ant-design/icons/EditOutlined";
-import PlusOutlined from "@ant-design/icons/PlusOutlined";
-import { Button, Popconfirm, Space, message } from "antd";
+import { CopyIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import {
@@ -14,6 +11,10 @@ import {
   deleteUserStoryAction,
   getRequirementMarkdownAction,
 } from "@/app/actions/requirements";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/components/ui/toast";
 
 export function RequirementDetailActions({
   type,
@@ -25,7 +26,7 @@ export function RequirementDetailActions({
   childCount?: number;
 }) {
   const router = useRouter();
-  const [messageApi, messageContext] = message.useMessage();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const basePath =
     type === "FEATURE" ? `/features/${id}` : `/user-stories/${id}`;
@@ -34,14 +35,17 @@ export function RequirementDetailActions({
     startTransition(async () => {
       const result = await getRequirementMarkdownAction(type, id);
       if (!result.ok || !result.data) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
       try {
         await navigator.clipboard.writeText(result.data.markdown);
-        messageApi.success("需求内容已复制");
+        toast.add({ type: "success", description: "需求内容已复制" });
       } catch {
-        messageApi.error("浏览器未允许访问剪贴板");
+        toast.add({
+          type: "error",
+          description: "浏览器未允许访问剪贴板",
+        });
       }
     });
   }
@@ -53,10 +57,10 @@ export function RequirementDetailActions({
           ? await deleteFeatureAction(id)
           : await deleteUserStoryAction(id);
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
-      messageApi.success(result.message);
+      toast.add({ type: "success", description: result.message });
       router.push("/requirements");
       router.refresh();
     });
@@ -64,39 +68,57 @@ export function RequirementDetailActions({
 
   return (
     <>
-      {messageContext}
-      <Space>
+      <div className="flex items-center gap-2">
         {type === "FEATURE" ? (
           <Button
-            icon={<PlusOutlined />}
-            href={`/features/${id}/user-stories/new`}
+            variant="outline"
+            nativeButton={false}
+            render={<Link href={`/features/${id}/user-stories/new`} />}
           >
+            <PlusIcon data-icon="inline-start" />
             新建US
           </Button>
         ) : null}
-        <Button icon={<CopyOutlined />} onClick={copy} loading={isPending}>
+        <Button variant="outline" onClick={copy} disabled={isPending}>
+          {isPending ? (
+            <Spinner data-icon="inline-start" />
+          ) : (
+            <CopyIcon data-icon="inline-start" />
+          )}
           复制内容
         </Button>
-        <Button icon={<EditOutlined />} href={`${basePath}/edit`}>
+        <Button
+          variant="outline"
+          nativeButton={false}
+          render={<Link href={`${basePath}/edit`} />}
+        >
+          <PencilIcon data-icon="inline-start" />
           编辑
         </Button>
-        <Popconfirm
-          title={`删除${type === "FEATURE" ? " FE" : " US"}`}
-          description={
-            type === "FEATURE"
-              ? `将同时删除 ${childCount} 个关联 US，且不能恢复。`
-              : "删除后不能恢复，不会影响测试用例。"
-          }
-          okText="删除"
-          cancelText="取消"
-          okButtonProps={{ danger: true }}
-          onConfirm={remove}
+        <Button
+          variant="destructive"
+          disabled={isPending}
+          onClick={() => setConfirmOpen(true)}
         >
-          <Button danger icon={<DeleteOutlined />} disabled={isPending}>
-            删除
-          </Button>
-        </Popconfirm>
-      </Space>
+          <Trash2Icon data-icon="inline-start" />
+          删除
+        </Button>
+      </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title={`删除${type === "FEATURE" ? " FE" : " US"}`}
+        description={
+          type === "FEATURE"
+            ? `将同时删除 ${childCount} 个关联 US，且不能恢复。`
+            : "删除后不能恢复，不会影响测试用例。"
+        }
+        confirmLabel="删除"
+        destructive
+        pending={isPending}
+        onOpenChange={setConfirmOpen}
+        onConfirm={remove}
+      />
     </>
   );
 }

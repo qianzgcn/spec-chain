@@ -1,8 +1,21 @@
 import type { Metadata } from "next";
 
-import { Button, Empty } from "antd";
+import { LayersIcon } from "lucide-react";
+import Link from "next/link";
 
+import { PageContainer } from "@/components/layout/page-container";
+import { PageHeader } from "@/components/layout/page-header";
+import { ProjectRequiredState } from "@/components/projects/project-required-state";
 import { TestCaseForm } from "@/components/test-cases/test-case-form";
+import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -14,23 +27,13 @@ export default async function NewTestCasePage() {
   const project = await getCurrentProject();
   if (!project) {
     return (
-      <div className="page-shell">
-        <div className="page-heading">
-          <div>
-            <h1 className="page-title">新建测试用例</h1>
-            <p className="page-description">
-              请先创建项目，再开始编写测试用例。
-            </p>
-          </div>
-        </div>
-        <div className="content-panel empty-panel">
-          <Empty description="请先创建项目">
-            <Button type="primary" href="/projects">
-              前往项目管理
-            </Button>
-          </Empty>
-        </div>
-      </div>
+      <PageContainer className="flex flex-col gap-5">
+        <PageHeader
+          title="新建测试用例"
+          description="请先创建项目，再开始编写测试用例。"
+        />
+        <ProjectRequiredState />
+      </PageContainer>
     );
   }
 
@@ -54,23 +57,33 @@ export default async function NewTestCasePage() {
 
   if (groups.length === 0) {
     return (
-      <div className="page-shell">
-        <div className="page-heading">
-          <div>
-            <h1 className="page-title">新建测试用例</h1>
-            <p className="page-description">
-              测试用例必须属于一个分组，请先创建分组。
-            </p>
-          </div>
-        </div>
-        <div className="content-panel empty-panel">
-          <Empty description="当前项目还没有用例分组">
-            <Button type="primary" href="/test-case-groups">
-              创建用例分组
-            </Button>
+      <PageContainer className="flex flex-col gap-5">
+        <PageHeader
+          title="新建测试用例"
+          description="测试用例必须属于一个分组，请先创建分组。"
+        />
+        <div className="bg-card grid min-h-72 place-items-center rounded-lg border">
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <LayersIcon />
+              </EmptyMedia>
+              <EmptyTitle>当前项目还没有用例分组</EmptyTitle>
+              <EmptyDescription>
+                创建至少一个分组后，即可开始编写测试用例。
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                nativeButton={false}
+                render={<Link href="/test-case-groups" />}
+              >
+                创建用例分组
+              </Button>
+            </EmptyContent>
           </Empty>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 

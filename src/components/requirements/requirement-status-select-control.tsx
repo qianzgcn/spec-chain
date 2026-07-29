@@ -1,8 +1,15 @@
 "use client";
 
-import { Select } from "antd";
-
 import { RequirementStatusBadge } from "@/components/requirements/requirement-status-badge";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { RequirementStatus } from "@/generated/prisma/enums";
 import { REQUIREMENT_STATUS_META } from "@/lib/requirements/status";
 
@@ -24,32 +31,34 @@ export function RequirementStatusSelectControl({
   loading?: boolean;
   size?: "small" | "middle";
 }) {
-  const className = [
-    "requirement-status-select",
-    loading ? "requirement-status-select--loading" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
   return (
-    <Select<RequirementStatus>
-      aria-label="需求状态"
-      className={className}
-      classNames={{ popup: { root: "requirement-status-popup" } }}
+    <Select
+      items={STATUS_OPTIONS}
       value={value}
-      options={STATUS_OPTIONS}
-      size={size}
-      variant="borderless"
       disabled={disabled}
-      loading={loading}
-      popupMatchSelectWidth={120}
-      onChange={onChange}
-      labelRender={({ value: selectedValue }) => (
-        <RequirementStatusBadge status={selectedValue as RequirementStatus} />
-      )}
-      optionRender={(option) => (
-        <RequirementStatusBadge status={option.value as RequirementStatus} />
-      )}
-    />
+      onValueChange={(nextValue) => onChange?.(nextValue as RequirementStatus)}
+    >
+      <SelectTrigger
+        aria-label="需求状态"
+        size={size === "small" ? "sm" : "default"}
+        className="w-24"
+      >
+        <SelectValue>
+          {(selectedValue: RequirementStatus) => (
+            <RequirementStatusBadge status={selectedValue} />
+          )}
+        </SelectValue>
+        {loading ? <Spinner /> : null}
+      </SelectTrigger>
+      <SelectContent alignItemWithTrigger={false}>
+        <SelectGroup>
+          {STATUS_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              <RequirementStatusBadge status={option.value} />
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   );
 }

@@ -22,7 +22,7 @@ function normalizeBaseUrl(value: string) {
   return `${url.origin}${pathname === "/" ? "" : pathname}`;
 }
 
-export const aiModelProfileInputSchema = z.object({
+const aiModelProfileFieldsSchema = z.object({
   name: z
     .string()
     .trim()
@@ -35,8 +35,7 @@ export const aiModelProfileInputSchema = z.object({
     .max(500, "Base URL 不能超过 500 个字符")
     .refine(isValidBaseUrl, {
       message: "Base URL 必须是 HTTP(S) 地址，且不能包含凭据、查询参数或锚点",
-    })
-    .transform(normalizeBaseUrl),
+    }),
   modelId: z
     .string()
     .trim()
@@ -44,3 +43,23 @@ export const aiModelProfileInputSchema = z.object({
     .max(200, "模型 ID 不能超过 200 个字符"),
   apiKey: z.string().trim().max(4_000, "API Key 不能超过 4000 个字符"),
 });
+
+export const aiModelProfileInputSchema = aiModelProfileFieldsSchema.extend({
+  baseUrl: aiModelProfileFieldsSchema.shape.baseUrl.transform(normalizeBaseUrl),
+});
+
+export const aiModelProfileFormSchema = aiModelProfileFieldsSchema
+  .extend({
+    id: z.string().optional(),
+  })
+  .superRefine((value, context) => {
+    if (!value.id && !value.apiKey.trim()) {
+      context.addIssue({
+        code: "custom",
+        path: ["apiKey"],
+        message: "请输入模型 API Key",
+      });
+    }
+  });
+
+export type AiModelProfileFormValues = z.infer<typeof aiModelProfileFormSchema>;

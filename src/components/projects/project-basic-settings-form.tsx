@@ -1,33 +1,50 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 
-import { Form, Input, message } from "antd";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { SaveIcon } from "lucide-react";
+import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
 import { updateProjectBasicSettingsAction } from "@/app/actions/projects";
+import { FormPage } from "@/components/layout/form-page";
+import { PageSection } from "@/components/layout/page-section";
+import { Button } from "@/components/ui/button";
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/toast";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
-
-import styles from "./project-settings-form.module.css";
-import { ProjectSettingsSaveButton } from "./project-settings-save-button";
-
-type BasicSettingsValues = {
-  name: string;
-  description: string;
-};
+import {
+  projectBasicSettingsFormSchema,
+  type ProjectBasicSettingsValues,
+} from "@/lib/projects/schema";
 
 export function ProjectBasicSettingsForm({
   project,
 }: {
-  project: BasicSettingsValues & { id: string };
+  project: ProjectBasicSettingsValues & { id: string };
 }) {
   const router = useRouter();
-  const [messageApi, messageContext] = message.useMessage();
-  const [dirty, setDirty] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const form = useForm<ProjectBasicSettingsValues>({
+    resolver: zodResolver(projectBasicSettingsFormSchema),
+    defaultValues: {
+      name: project.name,
+      description: project.description,
+    },
+  });
+  const dirty = form.formState.isDirty;
   useUnsavedChanges(dirty);
 
-  function submit(values: BasicSettingsValues) {
+  function submit(values: ProjectBasicSettingsValues) {
     startTransition(async () => {
       const result = await updateProjectBasicSettingsAction({
         ...values,
@@ -35,61 +52,69 @@ export function ProjectBasicSettingsForm({
       });
 
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
 
-      setDirty(false);
-      messageApi.success(result.message);
+      form.reset(values);
+      toast.add({ type: "success", description: result.message });
       router.refresh();
     });
   }
 
   return (
-    <>
-      {messageContext}
-      <Form<BasicSettingsValues>
-        className={styles.form}
-        layout="vertical"
-        requiredMark={false}
-        initialValues={project}
-        onValuesChange={() => setDirty(true)}
-        onFinish={submit}
+    <FormPage
+      title="基础设置"
+      description="维护当前项目的名称和业务说明。"
+      actions={
+        <Button
+          type="submit"
+          form="project-basic-settings-form"
+          disabled={!dirty || isPending}
+        >
+          {isPending ? (
+            <Spinner data-icon="inline-start" />
+          ) : (
+            <SaveIcon data-icon="inline-start" />
+          )}
+          保存
+        </Button>
+      }
+    >
+      <form
+        id="project-basic-settings-form"
+        onSubmit={form.handleSubmit(submit)}
       >
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <div className={styles.sectionIntro}>
-              <h2>基础信息</h2>
-              <p>用于识别当前项目并说明业务范围。</p>
-            </div>
-            <ProjectSettingsSaveButton dirty={dirty} pending={isPending}>
-              保存
-            </ProjectSettingsSaveButton>
-          </div>
-          <div className={styles.sectionContent}>
-            <Form.Item
-              className={styles.basicNameField}
-              name="name"
-              label="项目名称"
-              rules={[{ required: true, message: "请输入项目名称" }]}
-            >
-              <Input maxLength={100} />
-            </Form.Item>
-            <Form.Item
-              className={styles.lastFormItem}
-              name="description"
-              label="项目描述"
-            >
-              <Input.TextArea
-                rows={4}
-                maxLength={1000}
-                showCount
-                placeholder="说明项目范围、目标或主要业务"
+        <PageSection
+          title="项目信息"
+          description="项目名称会显示在顶部项目切换器中。"
+        >
+          <FieldGroup className="max-w-4xl">
+            <Field data-invalid={Boolean(form.formState.errors.name)}>
+              <FieldLabel htmlFor="project-name">项目名称</FieldLabel>
+              <Input
+                id="project-name"
+                maxLength={100}
+                aria-invalid={Boolean(form.formState.errors.name)}
+                {...form.register("name")}
               />
-            </Form.Item>
-          </div>
-        </section>
-      </Form>
-    </>
+              <FieldError errors={[form.formState.errors.name]} />
+            </Field>
+            <Field data-invalid={Boolean(form.formState.errors.description)}>
+              <FieldLabel htmlFor="project-description">项目描述</FieldLabel>
+              <Textarea
+                id="project-description"
+                rows={5}
+                maxLength={1_000}
+                placeholder="说明项目范围、目标或主要业务"
+                aria-invalid={Boolean(form.formState.errors.description)}
+                {...form.register("description")}
+              />
+              <FieldError errors={[form.formState.errors.description]} />
+            </Field>
+          </FieldGroup>
+        </PageSection>
+      </form>
+    </FormPage>
   );
 }

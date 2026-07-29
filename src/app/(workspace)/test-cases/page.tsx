@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
-import { Button, Empty } from "antd";
-
+import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
+import { ProjectRequiredState } from "@/components/projects/project-required-state";
 import {
   TestCasesList,
   type TestCaseListItem,
@@ -35,19 +35,13 @@ export default async function TestCasesPage({
 
   if (!project) {
     return (
-      <div className="page-shell">
+      <PageContainer className="flex flex-col gap-5">
         <PageHeader
           title="测试用例"
           description="请先创建项目，再开始编写测试用例。"
         />
-        <div className="content-panel empty-panel">
-          <Empty description="当前没有可用项目">
-            <Button type="primary" href="/projects">
-              创建项目
-            </Button>
-          </Empty>
-        </div>
-      </div>
+        <ProjectRequiredState />
+      </PageContainer>
     );
   }
 
@@ -129,7 +123,7 @@ export default async function TestCasesPage({
   }));
 
   return (
-    <div className="page-shell page-shell--table">
+    <PageContainer table className="gap-5">
       <PageHeader
         title="测试用例"
         description="使用自然语言步骤验证需求，也可以为用例编写 Playwright TypeScript 脚本。"
@@ -146,6 +140,6 @@ export default async function TestCasesPage({
           page: safePage,
         }}
       />
-    </div>
+    </PageContainer>
   );
 }

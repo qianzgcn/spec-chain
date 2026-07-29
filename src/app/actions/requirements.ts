@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 
 import { RequirementStatus } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
+import { featureSchema } from "@/lib/requirements/feature-schema";
 import {
   buildFeatureMarkdown,
   buildUserStoryMarkdown,
@@ -15,12 +16,6 @@ import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 import { generateBusinessCode } from "@/server/requirements/business-code";
-
-const featureSchema = z.object({
-  name: z.string().trim().min(1, "请输入 FE 名称").max(150),
-  summary: z.string().trim().min(1, "请输入一句话描述").max(300),
-  backgroundGoal: z.string().trim().min(1, "请输入业务背景与目标"),
-});
 
 async function requireCurrentProjectForAction() {
   await requireUser();

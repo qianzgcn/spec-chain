@@ -1,12 +1,19 @@
 "use client";
 
-import { type Key, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 
-import CheckCircleFilled from "@ant-design/icons/CheckCircleFilled";
-import CloseCircleFilled from "@ant-design/icons/CloseCircleFilled";
-import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import PlusOutlined from "@ant-design/icons/PlusOutlined";
-import { Button, Form, Input, Modal, Tag, message } from "antd";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  CheckCircle2Icon,
+  GitBranchIcon,
+  GitForkIcon,
+  PlusIcon,
+  SaveIcon,
+  Trash2Icon,
+  XCircleIcon,
+  type LucideIcon,
+} from "lucide-react";
+import { useFieldArray, useForm, useWatch } from "react-hook-form";
 
 import {
   addProjectPatAction,
@@ -15,25 +22,42 @@ import {
   updateProjectRepositoriesAction,
   verifyProjectPatAction,
 } from "@/app/actions/projects";
+import { FormPage } from "@/components/layout/form-page";
+import { PageSection } from "@/components/layout/page-section";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/components/ui/toast";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import {
   GIT_PROVIDER_LABELS,
   parseRepositoryUrl,
   type GitProvider,
 } from "@/lib/git/repository-url";
+import {
+  projectRepositoriesFormSchema,
+  type ProjectRepositoriesFormValues,
+} from "@/lib/projects/schema";
 
-import styles from "./project-settings-form.module.css";
-import { ProjectSettingsSaveButton } from "./project-settings-save-button";
-
-type RepositoryValue = {
-  id?: string;
-  gitUrl: string;
-  branch: string;
-};
-
-type RepositoryFormValues = {
-  repositories: RepositoryValue[];
-};
+type RepositoryValue = ProjectRepositoriesFormValues["repositories"][number];
 
 type CredentialStatus = {
   hasGithubPat: boolean;
@@ -47,16 +71,131 @@ type ConnectionResult = {
   message: string;
 };
 
-function validateRepositoryUrl(_: unknown, value?: string) {
-  if (!value) return Promise.resolve();
+const PROVIDERS: Array<{ provider: GitProvider; icon: LucideIcon }> = [
+  { provider: "GITHUB", icon: GitForkIcon },
+  { provider: "GITEE", icon: GitBranchIcon },
+];
 
+function RepositoryCredentialCard({
+  provider,
+  icon: Icon,
+  configured,
+  account,
+  draft,
+  pending,
+  disabled,
+  onDraftChange,
+  onAdd,
+  onVerify,
+  onDelete,
+}: {
+  provider: GitProvider;
+  icon: LucideIcon;
+  configured: boolean;
+  account: string | null;
+  draft: string;
+  pending: boolean;
+  disabled: boolean;
+  onDraftChange: (value: string) => void;
+  onAdd: () => void;
+  onVerify: () => void;
+  onDelete: () => void;
+}) {
+  const label = GIT_PROVIDER_LABELS[provider];
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="bg-muted grid size-9 shrink-0 place-items-center rounded-lg border">
+              <Icon className="size-4" />
+            </div>
+            <div className="min-w-0">
+              <CardTitle>{label}</CardTitle>
+              <CardDescription className="truncate">
+                {configured
+                  ? account
+                    ? `账号 ${account}`
+                    : "账号尚未验证"
+                  : "尚未配置访问凭据"}
+              </CardDescription>
+            </div>
+          </div>
+          <Badge variant={configured ? "secondary" : "outline"}>
+            {configured ? "已配置" : "未配置"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {configured ? (
+          <div className="flex items-center justify-between gap-3">
+            <code
+              className="bg-muted rounded-md px-3 py-2 font-mono text-xs"
+              aria-label={`${label} PAT（已脱敏）`}
+            >
+              •••• •••• ••••
+            </code>
+            <div className="flex items-center gap-2">
+              {!account ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={disabled}
+                  onClick={onVerify}
+                >
+                  {pending ? <Spinner data-icon="inline-start" /> : null}
+                  验证账号
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={disabled}
+                onClick={onDelete}
+              >
+                {pending && account ? (
+                  <Spinner data-icon="inline-start" />
+                ) : null}
+                删除
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Input
+              type="password"
+              aria-label={`${label} PAT`}
+              autoComplete="new-password"
+              maxLength={500}
+              placeholder={`输入 ${label} PAT`}
+              value={draft}
+              onChange={(event) => onDraftChange(event.target.value)}
+            />
+            <Button
+              type="button"
+              className="shrink-0"
+              disabled={!draft.trim() || disabled}
+              onClick={onAdd}
+            >
+              {pending ? <Spinner data-icon="inline-start" /> : null}
+              验证并新增
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function providerLabel(gitUrl: string | undefined) {
+  if (!gitUrl) return "未识别";
   try {
-    parseRepositoryUrl(value);
-    return Promise.resolve();
-  } catch (error) {
-    return Promise.reject(
-      new Error(error instanceof Error ? error.message : "Git 地址无效"),
-    );
+    return GIT_PROVIDER_LABELS[parseRepositoryUrl(gitUrl).provider];
+  } catch {
+    return "未识别";
   }
 }
 
@@ -68,9 +207,6 @@ export function ProjectRepositoriesForm({
     repositories: RepositoryValue[];
   };
 }) {
-  const [form] = Form.useForm<RepositoryFormValues>();
-  const [messageApi, messageContext] = message.useMessage();
-  const [repositoriesDirty, setRepositoriesDirty] = useState(false);
   const [credentialStatus, setCredentialStatus] = useState<CredentialStatus>({
     hasGithubPat: project.hasGithubPat,
     hasGiteePat: project.hasGiteePat,
@@ -86,13 +222,30 @@ export function ProjectRepositoriesForm({
   const [connectionResults, setConnectionResults] = useState<
     Record<string, ConnectionResult>
   >({});
-  const [checkingRepositoryKey, setCheckingRepositoryKey] =
-    useState<Key | null>(null);
+  const [checkingRepositoryKey, setCheckingRepositoryKey] = useState<
+    string | null
+  >(null);
   const [credentialPendingProvider, setCredentialPendingProvider] =
+    useState<GitProvider | null>(null);
+  const [deleteCredentialProvider, setDeleteCredentialProvider] =
     useState<GitProvider | null>(null);
   const [isSaving, startSavingTransition] = useTransition();
   const [isChecking, startCheckingTransition] = useTransition();
   const [isCredentialPending, startCredentialTransition] = useTransition();
+  const form = useForm<ProjectRepositoriesFormValues>({
+    resolver: zodResolver(projectRepositoriesFormSchema),
+    defaultValues: { repositories: project.repositories },
+  });
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "repositories",
+    keyName: "fieldKey",
+  });
+  const repositories = useWatch({
+    control: form.control,
+    name: "repositories",
+  });
+  const repositoriesDirty = form.formState.isDirty;
   const hasCredentialDraft = Boolean(
     credentialDrafts.GITHUB || credentialDrafts.GITEE,
   );
@@ -118,7 +271,10 @@ export function ProjectRepositoriesForm({
   function addCredential(provider: GitProvider) {
     const pat = credentialDrafts[provider].trim();
     if (!pat) {
-      messageApi.error(`请输入 ${GIT_PROVIDER_LABELS[provider]} PAT`);
+      toast.add({
+        type: "error",
+        description: `请输入 ${GIT_PROVIDER_LABELS[provider]} PAT`,
+      });
       return;
     }
 
@@ -132,16 +288,14 @@ export function ProjectRepositoriesForm({
         });
 
         if (!result.ok) {
-          messageApi.error(result.message);
+          toast.add({ type: "error", description: result.message });
           return;
         }
 
-        if (result.data) {
-          setCredentialStatus(result.data);
-        }
+        if (result.data) setCredentialStatus(result.data);
         setCredentialDrafts((current) => ({ ...current, [provider]: "" }));
         setConnectionResults({});
-        messageApi.success(result.message);
+        toast.add({ type: "success", description: result.message });
       } finally {
         setCredentialPendingProvider(null);
       }
@@ -158,15 +312,14 @@ export function ProjectRepositoriesForm({
         });
 
         if (!result.ok) {
-          messageApi.error(result.message);
+          toast.add({ type: "error", description: result.message });
           return;
         }
 
-        if (result.data) {
-          setCredentialStatus(result.data);
-        }
+        if (result.data) setCredentialStatus(result.data);
+        setDeleteCredentialProvider(null);
         setConnectionResults({});
-        messageApi.success(result.message);
+        toast.add({ type: "success", description: result.message });
       } finally {
         setCredentialPendingProvider(null);
       }
@@ -183,37 +336,19 @@ export function ProjectRepositoriesForm({
         });
 
         if (!result.ok) {
-          messageApi.error(result.message);
+          toast.add({ type: "error", description: result.message });
           return;
         }
 
-        if (result.data) {
-          setCredentialStatus(result.data);
-        }
-        messageApi.success(result.message);
+        if (result.data) setCredentialStatus(result.data);
+        toast.add({ type: "success", description: result.message });
       } finally {
         setCredentialPendingProvider(null);
       }
     });
   }
 
-  function confirmDeleteCredential(provider: GitProvider) {
-    const label = GIT_PROVIDER_LABELS[provider];
-
-    Modal.confirm({
-      title: `删除 ${label} PAT`,
-      content: `删除后，使用 ${label} 的仓库将无法检查连接。`,
-      okText: "删除",
-      cancelText: "取消",
-      okButtonProps: {
-        danger: true,
-        "aria-label": `确认删除 ${label} PAT`,
-      },
-      onOk: () => deleteCredential(provider),
-    });
-  }
-
-  function submit(values: RepositoryFormValues) {
+  function submit(values: ProjectRepositoriesFormValues) {
     startSavingTransition(async () => {
       const result = await updateProjectRepositoriesAction({
         ...values,
@@ -221,43 +356,48 @@ export function ProjectRepositoriesForm({
       });
 
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
 
       if (result.data) {
-        form.setFieldsValue({ repositories: result.data.repositories });
+        form.reset({ repositories: result.data.repositories });
       }
-      setRepositoriesDirty(false);
       setConnectionResults({});
-      messageApi.success(result.message);
+      toast.add({ type: "success", description: result.message });
     });
   }
 
-  function checkConnection(rowKey: Key, repositoryIndex: number) {
+  async function checkConnection(rowKey: string, repositoryIndex: number) {
+    const valid = await form.trigger([
+      `repositories.${repositoryIndex}.gitUrl`,
+      `repositories.${repositoryIndex}.branch`,
+    ]);
+    if (!valid) {
+      setConnectionResults((current) => {
+        const next = { ...current };
+        delete next[rowKey];
+        return next;
+      });
+      return;
+    }
+
+    const repository = form.getValues(`repositories.${repositoryIndex}`);
+    const location = parseRepositoryUrl(repository.gitUrl);
+    if (!isCredentialConfigured(location.provider)) {
+      setConnectionResults((current) => ({
+        ...current,
+        [rowKey]: {
+          ok: false,
+          message: `请先新增 ${GIT_PROVIDER_LABELS[location.provider]} PAT`,
+        },
+      }));
+      return;
+    }
+
     setCheckingRepositoryKey(rowKey);
     startCheckingTransition(async () => {
       try {
-        await form.validateFields([
-          ["repositories", repositoryIndex, "gitUrl"],
-          ["repositories", repositoryIndex, "branch"],
-        ]);
-
-        const repository = form.getFieldsValue().repositories[repositoryIndex];
-        if (!repository) return;
-
-        const location = parseRepositoryUrl(repository.gitUrl);
-        if (!isCredentialConfigured(location.provider)) {
-          setConnectionResults((current) => ({
-            ...current,
-            [String(rowKey)]: {
-              ok: false,
-              message: `请先新增 ${GIT_PROVIDER_LABELS[location.provider]} PAT`,
-            },
-          }));
-          return;
-        }
-
         const result = await checkRepositoryConnectionAction({
           projectId: project.id,
           gitUrl: repository.gitUrl,
@@ -266,314 +406,292 @@ export function ProjectRepositoriesForm({
 
         setConnectionResults((current) => ({
           ...current,
-          [String(rowKey)]: {
+          [rowKey]: {
             ok: result.ok,
             message: result.message ?? "连接正常",
           },
         }));
-      } catch {
-        setConnectionResults((current) => {
-          const next = { ...current };
-          delete next[String(rowKey)];
-          return next;
-        });
       } finally {
         setCheckingRepositoryKey(null);
       }
     });
   }
 
-  function renderCredentialCard(provider: GitProvider) {
-    const label = GIT_PROVIDER_LABELS[provider];
-    const configured = isCredentialConfigured(provider);
-    const account = getCredentialAccount(provider);
-    const pending =
-      isCredentialPending && credentialPendingProvider === provider;
-
-    return (
-      <div className={styles.credentialCard}>
-        <div className={styles.credentialHeading}>
-          <span className={styles.credentialProviderMark}>
-            {provider === "GITHUB" ? "GH" : "GE"}
-          </span>
-          <div>
-            <strong>{label}</strong>
-            <span>
-              {configured
-                ? account
-                  ? `账号 ${account}`
-                  : "账号尚未验证"
-                : "尚未配置访问凭据"}
-            </span>
-          </div>
-          <Tag color={configured ? "success" : "default"}>
-            {configured ? "已配置" : "未配置"}
-          </Tag>
-        </div>
-        {configured ? (
-          <div className={styles.credentialConfigured}>
-            <code aria-label={`${label} PAT（已脱敏）`}>•••• •••• ••••</code>
-            <div>
-              {!account ? (
-                <Button
-                  type="link"
-                  loading={pending}
-                  disabled={isCredentialPending && !pending}
-                  onClick={() => verifyCredential(provider)}
-                >
-                  验证账号
-                </Button>
-              ) : null}
-              <Button
-                type="link"
-                danger
-                loading={pending && Boolean(account)}
-                disabled={isCredentialPending && !pending}
-                aria-label={`删除 ${label} PAT`}
-                onClick={() => confirmDeleteCredential(provider)}
-              >
-                删除
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className={styles.credentialAdd}>
-            <Input.Password
-              aria-label={`${label} PAT`}
-              autoComplete="new-password"
-              maxLength={500}
-              placeholder={`输入 ${label} PAT`}
-              value={credentialDrafts[provider]}
-              onChange={(event) =>
-                updateCredentialDraft(provider, event.target.value)
-              }
-            />
-            <Button
-              type="primary"
-              loading={pending}
-              disabled={
-                !credentialDrafts[provider].trim() ||
-                (isCredentialPending && !pending)
-              }
-              aria-label={`新增 ${label} PAT`}
-              onClick={() => addCredential(provider)}
-            >
-              验证并新增
-            </Button>
-          </div>
-        )}
-      </div>
-    );
+  function clearConnectionResult(rowKey: string) {
+    setConnectionResults((current) => {
+      if (!(rowKey in current)) return current;
+      const next = { ...current };
+      delete next[rowKey];
+      return next;
+    });
   }
 
   return (
     <>
-      {messageContext}
-      <Form<RepositoryFormValues>
-        form={form}
-        className={styles.form}
-        layout="vertical"
-        requiredMark={false}
-        initialValues={{ repositories: project.repositories }}
-        onValuesChange={() => {
-          setRepositoriesDirty(true);
-          setConnectionResults({});
-        }}
-        onFinish={submit}
+      <FormPage
+        title="代码仓库"
+        description="管理项目级仓库凭据、代码仓库和连接检查。"
+        actions={
+          <Button
+            type="submit"
+            form="project-repositories-form"
+            disabled={!repositoriesDirty || isSaving}
+          >
+            {isSaving ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <SaveIcon data-icon="inline-start" />
+            )}
+            保存
+          </Button>
+        }
       >
-        <section className={styles.section}>
-          <div className={styles.sectionIntro}>
-            <h2>平台凭据</h2>
-            <p>仓库会根据地址自动使用对应平台的项目级 PAT。</p>
-          </div>
-          <div className={styles.sectionContent}>
-            <div className={styles.credentialGrid}>
-              {renderCredentialCard("GITHUB")}
-              {renderCredentialCard("GITEE")}
-            </div>
-            <p className={styles.credentialHelp}>
-              PAT 仅在服务端加密保存，建议只授予目标仓库的读取权限。
-            </p>
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <div className={styles.sectionIntro}>
-              <h2>仓库列表</h2>
-              <p>配置仓库地址和目标分支，并检查当前凭据的读取权限。</p>
-            </div>
-            <ProjectSettingsSaveButton
-              dirty={repositoriesDirty}
-              pending={isSaving}
-            >
-              保存
-            </ProjectSettingsSaveButton>
-          </div>
-          <div className={styles.sectionContent}>
-            <Form.List name="repositories">
-              {(fields, { add, remove }) => {
-                if (fields.length === 0) {
-                  return (
-                    <div className={styles.emptyList}>
-                      <div>
-                        <strong>尚未添加代码仓库</strong>
-                        <span>可按项目实际情况配置一个或多个仓库。</span>
-                      </div>
-                      <Button
-                        icon={<PlusOutlined />}
-                        onClick={() => {
-                          add({ gitUrl: "", branch: "main" });
-                          setRepositoriesDirty(true);
-                        }}
-                      >
-                        添加仓库
-                      </Button>
-                    </div>
-                  );
-                }
+        <form
+          id="project-repositories-form"
+          className="flex flex-col gap-4"
+          onSubmit={form.handleSubmit(submit)}
+        >
+          <PageSection
+            title="平台凭据"
+            description="仓库会根据地址自动使用对应平台的项目级 PAT。PAT 仅在服务端加密保存。"
+          >
+            <div className="grid grid-cols-2 gap-4">
+              {PROVIDERS.map(({ provider, icon }) => {
+                const configured = isCredentialConfigured(provider);
+                const account = getCredentialAccount(provider);
+                const pending =
+                  isCredentialPending && credentialPendingProvider === provider;
 
                 return (
-                  <div className={styles.repositoryList}>
-                    <div
-                      className={styles.repositoryListHeader}
-                      aria-hidden="true"
-                    >
-                      <span>Git 地址</span>
-                      <span>目标分支</span>
-                      <span>平台</span>
-                      <span>连接</span>
-                      <span />
-                    </div>
-                    {fields.map((field, index) => {
-                      const connectionResult =
-                        connectionResults[String(field.key)];
-
-                      return (
-                        <div className={styles.repositoryRow} key={field.key}>
-                          <Form.Item name={[field.name, "id"]} hidden>
-                            <Input />
-                          </Form.Item>
-                          <Form.Item
-                            name={[field.name, "gitUrl"]}
-                            rules={[
-                              { required: true, message: "请输入 Git 地址" },
-                              { validator: validateRepositoryUrl },
-                            ]}
-                          >
-                            <Input
-                              aria-label={`第 ${index + 1} 个仓库 Git 地址`}
-                              placeholder="https://github.com/owner/repo.git"
-                            />
-                          </Form.Item>
-                          <Form.Item
-                            name={[field.name, "branch"]}
-                            rules={[
-                              { required: true, message: "请输入分支" },
-                              {
-                                max: 100,
-                                message: "分支不能超过 100 个字符",
-                              },
-                            ]}
-                          >
-                            <Input
-                              aria-label={`第 ${index + 1} 个仓库目标分支`}
-                              placeholder="main"
-                            />
-                          </Form.Item>
-                          <Form.Item
-                            noStyle
-                            shouldUpdate={(previous, current) =>
-                              previous.repositories?.[field.name]?.gitUrl !==
-                              current.repositories?.[field.name]?.gitUrl
-                            }
-                          >
-                            {({ getFieldValue }) => {
-                              const gitUrl = getFieldValue([
-                                "repositories",
-                                field.name,
-                                "gitUrl",
-                              ]) as string | undefined;
-                              let providerLabel = "未识别";
-
-                              if (gitUrl) {
-                                try {
-                                  providerLabel =
-                                    GIT_PROVIDER_LABELS[
-                                      parseRepositoryUrl(gitUrl).provider
-                                    ];
-                                } catch {
-                                  // 表单校验负责展示具体错误，此处只展示识别状态。
-                                }
-                              }
-
-                              return (
-                                <Tag className={styles.repositoryProvider}>
-                                  {providerLabel}
-                                </Tag>
-                              );
-                            }}
-                          </Form.Item>
-                          <Button
-                            loading={
-                              checkingRepositoryKey === field.key && isChecking
-                            }
-                            disabled={
-                              isChecking && checkingRepositoryKey !== field.key
-                            }
-                            onClick={() =>
-                              checkConnection(field.key, field.name)
-                            }
-                          >
-                            检查连接
-                          </Button>
-                          <Button
-                            type="text"
-                            danger
-                            icon={<DeleteOutlined />}
-                            aria-label={`删除第 ${index + 1} 个仓库`}
-                            onClick={() => {
-                              remove(field.name);
-                              setRepositoriesDirty(true);
-                            }}
-                          />
-                          {connectionResult ? (
-                            <div
-                              className={
-                                connectionResult.ok
-                                  ? styles.connectionSuccess
-                                  : styles.connectionError
-                              }
-                              role="status"
-                            >
-                              {connectionResult.ok ? (
-                                <CheckCircleFilled />
-                              ) : (
-                                <CloseCircleFilled />
-                              )}
-                              {connectionResult.message}
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                    <Button
-                      className={styles.addButton}
-                      icon={<PlusOutlined />}
-                      onClick={() => {
-                        add({ gitUrl: "", branch: "main" });
-                        setRepositoriesDirty(true);
-                      }}
-                    >
-                      添加仓库
-                    </Button>
-                  </div>
+                  <RepositoryCredentialCard
+                    key={provider}
+                    provider={provider}
+                    icon={icon}
+                    configured={configured}
+                    account={account}
+                    draft={credentialDrafts[provider]}
+                    pending={pending}
+                    disabled={isCredentialPending && !pending}
+                    onDraftChange={(value) =>
+                      updateCredentialDraft(provider, value)
+                    }
+                    onAdd={() => addCredential(provider)}
+                    onVerify={() => verifyCredential(provider)}
+                    onDelete={() => setDeleteCredentialProvider(provider)}
+                  />
                 );
-              }}
-            </Form.List>
-          </div>
-        </section>
-      </Form>
+              })}
+            </div>
+          </PageSection>
+
+          <PageSection
+            title="仓库列表"
+            description="配置仓库地址和目标分支，并检查当前凭据的读取权限。"
+            actions={
+              fields.length ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => append({ gitUrl: "", branch: "main" })}
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  添加仓库
+                </Button>
+              ) : null
+            }
+          >
+            {fields.length ? (
+              <div className="flex flex-col gap-2">
+                <div
+                  className="text-muted-foreground grid grid-cols-[minmax(320px,1fr)_180px_90px_112px_32px] gap-3 px-1 text-xs font-medium"
+                  aria-hidden
+                >
+                  <span>Git 地址</span>
+                  <span>目标分支</span>
+                  <span>平台</span>
+                  <span>连接</span>
+                  <span />
+                </div>
+                {fields.map((field, index) => {
+                  const connectionResult = connectionResults[field.fieldKey];
+                  const gitUrlRegistration = form.register(
+                    `repositories.${index}.gitUrl`,
+                  );
+                  const branchRegistration = form.register(
+                    `repositories.${index}.branch`,
+                  );
+
+                  return (
+                    <div
+                      key={field.fieldKey}
+                      className="bg-muted/40 grid grid-cols-[minmax(320px,1fr)_180px_90px_112px_32px] items-start gap-3 rounded-lg p-3"
+                    >
+                      <input
+                        type="hidden"
+                        {...form.register(`repositories.${index}.id`)}
+                      />
+                      <Field
+                        data-invalid={Boolean(
+                          form.formState.errors.repositories?.[index]?.gitUrl,
+                        )}
+                      >
+                        <FieldLabel
+                          className="sr-only"
+                          htmlFor={`repository-${index}-url`}
+                        >
+                          Git 地址
+                        </FieldLabel>
+                        <Input
+                          id={`repository-${index}-url`}
+                          placeholder="https://github.com/owner/repo.git"
+                          aria-invalid={Boolean(
+                            form.formState.errors.repositories?.[index]?.gitUrl,
+                          )}
+                          {...gitUrlRegistration}
+                          onChange={(event) => {
+                            void gitUrlRegistration.onChange(event);
+                            clearConnectionResult(field.fieldKey);
+                          }}
+                        />
+                        <FieldError
+                          errors={[
+                            form.formState.errors.repositories?.[index]?.gitUrl,
+                          ]}
+                        />
+                      </Field>
+                      <Field
+                        data-invalid={Boolean(
+                          form.formState.errors.repositories?.[index]?.branch,
+                        )}
+                      >
+                        <FieldLabel
+                          className="sr-only"
+                          htmlFor={`repository-${index}-branch`}
+                        >
+                          目标分支
+                        </FieldLabel>
+                        <Input
+                          id={`repository-${index}-branch`}
+                          placeholder="main"
+                          aria-invalid={Boolean(
+                            form.formState.errors.repositories?.[index]?.branch,
+                          )}
+                          {...branchRegistration}
+                          onChange={(event) => {
+                            void branchRegistration.onChange(event);
+                            clearConnectionResult(field.fieldKey);
+                          }}
+                        />
+                        <FieldError
+                          errors={[
+                            form.formState.errors.repositories?.[index]?.branch,
+                          ]}
+                        />
+                      </Field>
+                      <div className="flex h-8 items-center">
+                        <Badge variant="outline">
+                          {providerLabel(repositories[index]?.gitUrl)}
+                        </Badge>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          isChecking && checkingRepositoryKey !== field.fieldKey
+                        }
+                        onClick={() =>
+                          void checkConnection(field.fieldKey, index)
+                        }
+                      >
+                        {isChecking &&
+                        checkingRepositoryKey === field.fieldKey ? (
+                          <Spinner data-icon="inline-start" />
+                        ) : null}
+                        检查连接
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`删除第 ${index + 1} 个仓库`}
+                        onClick={() => {
+                          remove(index);
+                          clearConnectionResult(field.fieldKey);
+                        }}
+                      >
+                        <Trash2Icon />
+                      </Button>
+                      {connectionResult ? (
+                        <Alert
+                          className="col-span-5"
+                          variant={
+                            connectionResult.ok ? "default" : "destructive"
+                          }
+                        >
+                          {connectionResult.ok ? (
+                            <CheckCircle2Icon />
+                          ) : (
+                            <XCircleIcon />
+                          )}
+                          <AlertDescription>
+                            {connectionResult.message}
+                          </AlertDescription>
+                        </Alert>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>尚未添加代码仓库</EmptyTitle>
+                  <EmptyDescription>
+                    可按项目实际情况配置一个或多个仓库。
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => append({ gitUrl: "", branch: "main" })}
+                  >
+                    <PlusIcon data-icon="inline-start" />
+                    添加仓库
+                  </Button>
+                </EmptyContent>
+              </Empty>
+            )}
+          </PageSection>
+        </form>
+      </FormPage>
+
+      <ConfirmDialog
+        open={Boolean(deleteCredentialProvider)}
+        title={`删除 ${
+          deleteCredentialProvider
+            ? GIT_PROVIDER_LABELS[deleteCredentialProvider]
+            : ""
+        } PAT`}
+        description={`删除后，使用 ${
+          deleteCredentialProvider
+            ? GIT_PROVIDER_LABELS[deleteCredentialProvider]
+            : "该平台"
+        } 的仓库将无法检查连接。`}
+        confirmLabel="删除"
+        destructive
+        pending={isCredentialPending}
+        onOpenChange={(open) => {
+          if (!open) setDeleteCredentialProvider(null);
+        }}
+        onConfirm={() => {
+          if (deleteCredentialProvider) {
+            deleteCredential(deleteCredentialProvider);
+          }
+        }}
+      />
     </>
   );
 }

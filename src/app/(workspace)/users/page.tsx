@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 
-import { UserManagement } from "@/components/users/user-management";
+import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
+import { UserManagement } from "@/components/users/user-management";
 import { requireAdmin } from "@/server/auth/session";
 import { db } from "@/server/db";
 
@@ -23,7 +24,7 @@ export default async function UsersPage() {
   });
 
   return (
-    <div className="page-shell page-shell--table">
+    <PageContainer table className="gap-5">
       <PageHeader
         title="用户管理"
         description="管理登录账号和平台角色；普通用户可操作全部项目业务数据。"
@@ -36,6 +37,6 @@ export default async function UsersPage() {
           createdAt: user.createdAt.toISOString(),
         }))}
       />
-    </div>
+    </PageContainer>
   );
 }

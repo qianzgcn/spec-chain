@@ -1,9 +1,14 @@
 "use client";
 
-import { Button, Table, Tag, Typography } from "antd";
-import type { TableProps } from "antd";
+import type { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
 
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableShell } from "@/components/data-table/data-table-shell";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatCompactDateTime, formatDetailedDateTime } from "@/lib/date-time";
 
 export type PendingRequirementListItem = {
@@ -13,6 +18,73 @@ export type PendingRequirementListItem = {
   createdAt: string;
   updatedAt: string;
 };
+
+const columns: ColumnDef<PendingRequirementListItem>[] = [
+  {
+    accessorKey: "title",
+    header: "标题",
+    cell: ({ row }) => (
+      <span className="block truncate font-medium" title={row.original.title}>
+        {row.original.title}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "feature",
+    header: "所属 FE",
+    size: 230,
+    meta: {
+      headerClassName: "max-xl:hidden",
+      cellClassName: "max-xl:hidden",
+    },
+    cell: ({ row }) =>
+      row.original.feature ? (
+        <span
+          className="text-muted-foreground block truncate"
+          title={`${row.original.feature.code} · ${row.original.feature.name}`}
+        >
+          {row.original.feature.code} · {row.original.feature.name}
+        </span>
+      ) : (
+        <Badge variant="secondary">未归属 FE</Badge>
+      ),
+  },
+  {
+    accessorKey: "createdAt",
+    header: "生成时间",
+    size: 170,
+    meta: {
+      headerClassName: "max-[1360px]:hidden",
+      cellClassName: "max-[1360px]:hidden text-muted-foreground",
+    },
+    cell: ({ row }) => formatDetailedDateTime(row.original.createdAt),
+  },
+  {
+    accessorKey: "updatedAt",
+    header: "更新时间",
+    size: 150,
+    meta: { cellClassName: "text-muted-foreground" },
+    cell: ({ row }) => formatCompactDateTime(row.original.updatedAt),
+  },
+  {
+    id: "actions",
+    header: () => <span className="sr-only">操作</span>,
+    size: 88,
+    meta: { headerClassName: "text-right", cellClassName: "text-right" },
+    cell: ({ row }) => (
+      <Button
+        variant="ghost"
+        size="sm"
+        nativeButton={false}
+        render={
+          <Link href={`/requirements/pending-review/${row.original.id}`} />
+        }
+      >
+        评审
+      </Button>
+    ),
+  },
+];
 
 export function PendingRequirementsList({
   items,
@@ -24,61 +96,6 @@ export function PendingRequirementsList({
   page: number;
 }) {
   const { isNavigating, navigate } = useNavigationFeedback();
-  const columns: TableProps<PendingRequirementListItem>["columns"] = [
-    {
-      title: "标题",
-      dataIndex: "title",
-      ellipsis: true,
-      render: (title: string) => (
-        <Typography.Text strong ellipsis={{ tooltip: title }}>
-          {title}
-        </Typography.Text>
-      ),
-    },
-    {
-      title: "所属 FE",
-      dataIndex: "feature",
-      width: 230,
-      ellipsis: true,
-      responsive: ["lg"],
-      render: (feature: PendingRequirementListItem["feature"]) =>
-        feature ? (
-          <span title={`${feature.code} · ${feature.name}`}>
-            {feature.code} · {feature.name}
-          </span>
-        ) : (
-          <Tag>未归属 FE</Tag>
-        ),
-    },
-    {
-      title: "生成时间",
-      dataIndex: "createdAt",
-      width: 170,
-      responsive: ["xl"],
-      render: (value: string) => formatDetailedDateTime(value),
-    },
-    {
-      title: "更新时间",
-      dataIndex: "updatedAt",
-      width: 150,
-      render: (value: string) => formatCompactDateTime(value),
-    },
-    {
-      title: "操作",
-      key: "actions",
-      width: 88,
-      align: "center",
-      render: (_, item) => (
-        <Button
-          type="link"
-          size="small"
-          href={`/requirements/pending-review/${item.id}`}
-        >
-          评审
-        </Button>
-      ),
-    },
-  ];
 
   function changePage(nextPage: number) {
     const params = new URLSearchParams();
@@ -87,27 +104,29 @@ export function PendingRequirementsList({
   }
 
   return (
-    <div className="content-panel table-page-panel">
-      <div className="table-toolbar">
-        <span className="table-toolbar__summary">共 {total} 条待评审需求</span>
-      </div>
-      <Table<PendingRequirementListItem>
-        rowKey="id"
+    <DataTableShell
+      toolbar={
+        <span className="text-muted-foreground text-xs">
+          共 {total} 条待评审需求
+        </span>
+      }
+      footer={
+        <DataTablePagination
+          page={page}
+          pageSize={20}
+          total={total}
+          itemName="条需求"
+          onChange={changePage}
+        />
+      }
+    >
+      <DataTable
         columns={columns}
-        dataSource={items}
+        data={items}
         loading={isNavigating}
-        tableLayout="fixed"
-        scroll={{ y: "100%" }}
-        pagination={{
-          current: page,
-          pageSize: 20,
-          total,
-          showSizeChanger: false,
-          showTotal: (count) => `共 ${count} 条需求`,
-          onChange: changePage,
-        }}
-        locale={{ emptyText: "暂无待评审需求" }}
+        emptyText="暂无待评审需求"
+        getRowId={(item) => item.id}
       />
-    </div>
+    </DataTableShell>
   );
 }

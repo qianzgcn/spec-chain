@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
 
-import { AntdRegistry } from "@ant-design/nextjs-registry";
+import { Geist } from "next/font/google";
 
-import { AntdProvider } from "@/app/antd-provider";
-import { themeCssVariables } from "@/theme/tokens";
+import { Toaster } from "@/components/ui/toast";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 import "./globals.css";
+
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -25,11 +31,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" style={themeCssVariables}>
+    <html lang="zh-CN" className={cn("font-sans", geist.variable)}>
       <body>
-        <AntdRegistry>
-          <AntdProvider>{children}</AntdProvider>
-        </AntdRegistry>
+        <TooltipProvider>{children}</TooltipProvider>
+        <Toaster />
       </body>
     </html>
   );

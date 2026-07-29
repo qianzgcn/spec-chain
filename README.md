@@ -20,8 +20,9 @@ SpecChain 是面向团队内部使用的需求与测试用例管理平台。首�
 | 分类       | 版本或方案                                      |
 | ---------- | ----------------------------------------------- |
 | 运行环境   | Node.js 22.22.0、npm 11.11.1                    |
-| Web        | Next.js 16.2.11、React 19.2.8、TypeScript 6.0.3 |
-| 界面       | Ant Design 6、Tailwind CSS 4                    |
+| Web        | Next.js 16.2.12、React 19.2.8、TypeScript 6.0.3 |
+| 界面       | Shadcn/ui（Base UI + Nova）、Tailwind CSS 4     |
+| 表单与表格 | React Hook Form、TanStack Table                 |
 | 数据       | Prisma 7.9、SQLite、better-sqlite3 适配器       |
 | 校验与状态 | Zod 4、TanStack Query 5                         |
 | AI         | Vercel AI SDK 7、OpenAI 兼容模型适配器          |

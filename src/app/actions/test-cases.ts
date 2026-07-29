@@ -1,49 +1,17 @@
 "use server";
 
-import { z } from "zod";
-
 import { revalidatePath } from "next/cache";
 
-import { RunStatus, TestPriority } from "@/generated/prisma/enums";
+import { RunStatus } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
+import {
+  testCaseGroupNameSchema,
+  testCaseSchema,
+} from "@/lib/test-cases/schema";
 import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 import { generateBusinessCode } from "@/server/requirements/business-code";
-
-const groupNameSchema = z
-  .string()
-  .trim()
-  .min(1, "请输入分组名称")
-  .max(100, "分组名称不能超过 100 个字符");
-
-const testCaseSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "请输入用例名称")
-    .max(200, "用例名称不能超过 200 个字符"),
-  groupId: z.string().min(1, "请选择用例分组"),
-  priority: z.enum(TestPriority),
-  preconditions: z
-    .string()
-    .trim()
-    .max(100_000, "前置条件内容过长")
-    .optional()
-    .default(""),
-  enabled: z.boolean(),
-  script: z
-    .string()
-    .max(500_000, "自动化脚本不能超过 500000 个字符")
-    .optional()
-    .default(""),
-  steps: z
-    .string()
-    .trim()
-    .min(1, "测试步骤不能为空")
-    .max(100_000, "测试步骤内容过长"),
-  userStoryIds: z.array(z.string()).default([]),
-});
 
 async function requireCurrentProjectForAction() {
   await requireUser();
@@ -90,7 +58,7 @@ export async function createTestCaseGroupAction(
     return { ok: false, message: "请先创建项目" };
   }
 
-  const parsed = groupNameSchema.safeParse(name);
+  const parsed = testCaseGroupNameSchema.safeParse(name);
   if (!parsed.success) {
     return {
       ok: false,
@@ -129,7 +97,7 @@ export async function updateTestCaseGroupAction(
     return { ok: false, message: "请先创建项目" };
   }
 
-  const parsed = groupNameSchema.safeParse(name);
+  const parsed = testCaseGroupNameSchema.safeParse(name);
   if (!parsed.success) {
     return {
       ok: false,

@@ -36,18 +36,13 @@ export default async function ProjectBasicSettingsPage() {
   });
 
   return (
-    <ProjectSettingsPage
-      title="基础设置"
-      description="维护当前项目的名称和业务说明。"
-    >
-      <ProjectBasicSettingsForm
-        key={project.id}
-        project={{
-          id: project.id,
-          name: project.name,
-          description: project.description ?? "",
-        }}
-      />
-    </ProjectSettingsPage>
+    <ProjectBasicSettingsForm
+      key={project.id}
+      project={{
+        id: project.id,
+        name: project.name,
+        description: project.description ?? "",
+      }}
+    />
   );
 }

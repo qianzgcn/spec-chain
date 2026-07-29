@@ -13,7 +13,7 @@ export function ScriptEditor({
   onChange = () => undefined,
 }: ScriptEditorProps) {
   return (
-    <div className="overflow-hidden rounded-md border border-slate-300">
+    <div className="bg-background overflow-hidden rounded-lg border">
       <CodeMirror
         value={value}
         height="420px"

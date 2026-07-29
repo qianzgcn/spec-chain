@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
-import { Button, Empty } from "antd";
-
+import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
+import { ProjectRequiredState } from "@/components/projects/project-required-state";
 import { TestCaseGroupsManagement } from "@/components/test-cases/test-case-groups-management";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
@@ -15,19 +15,13 @@ export default async function TestCaseGroupsPage() {
   const project = await getCurrentProject();
   if (!project) {
     return (
-      <div className="page-shell">
+      <PageContainer className="flex flex-col gap-5">
         <PageHeader
           title="用例分组"
           description="请先创建项目，再配置用例分组。"
         />
-        <div className="content-panel empty-panel">
-          <Empty description="当前没有可用项目">
-            <Button type="primary" href="/projects">
-              创建项目
-            </Button>
-          </Empty>
-        </div>
-      </div>
+        <ProjectRequiredState />
+      </PageContainer>
     );
   }
 
@@ -45,7 +39,7 @@ export default async function TestCaseGroupsPage() {
   });
 
   return (
-    <div className="page-shell page-shell--table">
+    <PageContainer table className="gap-5">
       <PageHeader
         title="用例分组"
         description="分组用于组织测试用例，创建用例时必须选择一个分组。"
@@ -58,6 +52,6 @@ export default async function TestCaseGroupsPage() {
           updatedAt: group.updatedAt.toISOString(),
         }))}
       />
-    </div>
+    </PageContainer>
   );
 }

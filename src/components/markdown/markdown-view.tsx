@@ -10,7 +10,7 @@ export function MarkdownView({
   emptyText?: string;
 }) {
   if (!content?.trim()) {
-    return <span className="text-sm text-slate-400">{emptyText}</span>;
+    return <span className="text-muted-foreground text-sm">{emptyText}</span>;
   }
 
   return (

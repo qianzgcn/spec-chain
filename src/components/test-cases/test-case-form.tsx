@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useTransition } from "react";
 
-import { Alert, Button, Form, Input, Select, Switch, message } from "antd";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { TriangleAlertIcon } from "lucide-react";
 import dynamic from "next/dynamic";
+import { Controller, useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
 import {
@@ -14,12 +16,53 @@ import { FormPage } from "@/components/layout/form-page";
 import { PageSection } from "@/components/layout/page-section";
 import { MarkdownField } from "@/components/markdown/markdown-field";
 import type { ScriptEditorProps } from "@/components/test-cases/script-editor";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxValue,
+  useComboboxAnchor,
+} from "@/components/ui/combobox";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/toast";
 import { TestPriority } from "@/generated/prisma/enums";
 import {
   confirmLeaveIfDirty,
   useUnsavedChanges,
 } from "@/hooks/use-unsaved-changes";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
+import {
+  testCaseSchema,
+  type TestCaseFormValues,
+} from "@/lib/test-cases/schema";
 
 const ScriptEditor = dynamic<ScriptEditorProps>(
   () =>
@@ -28,22 +71,11 @@ const ScriptEditor = dynamic<ScriptEditorProps>(
     ),
   {
     ssr: false,
-    loading: () => (
-      <div className="h-[420px] animate-pulse rounded-md bg-slate-100" />
-    ),
+    loading: () => <Skeleton className="h-[420px] w-full" />,
   },
 );
 
-export type TestCaseFormValues = {
-  name: string;
-  groupId: string;
-  priority: TestPriority;
-  preconditions: string;
-  enabled: boolean;
-  script: string;
-  steps: string;
-  userStoryIds: string[];
-};
+export type { TestCaseFormValues };
 
 type TestCaseFormProps = {
   testCaseId?: string;
@@ -58,6 +90,11 @@ type TestCaseFormProps = {
   initialValues?: TestCaseFormValues;
 };
 
+const PRIORITY_OPTIONS = Object.values(TestPriority).map((priority) => ({
+  value: priority,
+  label: `${priority} · ${TEST_PRIORITY_META[priority].description}`,
+}));
+
 export function TestCaseForm({
   testCaseId,
   code,
@@ -66,21 +103,35 @@ export function TestCaseForm({
   initialValues,
 }: TestCaseFormProps) {
   const router = useRouter();
-  const [messageApi, messageContext] = message.useMessage();
-  const [dirty, setDirty] = useState(false);
+  const storyAnchor = useComboboxAnchor();
   const [isPending, startTransition] = useTransition();
+  const form = useForm<TestCaseFormValues>({
+    resolver: zodResolver(testCaseSchema),
+    defaultValues: initialValues ?? {
+      name: "",
+      groupId: groups[0]?.id ?? "",
+      priority: TestPriority.P2,
+      preconditions: "",
+      enabled: true,
+      script: "",
+      steps: "",
+      userStoryIds: [],
+    },
+  });
+  const dirty = form.formState.isDirty;
   useUnsavedChanges(dirty);
 
-  const defaults: TestCaseFormValues = initialValues ?? {
-    name: "",
-    groupId: groups[0]?.id ?? "",
-    priority: TestPriority.P2,
-    preconditions: "",
-    enabled: true,
-    script: "",
-    steps: "",
-    userStoryIds: [],
-  };
+  const groupIds = groups.map((group) => group.id);
+  const groupLabels = new Map(groups.map((group) => [group.id, group.name]));
+  const storyIds = userStories.map((story) => story.id);
+  const storyLabels = new Map(
+    userStories.map((story) => [
+      story.id,
+      `${story.code} · ${story.title}${
+        story.featureName ? `（${story.featureName}）` : ""
+      }`,
+    ]),
+  );
 
   function submit(values: TestCaseFormValues) {
     startTransition(async () => {
@@ -88,12 +139,12 @@ export function TestCaseForm({
         ? await updateTestCaseAction(testCaseId, values)
         : await createTestCaseAction(values);
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
 
-      setDirty(false);
-      messageApi.success(result.message);
+      form.reset(values);
+      toast.add({ type: "success", description: result.message });
       const targetId = testCaseId ?? result.data?.id;
       router.push(targetId ? `/test-cases/${targetId}` : "/test-cases");
       router.refresh();
@@ -107,159 +158,272 @@ export function TestCaseForm({
   }
 
   return (
-    <>
-      {messageContext}
-      <FormPage
-        title={testCaseId ? "编辑测试用例" : "新建测试用例"}
-        description={
-          testCaseId
-            ? "调整自然语言步骤、需求关联和自动化脚本。"
-            : "使用自然语言描述验证过程，需要时再补充自动化脚本。"
-        }
-        meta={code ? <span className="page-code">{code}</span> : null}
-        actions={
-          <>
-            <Button onClick={cancel}>取消</Button>
-            <Button
-              type="primary"
-              htmlType="submit"
-              form="test-case-form"
-              loading={isPending}
-              disabled={Boolean(testCaseId) && !dirty}
-            >
-              保存
-            </Button>
-          </>
-        }
+    <FormPage
+      title={testCaseId ? "编辑测试用例" : "新建测试用例"}
+      description={
+        testCaseId
+          ? "调整自然语言步骤、需求关联和自动化脚本。"
+          : "使用自然语言描述验证过程，需要时再补充自动化脚本。"
+      }
+      meta={code ? <span className="font-mono text-xs">{code}</span> : null}
+      actions={
+        <>
+          <Button variant="outline" onClick={cancel}>
+            取消
+          </Button>
+          <Button
+            type="submit"
+            form="test-case-form"
+            disabled={isPending || (Boolean(testCaseId) && !dirty)}
+          >
+            {isPending ? <Spinner data-icon="inline-start" /> : null}
+            保存
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="test-case-form"
+        className="flex w-full flex-col gap-4"
+        onSubmit={form.handleSubmit(submit)}
       >
-        <Form<TestCaseFormValues>
-          id="test-case-form"
-          className="form-page__form"
-          layout="vertical"
-          requiredMark={false}
-          initialValues={defaults}
-          onValuesChange={() => setDirty(true)}
-          onFinish={submit}
-        >
-          <PageSection title="基本信息">
-            <div className="test-case-basics">
-              <Form.Item
-                name="name"
-                label="用例名称"
-                rules={[{ required: true, message: "请输入用例名称" }]}
-              >
-                <Input maxLength={200} showCount />
-              </Form.Item>
-              <Form.Item
-                name="groupId"
-                label="分组"
-                rules={[{ required: true, message: "请选择用例分组" }]}
-              >
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  options={groups.map((group) => ({
-                    value: group.id,
-                    label: group.name,
-                  }))}
-                />
-              </Form.Item>
-              <Form.Item
-                name="priority"
-                label="优先级"
-                rules={[{ required: true }]}
-              >
-                <Select
-                  options={Object.values(TestPriority).map((priority) => ({
-                    value: priority,
-                    label: `${priority} · ${TEST_PRIORITY_META[priority].description}`,
-                  }))}
-                />
-              </Form.Item>
-              <Form.Item
-                name="enabled"
-                label="启用状态"
-                valuePropName="checked"
-              >
-                <Switch checkedChildren="启用" unCheckedChildren="停用" />
-              </Form.Item>
-            </div>
-            <Form.Item
-              name="userStoryIds"
-              label="关联 US（可选）"
-              extra="只展示当前项目中未删除的 US；删除需求不会删除或修改本用例。"
+        <PageSection title="基本信息">
+          <FieldGroup className="grid grid-cols-12 gap-5">
+            <Field
+              className="col-span-5"
+              data-invalid={Boolean(form.formState.errors.name)}
             >
-              <Select
-                mode="multiple"
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                maxTagCount={4}
-                placeholder="选择一个或多个 US"
-                options={userStories.map((story) => ({
-                  value: story.id,
-                  label: `${story.code} · ${story.title}${
-                    story.featureName
-                      ? `（${story.featureName}）`
-                      : "（未归属 FE）"
-                  }`,
-                }))}
+              <FieldLabel htmlFor="test-case-name">用例名称</FieldLabel>
+              <Input
+                id="test-case-name"
+                maxLength={200}
+                placeholder="描述这个用例要验证的业务场景"
+                aria-invalid={Boolean(form.formState.errors.name)}
+                {...form.register("name")}
               />
-            </Form.Item>
-          </PageSection>
+              <FieldError errors={[form.formState.errors.name]} />
+            </Field>
 
-          <PageSection
-            title="用例内容"
-            description="所有步骤写在一个输入框中，需要验证的结果直接写在对应步骤里。"
-          >
-            <div className="grid grid-cols-[4fr_8fr] gap-5">
-              <Form.Item
-                name="preconditions"
-                label="前置条件（可选）"
-                extra="支持 Markdown。记录执行前必须满足的数据、权限或环境条件。"
-              >
-                <MarkdownField rows={10} placeholder="没有前置条件时可以留空" />
-              </Form.Item>
-              <Form.Item
-                name="steps"
-                label="测试步骤"
-                extra="建议每行一个编号步骤，支持 Markdown。"
-                rules={[
-                  {
-                    required: true,
-                    whitespace: true,
-                    message: "请输入测试步骤",
-                  },
-                ]}
-              >
-                <Input.TextArea
-                  rows={10}
-                  maxLength={100_000}
-                  placeholder={
-                    "1. 打开 SpecChain 登录页\n2. 输入用户名 `admin` 和错误密码 `wrong-password`\n3. 点击登录，显示“用户名或密码错误”，并停留在登录页。"
-                  }
-                />
-              </Form.Item>
-            </div>
-          </PageSection>
-
-          <PageSection
-            title="自动化脚本（可选）"
-            description="未填写脚本时仍可保存自然语言测试用例，但不能发起自动化运行。"
-          >
-            <Alert
-              type="warning"
-              showIcon
-              className="mb-4"
-              title="脚本是完整的 Playwright Test TypeScript 文件"
-              description="请自行编写 import、test 和 expect。脚本可执行 Node.js 代码，首版仅适用于内部可信用户。"
+            <Controller
+              control={form.control}
+              name="groupId"
+              render={({ field, fieldState }) => (
+                <Field className="col-span-3" data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="test-case-group">分组</FieldLabel>
+                  <Combobox
+                    items={groupIds}
+                    value={field.value || null}
+                    itemToStringLabel={(groupId: string) =>
+                      groupLabels.get(groupId) ?? groupId
+                    }
+                    onValueChange={(value) => field.onChange(value ?? "")}
+                  >
+                    <ComboboxInput
+                      id="test-case-group"
+                      placeholder="搜索分组"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    <ComboboxContent>
+                      <ComboboxEmpty>没有匹配的分组</ComboboxEmpty>
+                      <ComboboxList>
+                        {(groupId: string) => (
+                          <ComboboxItem key={groupId} value={groupId}>
+                            {groupLabels.get(groupId)}
+                          </ComboboxItem>
+                        )}
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
             />
-            <Form.Item name="script" className="!mb-0">
-              <ScriptEditor />
-            </Form.Item>
-          </PageSection>
-        </Form>
-      </FormPage>
-    </>
+
+            <Controller
+              control={form.control}
+              name="priority"
+              render={({ field, fieldState }) => (
+                <Field className="col-span-2" data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="test-case-priority">优先级</FieldLabel>
+                  <Select
+                    items={PRIORITY_OPTIONS}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger
+                      id="test-case-priority"
+                      aria-invalid={fieldState.invalid}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {PRIORITY_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
+
+            <Controller
+              control={form.control}
+              name="enabled"
+              render={({ field }) => (
+                <Field
+                  className="col-span-2 justify-end"
+                  orientation="horizontal"
+                >
+                  <FieldTitle>启用</FieldTitle>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    aria-label="启用测试用例"
+                  />
+                </Field>
+              )}
+            />
+
+            <Controller
+              control={form.control}
+              name="userStoryIds"
+              render={({ field, fieldState }) => (
+                <Field
+                  className="col-span-12"
+                  data-invalid={fieldState.invalid}
+                >
+                  <FieldLabel htmlFor="test-case-user-stories">
+                    关联 US（可选）
+                  </FieldLabel>
+                  <Combobox
+                    multiple
+                    autoHighlight
+                    items={storyIds}
+                    value={field.value}
+                    itemToStringLabel={(storyId: string) =>
+                      storyLabels.get(storyId) ?? storyId
+                    }
+                    onValueChange={field.onChange}
+                  >
+                    <ComboboxChips ref={storyAnchor}>
+                      <ComboboxValue>
+                        {(values: string[]) => (
+                          <Fragment>
+                            {values.map((value) => (
+                              <ComboboxChip key={value}>
+                                {storyLabels.get(value) ?? value}
+                              </ComboboxChip>
+                            ))}
+                            <ComboboxChipsInput
+                              id="test-case-user-stories"
+                              placeholder={
+                                values.length ? undefined : "搜索并选择 US"
+                              }
+                              aria-invalid={fieldState.invalid}
+                            />
+                          </Fragment>
+                        )}
+                      </ComboboxValue>
+                    </ComboboxChips>
+                    <ComboboxContent anchor={storyAnchor}>
+                      <ComboboxEmpty>没有匹配的 US</ComboboxEmpty>
+                      <ComboboxList>
+                        {(storyId: string) => (
+                          <ComboboxItem key={storyId} value={storyId}>
+                            {storyLabels.get(storyId)}
+                          </ComboboxItem>
+                        )}
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
+                  <FieldDescription>
+                    只展示当前项目中未删除的 US。
+                  </FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
+          </FieldGroup>
+        </PageSection>
+
+        <PageSection
+          title="用例内容"
+          description="所有步骤写在一个输入框中，需要验证的结果直接写在对应步骤里。"
+        >
+          <FieldGroup className="grid grid-cols-[4fr_8fr] gap-5">
+            <Controller
+              control={form.control}
+              name="preconditions"
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="test-case-preconditions">
+                    前置条件（可选）
+                  </FieldLabel>
+                  <MarkdownField
+                    id="test-case-preconditions"
+                    value={field.value}
+                    onChange={field.onChange}
+                    rows={10}
+                    placeholder="没有前置条件时可以留空"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldDescription>
+                    记录执行前必须满足的数据、权限或环境条件。
+                  </FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
+            <Field data-invalid={Boolean(form.formState.errors.steps)}>
+              <FieldLabel htmlFor="test-case-steps">测试步骤</FieldLabel>
+              <Textarea
+                id="test-case-steps"
+                rows={14}
+                maxLength={100_000}
+                placeholder={
+                  "1. 打开 SpecChain 登录页\n2. 输入用户名 `admin` 和错误密码 `wrong-password`\n3. 点击登录，显示“用户名或密码错误”，并停留在登录页。"
+                }
+                aria-invalid={Boolean(form.formState.errors.steps)}
+                {...form.register("steps")}
+              />
+              <FieldDescription>
+                建议每行一个编号步骤，支持 Markdown。
+              </FieldDescription>
+              <FieldError errors={[form.formState.errors.steps]} />
+            </Field>
+          </FieldGroup>
+        </PageSection>
+
+        <PageSection
+          title="自动化脚本（可选）"
+          description="未填写脚本时仍可保存自然语言测试用例，但不能发起自动化运行。"
+        >
+          <div className="flex flex-col gap-4">
+            <Alert>
+              <TriangleAlertIcon />
+              <AlertTitle>
+                脚本是完整的 Playwright Test TypeScript 文件
+              </AlertTitle>
+              <AlertDescription>
+                请自行编写 import、test 和 expect。脚本可执行 Node.js
+                代码，首版仅适用于内部可信用户。
+              </AlertDescription>
+            </Alert>
+            <Controller
+              control={form.control}
+              name="script"
+              render={({ field }) => (
+                <ScriptEditor value={field.value} onChange={field.onChange} />
+              )}
+            />
+          </div>
+        </PageSection>
+      </form>
+    </FormPage>
   );
 }

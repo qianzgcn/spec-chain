@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 
-import { Button, Tag } from "antd";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageSection } from "@/components/layout/page-section";
 import { MarkdownView } from "@/components/markdown/markdown-view";
 import { RequirementDetailActions } from "@/components/requirements/requirement-detail-actions";
 import { UserStoryStatusSelect } from "@/components/requirements/user-story-status-select";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -38,19 +41,20 @@ export default async function UserStoryDetailPage({
   if (!story) notFound();
 
   return (
-    <div className="page-shell">
+    <PageContainer className="flex flex-col gap-5">
       <PageHeader
         title={story.title}
         meta={
           <>
-            <Tag>US</Tag>
-            <span className="page-code">{story.code}</span>
+            <Badge variant="outline">US</Badge>
+            <span className="font-mono text-xs">{story.code}</span>
             {story.feature ? (
               <Button
-                type="link"
-                size="small"
-                className="!h-auto !p-0"
-                href={`/features/${story.feature.id}`}
+                variant="link"
+                size="sm"
+                className="h-auto p-0"
+                nativeButton={false}
+                render={<Link href={`/features/${story.feature.id}`} />}
               >
                 {story.feature.code} · {story.feature.name}
               </Button>
@@ -65,56 +69,70 @@ export default async function UserStoryDetailPage({
         }
       />
 
-      <div className="detail-sections">
+      <div className="flex min-w-0 flex-col gap-4">
         <PageSection title="用户故事">
-          <dl className="user-story-triplet user-story-triplet--detail">
-            <div>
-              <dt>As</dt>
-              <dd>{story.asA}</dd>
+          <dl className="grid grid-cols-[3fr_5fr_4fr] gap-4">
+            <div className="bg-muted/50 min-w-0 rounded-lg p-4">
+              <dt className="text-muted-foreground mb-2 text-xs font-medium">
+                As
+              </dt>
+              <dd className="whitespace-pre-wrap">{story.asA}</dd>
             </div>
-            <div>
-              <dt>I want</dt>
-              <dd>{story.iWant}</dd>
+            <div className="bg-muted/50 min-w-0 rounded-lg p-4">
+              <dt className="text-muted-foreground mb-2 text-xs font-medium">
+                I want
+              </dt>
+              <dd className="whitespace-pre-wrap">{story.iWant}</dd>
             </div>
-            <div>
-              <dt>so that</dt>
-              <dd>{story.soThat}</dd>
+            <div className="bg-muted/50 min-w-0 rounded-lg p-4">
+              <dt className="text-muted-foreground mb-2 text-xs font-medium">
+                so that
+              </dt>
+              <dd className="whitespace-pre-wrap">{story.soThat}</dd>
             </div>
           </dl>
         </PageSection>
 
         <PageSection title="验收标准">
-          <div className="acceptance-detail">
-            <div className="acceptance-detail__head" aria-hidden>
+          <div className="flex flex-col gap-2">
+            <div
+              className="text-muted-foreground grid grid-cols-[3rem_repeat(3,minmax(0,1fr))] gap-4 px-3 text-xs font-medium"
+              aria-hidden
+            >
               <span>序号</span>
               <span>Given</span>
               <span>When</span>
               <span>Then</span>
             </div>
             {story.acceptanceCriteria.map((criterion, index) => (
-              <div className="acceptance-detail__row" key={criterion.id}>
-                <span>{index + 1}</span>
-                <p>{criterion.given}</p>
-                <p>{criterion.when}</p>
-                <p>{criterion.then}</p>
+              <div
+                className="bg-muted/50 grid grid-cols-[3rem_repeat(3,minmax(0,1fr))] gap-4 rounded-lg px-3 py-3 text-sm"
+                key={criterion.id}
+              >
+                <span className="text-muted-foreground font-medium">
+                  {index + 1}
+                </span>
+                <p className="whitespace-pre-wrap">{criterion.given}</p>
+                <p className="whitespace-pre-wrap">{criterion.when}</p>
+                <p className="whitespace-pre-wrap">{criterion.then}</p>
               </div>
             ))}
           </div>
         </PageSection>
 
         <PageSection title="补充约束">
-          <div className="detail-two-columns">
-            <div>
-              <h3>业务规则</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-muted/50 min-w-0 rounded-lg p-4">
+              <h3 className="mb-3 text-sm font-medium">业务规则</h3>
               <MarkdownView content={story.businessRules} />
             </div>
-            <div>
-              <h3>非功能需求</h3>
+            <div className="bg-muted/50 min-w-0 rounded-lg p-4">
+              <h3 className="mb-3 text-sm font-medium">非功能需求</h3>
               <MarkdownView content={story.nonFunctionalRequirements} />
             </div>
           </div>
         </PageSection>
       </div>
-    </div>
+    </PageContainer>
   );
 }

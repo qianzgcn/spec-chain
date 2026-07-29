@@ -1,6 +1,6 @@
-import { Button, Empty } from "antd";
-
+import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
+import { ProjectRequiredState } from "@/components/projects/project-required-state";
 
 export function ProjectSettingsPage({
   title,
@@ -12,21 +12,13 @@ export function ProjectSettingsPage({
   children: React.ReactNode;
 }) {
   return (
-    <div className="page-shell">
+    <PageContainer className="flex flex-col gap-5">
       <PageHeader title={title} description={description} />
       {children}
-    </div>
+    </PageContainer>
   );
 }
 
 export function NoCurrentProject() {
-  return (
-    <div className="content-panel empty-panel">
-      <Empty description="请先创建一个项目">
-        <Button type="primary" href="/projects">
-          前往项目管理
-        </Button>
-      </Empty>
-    </div>
-  );
+  return <ProjectRequiredState description="请先创建一个项目。" />;
 }

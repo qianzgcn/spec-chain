@@ -1,5 +1,15 @@
 import type { ReactNode } from "react";
 
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+
 export function PageSection({
   title,
   description,
@@ -16,27 +26,25 @@ export function PageSection({
   contentClassName?: string;
 }) {
   return (
-    <section className={`page-section${className ? ` ${className}` : ""}`}>
+    <Card className={cn("min-w-0", className)}>
       {title || description || actions ? (
-        <div className="page-section__header">
-          <div className="min-w-0">
-            {title ? <h2 className="page-section__title">{title}</h2> : null}
-            {description ? (
-              <p className="page-section__description">{description}</p>
-            ) : null}
-          </div>
-          {actions ? (
-            <div className="page-section__actions">{actions}</div>
+        <CardHeader className="border-b">
+          {title ? (
+            <CardTitle>
+              <h2>{title}</h2>
+            </CardTitle>
           ) : null}
-        </div>
+          {description ? (
+            <CardDescription>{description}</CardDescription>
+          ) : null}
+          {actions ? (
+            <CardAction className="flex items-center">{actions}</CardAction>
+          ) : null}
+        </CardHeader>
       ) : null}
-      <div
-        className={`page-section__content${
-          contentClassName ? ` ${contentClassName}` : ""
-        }`}
-      >
+      <CardContent className={cn("min-w-0", contentClassName)}>
         {children}
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   );
 }

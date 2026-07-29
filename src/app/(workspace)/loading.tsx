@@ -1,26 +1,33 @@
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+
 export default function WorkspaceLoading() {
   return (
-    <div className="page-shell" role="status" aria-live="polite">
+    <div
+      className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col gap-5"
+      role="status"
+      aria-live="polite"
+    >
       <span className="sr-only">正在加载页面</span>
-      <div className="page-heading">
-        <div className="w-full max-w-md">
-          <div className="h-7 w-40 animate-pulse rounded bg-slate-200" />
-          <div className="mt-3 h-4 w-72 max-w-full animate-pulse rounded bg-slate-100" />
-        </div>
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-4 w-72 max-w-full" />
       </div>
-      <div className="content-panel overflow-hidden">
-        <div className="flex h-16 items-center gap-4 border-b border-slate-200 px-6">
-          <div className="h-9 w-72 animate-pulse rounded bg-slate-100" />
-          <div className="h-9 w-36 animate-pulse rounded bg-slate-100" />
-        </div>
-        <div className="space-y-5 px-6 py-7">
-          <div className="h-4 w-full animate-pulse rounded bg-slate-100" />
-          <div className="h-4 w-5/6 animate-pulse rounded bg-slate-100" />
-          <div className="h-4 w-11/12 animate-pulse rounded bg-slate-100" />
-          <div className="h-4 w-3/4 animate-pulse rounded bg-slate-100" />
-          <div className="h-4 w-4/5 animate-pulse rounded bg-slate-100" />
-        </div>
-      </div>
+      <Card className="min-h-0 flex-1">
+        <CardHeader className="border-b">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-8 w-72" />
+            <Skeleton className="h-8 w-36" />
+          </div>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-5">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+          <Skeleton className="h-4 w-11/12" />
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-4/5" />
+        </CardContent>
+      </Card>
     </div>
   );
 }

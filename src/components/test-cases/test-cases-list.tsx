@@ -2,22 +2,8 @@
 
 import { useState, useTransition } from "react";
 
-import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import MoreOutlined from "@ant-design/icons/MoreOutlined";
-import PlusOutlined from "@ant-design/icons/PlusOutlined";
-import {
-  Button,
-  Dropdown,
-  Input,
-  Modal,
-  Select,
-  Space,
-  Switch,
-  Table,
-  Tag,
-  message,
-} from "antd";
-import type { TableProps } from "antd";
+import type { ColumnDef } from "@tanstack/react-table";
+import { MoreHorizontalIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -26,6 +12,30 @@ import {
   setTestCaseEnabledAction,
 } from "@/app/actions/test-cases";
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableShell } from "@/components/data-table/data-table-shell";
+import { SearchInput } from "@/components/data-table/search-input";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "@/components/ui/toast";
 import { RunStatus, TestPriority } from "@/generated/prisma/enums";
 import { formatCompactDateTime } from "@/lib/date-time";
 import { RUN_STATUS_META, TEST_PRIORITY_META } from "@/lib/test-cases/meta";
@@ -51,6 +61,20 @@ type TestCaseFilters = {
   page: number;
 };
 
+const PRIORITY_OPTIONS = [
+  { label: "全部优先级", value: null },
+  ...Object.values(TestPriority).map((priority) => ({
+    value: priority,
+    label: priority,
+  })),
+];
+
+const ENABLED_OPTIONS = [
+  { label: "全部状态", value: null },
+  { label: "已启用", value: "true" },
+  { label: "已停用", value: "false" },
+];
+
 export function TestCasesList({
   items,
   total,
@@ -64,9 +88,16 @@ export function TestCasesList({
 }) {
   const router = useRouter();
   const { isNavigating, navigate } = useNavigationFeedback();
-  const [messageApi, messageContext] = message.useMessage();
   const [query, setQuery] = useState(filters.q);
+  const [deleteTarget, setDeleteTarget] = useState<TestCaseListItem | null>(
+    null,
+  );
   const [isPending, startTransition] = useTransition();
+
+  const groupOptions = [
+    { label: "全部分组", value: null },
+    ...groups.map((group) => ({ label: group.name, value: group.id })),
+  ];
 
   function updateQuery(
     changes: Partial<Omit<TestCaseFilters, "page">> & { page?: number },
@@ -85,254 +116,309 @@ export function TestCasesList({
     startTransition(async () => {
       const result = await setTestCaseEnabledAction(id, enabled);
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
-      messageApi.success(result.message);
+      toast.add({ type: "success", description: result.message });
       router.refresh();
     });
   }
 
-  function remove(id: string) {
+  function remove() {
+    if (!deleteTarget) return;
+
     startTransition(async () => {
-      const result = await deleteTestCaseAction(id);
+      const result = await deleteTestCaseAction(deleteTarget.id);
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
-      messageApi.success(result.message);
+      setDeleteTarget(null);
+      toast.add({ type: "success", description: result.message });
       router.refresh();
     });
   }
 
-  function confirmRemove(item: TestCaseListItem) {
-    Modal.confirm({
-      title: "删除测试用例",
-      content: "删除后不能恢复，运行历史仍会保留。",
-      okText: "删除",
-      cancelText: "取消",
-      okButtonProps: { danger: true },
-      onOk: () => remove(item.id),
-    });
-  }
-
-  const columns: TableProps<TestCaseListItem>["columns"] = [
+  const columns: ColumnDef<TestCaseListItem>[] = [
     {
-      title: "编号",
-      dataIndex: "code",
-      width: 170,
-      responsive: ["lg"],
-      render: (code: string) => (
-        <span className="font-mono text-xs text-slate-600">{code}</span>
-      ),
-    },
-    {
-      title: "用例名称",
-      dataIndex: "name",
-      ellipsis: true,
-      render: (name: string, item) => (
-        <Link href={`/test-cases/${item.id}`} className="entity-link">
-          {name}
+      accessorKey: "name",
+      header: "用例名称",
+      cell: ({ row }) => (
+        <Link
+          href={`/test-cases/${row.original.id}`}
+          className="block truncate font-medium underline-offset-4 hover:underline"
+          title={row.original.name}
+        >
+          {row.original.name}
         </Link>
       ),
     },
     {
-      title: "分组",
-      dataIndex: "groupName",
-      width: 120,
-      ellipsis: true,
-      responsive: ["lg"],
+      accessorKey: "code",
+      header: "编号",
+      size: 180,
+      meta: {
+        headerClassName: "max-[1440px]:hidden",
+        cellClassName:
+          "max-[1440px]:hidden font-mono text-xs text-muted-foreground",
+      },
     },
     {
-      title: "优先级",
-      dataIndex: "priority",
-      width: 70,
-      render: (priority: TestPriority) => (
-        <Tag color={TEST_PRIORITY_META[priority].color}>{priority}</Tag>
-      ),
+      accessorKey: "groupName",
+      header: "分组",
+      size: 128,
+      meta: { cellClassName: "truncate" },
     },
     {
-      title: "步骤",
-      dataIndex: "stepCount",
-      width: 60,
-      responsive: ["xl"],
-      render: (count: number) => `${count} 条`,
+      accessorKey: "priority",
+      header: "优先级",
+      size: 76,
+      cell: ({ row }) => {
+        const meta = TEST_PRIORITY_META[row.original.priority];
+        return <Badge variant={meta.badgeVariant}>{meta.label}</Badge>;
+      },
     },
     {
-      title: "自动化",
-      dataIndex: "hasScript",
-      width: 80,
-      responsive: ["xl"],
-      render: (hasScript: boolean) =>
-        hasScript ? (
-          <Tag>已配置</Tag>
+      accessorKey: "stepCount",
+      header: "步骤",
+      size: 64,
+      meta: {
+        headerClassName: "max-[1500px]:hidden",
+        cellClassName: "max-[1500px]:hidden text-muted-foreground",
+      },
+      cell: ({ row }) => `${row.original.stepCount} 条`,
+    },
+    {
+      accessorKey: "hasScript",
+      header: "自动化",
+      size: 84,
+      meta: {
+        headerClassName: "max-[1500px]:hidden",
+        cellClassName: "max-[1500px]:hidden",
+      },
+      cell: ({ row }) =>
+        row.original.hasScript ? (
+          <Badge variant="secondary">已配置</Badge>
         ) : (
-          <span className="text-slate-400">未配置</span>
+          <span className="text-muted-foreground">未配置</span>
         ),
     },
     {
-      title: "最近运行",
-      dataIndex: "lastRunStatus",
-      width: 90,
-      responsive: ["lg"],
-      render: (status: RunStatus | null) =>
-        status ? (
-          <Tag color={RUN_STATUS_META[status].color}>
-            {RUN_STATUS_META[status].label}
-          </Tag>
-        ) : (
-          <span className="text-slate-400">尚未运行</span>
-        ),
+      accessorKey: "lastRunStatus",
+      header: "最近运行",
+      size: 96,
+      cell: ({ row }) => {
+        const status = row.original.lastRunStatus;
+        if (!status) {
+          return <span className="text-muted-foreground">尚未运行</span>;
+        }
+        const meta = RUN_STATUS_META[status];
+        return <Badge variant={meta.badgeVariant}>{meta.label}</Badge>;
+      },
     },
     {
-      title: "启用",
-      dataIndex: "enabled",
-      width: 60,
-      render: (enabled: boolean, item) => (
+      accessorKey: "enabled",
+      header: "启用",
+      size: 64,
+      cell: ({ row }) => (
         <Switch
-          size="small"
-          checked={enabled}
+          size="sm"
+          checked={row.original.enabled}
           disabled={isPending}
-          onChange={(checked) => changeEnabled(item.id, checked)}
+          aria-label={`${row.original.name}启用状态`}
+          onCheckedChange={(checked) => changeEnabled(row.original.id, checked)}
         />
       ),
     },
     {
-      title: "更新时间",
-      dataIndex: "updatedAt",
-      width: 135,
-      responsive: ["xxl"],
-      render: (value: string) => formatCompactDateTime(value),
+      accessorKey: "updatedAt",
+      header: "更新时间",
+      size: 138,
+      meta: {
+        headerClassName: "max-[1680px]:hidden",
+        cellClassName: "max-[1680px]:hidden text-muted-foreground",
+      },
+      cell: ({ row }) => formatCompactDateTime(row.original.updatedAt),
     },
     {
-      title: "操作",
-      width: 160,
-      align: "center",
-      render: (_, item) => (
-        <Space
-          className="w-full justify-center"
-          size={2}
+      id: "actions",
+      header: () => <span className="sr-only">操作</span>,
+      size: 108,
+      meta: { headerClassName: "text-right", cellClassName: "text-right" },
+      cell: ({ row }) => (
+        <div
+          className="flex items-center justify-end gap-1"
           data-testid="test-case-actions"
         >
-          <Button type="link" size="small" href={`/test-cases/${item.id}`}>
-            查看
-          </Button>
-          <Button type="link" size="small" href={`/test-cases/${item.id}/edit`}>
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={`/test-cases/${row.original.id}/edit`} />}
+          >
             编辑
           </Button>
-          <Dropdown
-            trigger={["click"]}
-            menu={{
-              items: [
-                {
-                  key: "delete",
-                  icon: <DeleteOutlined />,
-                  label: "删除",
-                  danger: true,
-                  disabled: isPending,
-                  onClick: () => confirmRemove(item),
-                },
-              ],
-            }}
-          >
-            <Button
-              type="text"
-              size="small"
-              icon={<MoreOutlined />}
-              aria-label="更多操作"
-            />
-          </Dropdown>
-        </Space>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="icon-sm" aria-label="更多操作" />
+              }
+            >
+              <MoreHorizontalIcon />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={isPending}
+                  onClick={() => setDeleteTarget(row.original)}
+                >
+                  <Trash2Icon />
+                  删除
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       ),
     },
   ];
 
   return (
     <>
-      {messageContext}
-      <div className="content-panel table-page-panel">
-        <div className="table-toolbar">
-          <Input.Search
-            className="table-search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onSearch={() => updateQuery({ q: query.trim(), page: 1 })}
-            placeholder="搜索编号或用例名称"
-            allowClear
-          />
-          <Select
-            className="w-48"
-            value={filters.group || undefined}
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            placeholder="全部分组"
-            onChange={(group = "") => updateQuery({ group, page: 1 })}
-            options={groups.map((group) => ({
-              value: group.id,
-              label: group.name,
-            }))}
-          />
-          <Select
-            className="w-32"
-            value={filters.priority || undefined}
-            allowClear
-            placeholder="全部优先级"
-            onChange={(priority = "") => updateQuery({ priority, page: 1 })}
-            options={Object.values(TestPriority).map((priority) => ({
-              value: priority,
-              label: priority,
-            }))}
-          />
-          <Select
-            className="w-32"
-            value={filters.enabled || undefined}
-            allowClear
-            placeholder="全部状态"
-            onChange={(enabled = "") => updateQuery({ enabled, page: 1 })}
-            options={[
-              { value: "true", label: "已启用" },
-              { value: "false", label: "已停用" },
-            ]}
-          />
-          {filters.q || filters.group || filters.priority || filters.enabled ? (
-            <Button
-              type="link"
-              onClick={() => {
-                setQuery("");
-                navigate("/test-cases");
-              }}
+      <DataTableShell
+        toolbar={
+          <>
+            <SearchInput
+              value={query}
+              placeholder="搜索编号或用例名称"
+              onChange={setQuery}
+              onSearch={(value) => updateQuery({ q: value, page: 1 })}
+            />
+            <Select
+              items={groupOptions}
+              value={filters.group || null}
+              onValueChange={(value) =>
+                updateQuery({ group: value ?? "", page: 1 })
+              }
             >
-              重置筛选
+              <SelectTrigger className="w-40" aria-label="用例分组">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {groupOptions.map((option) => (
+                    <SelectItem
+                      key={option.value ?? "all"}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select
+              items={PRIORITY_OPTIONS}
+              value={filters.priority || null}
+              onValueChange={(value) =>
+                updateQuery({ priority: value ?? "", page: 1 })
+              }
+            >
+              <SelectTrigger className="w-36" aria-label="优先级">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {PRIORITY_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value ?? "all"}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select
+              items={ENABLED_OPTIONS}
+              value={filters.enabled || null}
+              onValueChange={(value) =>
+                updateQuery({ enabled: value ?? "", page: 1 })
+              }
+            >
+              <SelectTrigger className="w-32" aria-label="启用状态">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {ENABLED_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value ?? "all"}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            {filters.q ||
+            filters.group ||
+            filters.priority ||
+            filters.enabled ? (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setQuery("");
+                  navigate("/test-cases");
+                }}
+              >
+                重置筛选
+              </Button>
+            ) : null}
+            <Button
+              className="ml-auto"
+              nativeButton={false}
+              render={<Link href="/test-cases/new" />}
+            >
+              <PlusIcon data-icon="inline-start" />
+              新建用例
             </Button>
-          ) : null}
-          <Button
-            type="primary"
-            className="ml-auto"
-            icon={<PlusOutlined />}
-            href="/test-cases/new"
-          >
-            新建用例
-          </Button>
-        </div>
-        <Table<TestCaseListItem>
-          rowKey="id"
+          </>
+        }
+        footer={
+          <DataTablePagination
+            page={filters.page}
+            pageSize={20}
+            total={total}
+            itemName="条用例"
+            onChange={(page) => updateQuery({ page })}
+          />
+        }
+      >
+        <DataTable
           columns={columns}
-          dataSource={items}
+          data={items}
           loading={isPending || isNavigating}
-          tableLayout="fixed"
-          scroll={{ y: "100%" }}
-          pagination={{
-            current: filters.page,
-            pageSize: 20,
-            total,
-            showSizeChanger: false,
-            showTotal: (count) => `共 ${count} 条用例`,
-            onChange: (page) => updateQuery({ page }),
-          }}
-          locale={{ emptyText: "还没有测试用例" }}
+          emptyText="还没有测试用例"
+          getRowId={(item) => item.id}
         />
-      </div>
+      </DataTableShell>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="删除测试用例"
+        description="删除后不能恢复，运行历史仍会保留。"
+        confirmLabel="删除"
+        destructive
+        pending={isPending}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        onConfirm={remove}
+      />
     </>
   );
 }

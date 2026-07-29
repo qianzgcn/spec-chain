@@ -5,14 +5,19 @@ import path from "node:path";
 import { encryptAesGcm } from "@/lib/security/aes-gcm";
 
 async function expectTablePageFillsWorkspace(page: Page) {
-  const metrics = await page.locator("main").evaluate((main) => {
-    const panel = main.querySelector<HTMLElement>(".table-page-panel");
-    const tableBody = panel?.querySelector<HTMLElement>(".ant-table-body");
+  const panel = page.getByTestId("data-table-shell");
+  await expect(panel).toBeVisible();
+
+  const metrics = await panel.evaluate((panel) => {
+    const main = panel.closest<HTMLElement>("main");
+    const tableBody = panel?.querySelector<HTMLElement>(
+      '[data-slot="table-container"]',
+    );
     const pagination = panel?.querySelector<HTMLElement>(
-      ".ant-table-pagination",
+      '[data-testid="data-table-pagination"]',
     );
 
-    if (!panel || !tableBody) return null;
+    if (!main || !tableBody) return null;
 
     const panelRect = panel.getBoundingClientRect();
     const tableBodyRect = tableBody.getBoundingClientRect();
@@ -62,17 +67,16 @@ async function expectTestCaseActionsAligned(page: Page) {
   await expect
     .poll(async () =>
       page.evaluate(() => {
-        const header = [
-          ...document.querySelectorAll<HTMLTableCellElement>(
-            ".ant-table-header th",
-          ),
-        ].find((cell) => cell.textContent?.trim() === "操作");
-        const row = document.querySelector<HTMLTableRowElement>(
-          "tbody tr:not(.ant-table-measure-row)",
+        const table = document.querySelector<HTMLTableElement>(
+          '[data-testid="data-table"]',
         );
-        const content = header
-          ? (row?.cells.item(header.cellIndex) as HTMLElement | null)
-          : null;
+        const header = table?.querySelector<HTMLTableCellElement>(
+          "thead th:last-child",
+        );
+        const row = document.querySelector<HTMLTableRowElement>(
+          '[data-testid="data-table"] tbody tr',
+        );
+        const content = row?.cells.item((row?.cells.length ?? 1) - 1);
         const actions = content?.querySelector<HTMLElement>(
           '[data-testid="test-case-actions"]',
         );
@@ -80,12 +84,10 @@ async function expectTestCaseActionsAligned(page: Page) {
 
         const headerRect = header.getBoundingClientRect();
         const actionsRect = actions.getBoundingClientRect();
-        const headerCenter = (headerRect.left + headerRect.right) / 2;
-        const actionsCenter = (actionsRect.left + actionsRect.right) / 2;
-        return Math.abs(headerCenter - actionsCenter);
+        return Math.abs(headerRect.right - actionsRect.right);
       }),
     )
-    .toBeLessThanOrEqual(1);
+    .toBeLessThanOrEqual(12);
 
   const moreButton = page.getByRole("button", { name: "更多操作" }).first();
   await expect(moreButton).toBeVisible();
@@ -99,11 +101,11 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
 
   await page.getByRole("textbox", { name: "用户名" }).fill("admin");
   await page.getByRole("textbox", { name: "密码" }).fill("wrong-password");
-  await page.getByRole("button", { name: "登 录" }).click();
+  await page.getByRole("button", { name: "登录" }).click();
   await expect(page.getByText("用户名或密码错误")).toBeVisible();
 
   await page.getByRole("textbox", { name: "密码" }).fill("admin12345");
-  await page.getByRole("button", { name: "登 录" }).click();
+  await page.getByRole("button", { name: "登录" }).click();
   await expect(page).toHaveURL(/\/projects$/);
 
   await page.goto("/projects");
@@ -122,14 +124,14 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
     .fill("支持符合条件的订单退款");
   await page
     .getByRole("textbox", {
-      name: /当前业务问题/,
+      name: "业务背景与目标",
     })
     .fill("统一退款入口，降低人工操作风险。");
-  await page.getByRole("button", { name: "保 存" }).click();
+  await page.getByRole("button", { name: "保存" }).click();
   await expect(page.getByRole("heading", { name: "订单退款" })).toBeVisible();
   await expect(page.getByText("共 0 个")).toBeVisible();
 
-  await page.getByRole("link", { name: "新建US" }).click();
+  await page.getByRole("button", { name: "新建US" }).click();
   await page.getByRole("textbox", { name: "US 标题" }).fill("客服提交退款");
   await page.getByRole("textbox", { name: "As" }).fill("客服专员");
   await page.getByRole("textbox", { name: "I want" }).fill("提交订单退款申请");
@@ -137,7 +139,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await page.getByRole("textbox", { name: "Given" }).fill("订单已支付");
   await page.getByRole("textbox", { name: "When" }).fill("客服确认退款");
   await page.getByRole("textbox", { name: "Then" }).fill("系统创建退款记录");
-  await page.getByRole("button", { name: "保 存" }).click();
+  await page.getByRole("button", { name: "保存" }).click();
   await expect(
     page.getByRole("heading", { name: "客服提交退款" }),
   ).toBeVisible();
@@ -152,7 +154,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await page.goto("/test-case-groups");
   await page.getByRole("button", { name: "新建分组" }).click();
   await page.getByRole("textbox", { name: "分组名称" }).fill("退款流程");
-  await page.getByRole("button", { name: "保 存" }).click();
+  await page.getByRole("button", { name: "保存" }).click();
   await expect(page.getByText("退款流程")).toBeVisible();
 
   await page.goto("/test-cases/new");
@@ -162,7 +164,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await page
     .getByRole("textbox", { name: "测试步骤" })
     .fill("1. 输入退款原因\n2. 点击提交，退款记录创建成功");
-  await page.getByRole("button", { name: "保 存" }).click();
+  await page.getByRole("button", { name: "保存" }).click();
 
   await expect(
     page.getByRole("heading", { name: "客服成功提交退款" }),
@@ -177,7 +179,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
     await new Promise((resolve) => setTimeout(resolve, 400));
     await route.continue();
   });
-  await page.getByRole("link", { name: "执行记录" }).click();
+  await page.getByRole("button", { name: "执行记录" }).click();
   await expect(page.getByText("正在加载…")).toBeVisible();
   await expect(page).toHaveURL(/\/test-cases\/.+\/runs$/);
   await expect(page.getByRole("heading", { name: "执行记录" })).toBeVisible();
@@ -225,9 +227,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   const variableType = page.getByRole("combobox", { name: "类型" });
   await expect(variableType).toBeVisible();
   await variableType.click();
-  await page
-    .locator(".ant-select-item-option", { hasText: "敏感变量" })
-    .click();
+  await page.getByRole("option", { name: "敏感变量" }).click();
   await expect(page.getByLabel("值")).toHaveAttribute("type", "password");
   await page.getByRole("textbox", { name: "变量名" }).fill("E2E_SECRET");
   await page.getByLabel("值").fill("e2e-secret-value");
@@ -286,11 +286,11 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
 
   expect(encryptedCredential.githubPatEncrypted).not.toContain(githubPat);
 
-  await page.getByRole("button", { name: "删除 GitHub PAT" }).click();
-  const deletePatDialog = page.getByRole("dialog");
+  await page.getByRole("button", { name: "删除", exact: true }).click();
+  const deletePatDialog = page.getByRole("alertdialog");
   await expect(deletePatDialog).toBeVisible();
   await deletePatDialog
-    .getByRole("button", { name: "确认删除 GitHub PAT" })
+    .getByRole("button", { name: "删除", exact: true })
     .click();
   await expect(page.getByLabel("GitHub PAT", { exact: true })).toBeVisible();
   await expect(page.getByText("未配置", { exact: true })).toHaveCount(2);
@@ -318,15 +318,11 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
     .getByRole("textbox", { name: "模型 ID" })
     .fill("e2e-structured-model");
   await page.getByLabel("API Key").fill("e2e-model-api-key");
-  await page.getByRole("button", { name: "保 存" }).click();
+  await page.getByRole("button", { name: "保存" }).click();
   await expect(page.getByText("E2E OpenAI 兼容模型")).toBeVisible();
 
   await page.getByRole("combobox", { name: "生成 US 默认模型" }).click();
-  await page
-    .locator(".ant-select-item-option", {
-      hasText: "E2E OpenAI 兼容模型",
-    })
-    .click();
+  await page.getByRole("option", { name: /E2E OpenAI 兼容模型/ }).click();
   await expect(page.getByText("生成 US 默认", { exact: true })).toBeVisible();
 
   const encryptedModelDatabase = new Database(databasePath, {
@@ -343,14 +339,18 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
 
   await page.goto("/requirements");
   await page.getByRole("link", { name: "订单退款" }).click();
-  await page.getByRole("link", { name: "新建US" }).click();
+  await expect(page).toHaveURL(/\/features\/[^/]+$/);
+  await expect(page.getByRole("heading", { name: "订单退款" })).toBeVisible();
+  await page.getByRole("button", { name: "新建US" }).click();
   await expect(page.getByRole("heading", { name: "新建US" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "AI辅助生成US" })).toBeVisible();
-  await page.getByRole("link", { name: "AI辅助生成US" }).click();
+  await expect(
+    page.getByRole("button", { name: "AI辅助生成US" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "AI辅助生成US" }).click();
   await expect(
     page.getByRole("heading", { name: "AI辅助生成US" }),
   ).toBeVisible();
-  await expect(page.locator("form .ant-form-item")).toHaveCount(1);
+  await expect(page.locator("form").getByRole("textbox")).toHaveCount(1);
   await expect(page.getByText(/FE-/)).toBeVisible();
   await page
     .getByRole("textbox", { name: "需求内容" })
@@ -484,7 +484,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   const successfulExecutionRow = page
     .locator("tbody tr")
     .filter({ hasText: "客服需要提交订单退款" });
-  await successfulExecutionRow.getByRole("link", { name: "查看" }).click();
+  await successfulExecutionRow.getByRole("button", { name: "查看" }).click();
   await expect(
     page.getByRole("heading", { name: "AI辅助生成US" }),
   ).toBeVisible();
@@ -503,7 +503,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   expect(executionPayload).not.toContain("codeReferences");
   expect(executionPayload).not.toContain("src/app/refunds/page.tsx");
 
-  await page.getByRole("link", { name: "查看生成结果" }).click();
+  await page.getByRole("button", { name: "查看生成结果" }).click();
   await expect(page).toHaveURL(/\/requirements\/pending-review\/e2e-ai-draft$/);
   await expect(page.getByRole("heading", { name: "评审需求" })).toBeVisible();
   await page.getByRole("textbox", { name: "US 标题" }).fill("客服提交订单退款");
@@ -512,7 +512,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
 
   await page.goto("/requirements/pending-review");
   await expect(page.getByText("客服提交订单退款")).toBeVisible();
-  await page.getByRole("link", { name: "评审" }).click();
+  await page.getByRole("button", { name: "评审" }).click();
   await page.getByRole("button", { name: "确认创建US" }).click();
   await expect(
     page.getByRole("heading", { name: "客服提交订单退款" }),

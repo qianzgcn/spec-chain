@@ -2,9 +2,14 @@
 
 import { useState, useTransition } from "react";
 
-import PlusOutlined from "@ant-design/icons/PlusOutlined";
-import { Button, Input, Modal, Select, Space, Table, Tag, message } from "antd";
-import type { TableProps } from "antd";
+import type { ColumnDef, ExpandedState, Updater } from "@tanstack/react-table";
+import {
+  ChevronRightIcon,
+  CopyIcon,
+  MoreHorizontalIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -15,11 +20,35 @@ import {
   updateUserStoryStatusAction,
 } from "@/app/actions/requirements";
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableShell } from "@/components/data-table/data-table-shell";
+import { SearchInput } from "@/components/data-table/search-input";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { RequirementStatusBadge } from "@/components/requirements/requirement-status-badge";
 import { RequirementStatusSelectControl } from "@/components/requirements/requirement-status-select-control";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "@/components/ui/toast";
 import { RequirementStatus } from "@/generated/prisma/enums";
 import { formatCompactDateTime } from "@/lib/date-time";
 import { REQUIREMENT_STATUS_META } from "@/lib/requirements/status";
+import { cn } from "@/lib/utils";
 
 export type RequirementListItem = {
   id: string;
@@ -40,6 +69,20 @@ type RequirementFilters = {
   page: number;
 };
 
+const TYPE_OPTIONS = [
+  { label: "全部类型", value: null },
+  { label: "FE", value: "FEATURE" },
+  { label: "US", value: "USER_STORY" },
+];
+
+const STATUS_OPTIONS = [
+  { label: "全部状态", value: null },
+  ...Object.values(RequirementStatus).map((status) => ({
+    value: status,
+    label: REQUIREMENT_STATUS_META[status].label,
+  })),
+];
+
 export function RequirementsList({
   items,
   total,
@@ -51,21 +94,25 @@ export function RequirementsList({
 }) {
   const router = useRouter();
   const { isNavigating, navigate } = useNavigationFeedback();
-  const [messageApi, messageContext] = message.useMessage();
   const [query, setQuery] = useState(filters.q);
   const [isPending, startTransition] = useTransition();
   const [, startStatusTransition] = useTransition();
   const [updatingStoryId, setUpdatingStoryId] = useState<string | null>(null);
-  const autoExpandedRowKeys = items
-    .filter((item) => item.type === "FEATURE" && item.autoExpand)
-    .map((item) => `FEATURE-${item.id}`);
-  const expansionKey = `${filters.q}\u0000${autoExpandedRowKeys.join(",")}`;
-  const [expansion, setExpansion] = useState({
-    key: expansionKey,
-    rowKeys: autoExpandedRowKeys,
-  });
-  const expandedRowKeys =
-    expansion.key === expansionKey ? expansion.rowKeys : autoExpandedRowKeys;
+  const [deleteTarget, setDeleteTarget] = useState<RequirementListItem | null>(
+    null,
+  );
+  const autoExpanded = Object.fromEntries(
+    items
+      .filter((item) => item.type === "FEATURE" && item.autoExpand)
+      .map((item) => [`FEATURE-${item.id}`, true]),
+  );
+  const expansionKey = `${filters.q}\u0000${Object.keys(autoExpanded).join(",")}`;
+  const [expansion, setExpansion] = useState<{
+    key: string;
+    value: ExpandedState;
+  }>({ key: expansionKey, value: autoExpanded });
+  const expanded =
+    expansion.key === expansionKey ? expansion.value : autoExpanded;
 
   function updateQuery(
     changes: Partial<Omit<RequirementFilters, "page">> & { page?: number },
@@ -83,14 +130,17 @@ export function RequirementsList({
     startTransition(async () => {
       const result = await getRequirementMarkdownAction(item.type, item.id);
       if (!result.ok || !result.data) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
       try {
         await navigator.clipboard.writeText(result.data.markdown);
-        messageApi.success("需求内容已复制");
+        toast.add({ type: "success", description: "需求内容已复制" });
       } catch {
-        messageApi.error("浏览器未允许访问剪贴板");
+        toast.add({
+          type: "error",
+          description: "浏览器未允许访问剪贴板",
+        });
       }
     });
   }
@@ -103,10 +153,10 @@ export function RequirementsList({
       try {
         const result = await updateUserStoryStatusAction(id, status);
         if (!result.ok) {
-          messageApi.error(result.message);
+          toast.add({ type: "error", description: result.message });
           return;
         }
-        messageApi.success(result.message);
+        toast.add({ type: "success", description: result.message });
         router.refresh();
       } finally {
         setUpdatingStoryId(null);
@@ -114,114 +164,146 @@ export function RequirementsList({
     });
   }
 
-  function deleteRequirement(item: RequirementListItem) {
+  function deleteRequirement() {
+    if (!deleteTarget) return;
+
     startTransition(async () => {
       const result =
-        item.type === "FEATURE"
-          ? await deleteFeatureAction(item.id)
-          : await deleteUserStoryAction(item.id);
+        deleteTarget.type === "FEATURE"
+          ? await deleteFeatureAction(deleteTarget.id)
+          : await deleteUserStoryAction(deleteTarget.id);
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
-      messageApi.success(result.message);
+      setDeleteTarget(null);
+      toast.add({ type: "success", description: result.message });
       router.refresh();
     });
   }
 
-  function confirmDeleteRequirement(item: RequirementListItem) {
-    Modal.confirm({
-      title: `删除${item.type === "FEATURE" ? " FE" : " US"}`,
-      content:
-        item.type === "FEATURE"
-          ? `将同时删除 ${item.childCount ?? 0} 个关联 US，且不能恢复。`
-          : "删除后不能恢复，不会影响已关联的测试用例。",
-      okText: "删除",
-      cancelText: "取消",
-      okButtonProps: { danger: true },
-      onOk: () => deleteRequirement(item),
-    });
+  function changeExpanded(updater: Updater<ExpandedState>) {
+    const next = typeof updater === "function" ? updater(expanded) : updater;
+    setExpansion({ key: expansionKey, value: next });
   }
 
-  const columns: TableProps<RequirementListItem>["columns"] = [
+  const columns: ColumnDef<RequirementListItem>[] = [
     {
-      title: "名称",
-      dataIndex: "title",
-      ellipsis: true,
-      render: (title: string, item) => {
+      accessorKey: "title",
+      header: "名称",
+      cell: ({ row }) => {
+        const item = row.original;
         const href =
           item.type === "FEATURE"
             ? `/features/${item.id}`
             : `/user-stories/${item.id}`;
+
         return (
-          <div className="requirement-name">
-            <Link href={href}>{title}</Link>
+          <div
+            className="flex min-w-0 items-center gap-2"
+            style={{ paddingLeft: row.depth * 20 }}
+          >
+            {row.getCanExpand() ? (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={row.getIsExpanded() ? "收起行" : "展开行"}
+                onClick={row.getToggleExpandedHandler()}
+              >
+                <ChevronRightIcon
+                  className={cn(
+                    "transition-transform",
+                    row.getIsExpanded() && "rotate-90",
+                  )}
+                />
+              </Button>
+            ) : (
+              <span className="size-6 shrink-0" aria-hidden />
+            )}
+            <Link
+              href={href}
+              className="min-w-0 truncate font-medium underline-offset-4 hover:underline"
+              title={item.title}
+            >
+              {item.title}
+            </Link>
             {item.type === "FEATURE" ? (
-              <span>{item.childCount ?? 0} 个 US</span>
+              <span className="text-muted-foreground shrink-0 text-xs">
+                {item.childCount ?? 0} 个 US
+              </span>
             ) : null}
           </div>
         );
       },
     },
     {
-      title: "编号",
-      dataIndex: "code",
-      width: 184,
-      render: (code: string) => (
-        <span className="font-mono text-xs text-slate-600">{code}</span>
+      accessorKey: "code",
+      header: "编号",
+      size: 184,
+      meta: { cellClassName: "font-mono text-xs text-muted-foreground" },
+    },
+    {
+      accessorKey: "type",
+      header: "类型",
+      size: 64,
+      cell: ({ row }) => (
+        <Badge variant="outline">
+          {row.original.type === "FEATURE" ? "FE" : "US"}
+        </Badge>
       ),
     },
     {
-      title: "类型",
-      dataIndex: "type",
-      width: 60,
-      render: (type: RequirementListItem["type"]) =>
-        type === "FEATURE" ? <Tag>FE</Tag> : <Tag>US</Tag>,
-    },
-    {
-      title: "状态",
-      dataIndex: "status",
-      width: 116,
-      onCell: () => ({ className: "requirement-status-cell" }),
-      render: (status: RequirementStatus, item) =>
-        item.type === "USER_STORY" ? (
+      accessorKey: "status",
+      header: "状态",
+      size: 116,
+      cell: ({ row }) =>
+        row.original.type === "USER_STORY" ? (
           <RequirementStatusSelectControl
-            value={status}
-            disabled={updatingStoryId === item.id}
-            loading={updatingStoryId === item.id}
-            onChange={(value) => changeStatus(item.id, value)}
+            value={row.original.status}
+            disabled={updatingStoryId === row.original.id}
+            loading={updatingStoryId === row.original.id}
+            onChange={(value) => changeStatus(row.original.id, value)}
           />
         ) : (
-          <span className="requirement-status-display">
-            <RequirementStatusBadge status={status} />
-          </span>
+          <RequirementStatusBadge status={row.original.status} />
         ),
     },
     {
-      title: "更新时间",
-      dataIndex: "updatedAt",
-      width: 135,
-      responsive: ["xl"],
-      render: (value: string) => formatCompactDateTime(value),
+      accessorKey: "updatedAt",
+      header: "更新时间",
+      size: 140,
+      meta: {
+        headerClassName: "max-[1440px]:hidden",
+        cellClassName: "max-[1440px]:hidden text-muted-foreground",
+      },
+      cell: ({ row }) => formatCompactDateTime(row.original.updatedAt),
     },
     {
-      title: "操作",
-      key: "actions",
-      width: 304,
-      render: (_, item) => {
+      id: "actions",
+      header: () => <span className="sr-only">操作</span>,
+      size: 170,
+      meta: { headerClassName: "text-right", cellClassName: "text-right" },
+      cell: ({ row }) => {
+        const item = row.original;
         const basePath =
           item.type === "FEATURE"
             ? `/features/${item.id}`
             : `/user-stories/${item.id}`;
+
         return (
-          <Space size={8} className="requirement-actions">
-            <Button type="link" size="small" href={`${basePath}/edit`}>
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`${basePath}/edit`} />}
+            >
               编辑
             </Button>
             {item.type === "FEATURE" ? (
               <Button
-                type="link"
-                size="small"
+                variant="ghost"
+                size="sm"
                 onClick={() =>
                   navigate(`/features/${item.id}/user-stories/new`)
                 }
@@ -229,24 +311,39 @@ export function RequirementsList({
                 新建US
               </Button>
             ) : null}
-            <Button
-              type="link"
-              size="small"
-              disabled={isPending}
-              onClick={() => copyRequirement(item)}
-            >
-              复制内容
-            </Button>
-            <Button
-              type="link"
-              size="small"
-              danger
-              disabled={isPending}
-              onClick={() => confirmDeleteRequirement(item)}
-            >
-              删除
-            </Button>
-          </Space>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="更多操作"
+                  />
+                }
+              >
+                <MoreHorizontalIcon />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    disabled={isPending}
+                    onClick={() => copyRequirement(item)}
+                  >
+                    <CopyIcon />
+                    复制内容
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={isPending}
+                    onClick={() => setDeleteTarget(item)}
+                  >
+                    <Trash2Icon />
+                    删除
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         );
       },
     },
@@ -254,97 +351,132 @@ export function RequirementsList({
 
   return (
     <>
-      {messageContext}
-      <div className="content-panel table-page-panel">
-        <div className="table-toolbar">
-          <Input.Search
-            className="table-search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onSearch={(value) => {
-              const normalizedQuery = value.trim();
-              setQuery(normalizedQuery);
-              updateQuery({ q: normalizedQuery, page: 1 });
-            }}
-            placeholder="搜索编号或名称"
-            allowClear
-          />
-          <Select
-            className="w-32"
-            value={filters.type || undefined}
-            allowClear
-            placeholder="全部类型"
-            onChange={(type = "") => updateQuery({ type, page: 1 })}
-            options={[
-              { value: "FEATURE", label: "FE" },
-              { value: "USER_STORY", label: "US" },
-            ]}
-          />
-          <Select
-            className="w-32"
-            value={filters.status || undefined}
-            allowClear
-            placeholder="全部状态"
-            onChange={(status = "") => updateQuery({ status, page: 1 })}
-            options={Object.values(RequirementStatus).map((status) => ({
-              value: status,
-              label: REQUIREMENT_STATUS_META[status].label,
-            }))}
-          />
-          {filters.q || filters.type || filters.status ? (
-            <Button
-              type="link"
-              onClick={() => {
-                setQuery("");
-                navigate("/requirements");
-              }}
+      <DataTableShell
+        toolbar={
+          <>
+            <SearchInput
+              value={query}
+              placeholder="搜索编号或名称"
+              onChange={setQuery}
+              onSearch={(value) => updateQuery({ q: value, page: 1 })}
+            />
+            <Select
+              items={TYPE_OPTIONS}
+              value={filters.type || null}
+              onValueChange={(value) =>
+                updateQuery({ type: value ?? "", page: 1 })
+              }
             >
-              重置筛选
-            </Button>
-          ) : null}
-          <div className="table-toolbar__actions">
-            <Button icon={<PlusOutlined />} href="/user-stories/new">
-              新建US
-            </Button>
-            <Button type="primary" icon={<PlusOutlined />} href="/features/new">
-              新建 FE
-            </Button>
-          </div>
-        </div>
-        <Table<RequirementListItem>
-          rowKey={(item) => `${item.type}-${item.id}`}
+              <SelectTrigger className="w-32" aria-label="需求类型">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {TYPE_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value ?? "all"}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select
+              items={STATUS_OPTIONS}
+              value={filters.status || null}
+              onValueChange={(value) =>
+                updateQuery({ status: value ?? "", page: 1 })
+              }
+            >
+              <SelectTrigger className="w-32" aria-label="需求状态筛选">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {STATUS_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value ?? "all"}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            {filters.q || filters.type || filters.status ? (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setQuery("");
+                  navigate("/requirements");
+                }}
+              >
+                重置筛选
+              </Button>
+            ) : null}
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="outline"
+                nativeButton={false}
+                render={<Link href="/user-stories/new" />}
+              >
+                <PlusIcon data-icon="inline-start" />
+                新建US
+              </Button>
+              <Button
+                nativeButton={false}
+                render={<Link href="/features/new" />}
+              >
+                <PlusIcon data-icon="inline-start" />
+                新建 FE
+              </Button>
+            </div>
+          </>
+        }
+        footer={
+          <DataTablePagination
+            page={filters.page}
+            pageSize={20}
+            total={total}
+            itemName="条需求"
+            onChange={(page) => updateQuery({ page })}
+          />
+        }
+      >
+        <DataTable
           columns={columns}
-          dataSource={items}
+          data={items}
           loading={isPending || isNavigating}
-          tableLayout="fixed"
-          expandable={{
-            childrenColumnName: "children",
-            indentSize: 24,
-            rowExpandable: (item) =>
-              item.type === "FEATURE" && Boolean(item.children?.length),
-            expandedRowKeys,
-            onExpandedRowsChange: (rowKeys) =>
-              setExpansion({
-                key: expansionKey,
-                rowKeys: rowKeys.map(String),
-              }),
-          }}
-          rowClassName={(item) =>
-            item.type === "FEATURE"
-              ? "requirement-row requirement-row--feature"
-              : "requirement-row requirement-row--story"
+          emptyText="还没有需求"
+          getRowId={(item) => `${item.type}-${item.id}`}
+          getSubRows={(item) => item.children}
+          expanded={expanded}
+          onExpandedChange={changeExpanded}
+          rowClassName={(row) =>
+            row.original.type === "FEATURE" ? "bg-muted/20" : undefined
           }
-          scroll={{ y: "100%" }}
-          pagination={{
-            current: filters.page,
-            pageSize: 20,
-            total,
-            showSizeChanger: false,
-            showTotal: (count) => `共 ${count} 条需求`,
-            onChange: (page) => updateQuery({ page }),
-          }}
         />
-      </div>
+      </DataTableShell>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title={`删除${deleteTarget?.type === "FEATURE" ? " FE" : " US"}`}
+        description={
+          deleteTarget?.type === "FEATURE"
+            ? `将同时删除 ${deleteTarget.childCount ?? 0} 个关联 US，且不能恢复。`
+            : "删除后不能恢复，不会影响已关联的测试用例。"
+        }
+        confirmLabel="删除"
+        destructive
+        pending={isPending}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        onConfirm={deleteRequirement}
+      />
     </>
   );
 }

@@ -46,26 +46,21 @@ export default async function ProjectTestingSettingsPage() {
   });
 
   return (
-    <ProjectSettingsPage
-      title="测试设置"
-      description="配置自动化测试访问地址和运行环境变量。"
-    >
-      <ProjectTestingSettingsForm
-        key={`${project.id}:${project.variables
-          .map((variable) => variable.id)
-          .join(",")}`}
-        project={{
-          id: project.id,
-          baseUrl: project.baseUrl ?? "",
-          variables: project.variables.map((variable) => ({
-            id: variable.id,
-            name: variable.name,
-            value: variable.kind === "SECRET" ? "" : variable.value,
-            description: variable.description ?? "",
-            kind: variable.kind,
-          })),
-        }}
-      />
-    </ProjectSettingsPage>
+    <ProjectTestingSettingsForm
+      key={`${project.id}:${project.variables
+        .map((variable) => variable.id)
+        .join(",")}`}
+      project={{
+        id: project.id,
+        baseUrl: project.baseUrl ?? "",
+        variables: project.variables.map((variable) => ({
+          id: variable.id,
+          name: variable.name,
+          value: variable.kind === "SECRET" ? "" : variable.value,
+          description: variable.description ?? "",
+          kind: variable.kind,
+        })),
+      }}
+    />
   );
 }

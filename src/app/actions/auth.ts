@@ -1,10 +1,9 @@
 "use server";
 
-import { z } from "zod";
-
 import { redirect } from "next/navigation";
 
 import type { ActionResult } from "@/lib/action-result";
+import { changePasswordSchema, loginSchema } from "@/lib/auth/schemas";
 import { hashPassword, verifyPassword } from "@/lib/security/password";
 import { db } from "@/server/db";
 import {
@@ -13,22 +12,6 @@ import {
   requireUser,
   revokeUserSessions,
 } from "@/server/auth/session";
-
-const loginSchema = z.object({
-  username: z.string().trim().min(1, "请输入用户名"),
-  password: z.string().min(1, "请输入密码"),
-});
-
-const changePasswordSchema = z
-  .object({
-    currentPassword: z.string().min(1, "请输入当前密码"),
-    newPassword: z.string().min(8, "新密码至少需要 8 位"),
-    confirmPassword: z.string().min(1, "请再次输入新密码"),
-  })
-  .refine((input) => input.newPassword === input.confirmPassword, {
-    path: ["confirmPassword"],
-    message: "两次输入的新密码不一致",
-  });
 
 const dummyPasswordHashPromise = hashPassword(
   "specchain-invalid-password-placeholder",

@@ -2,23 +2,15 @@
 
 import { useState, useTransition } from "react";
 
-import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import EditOutlined from "@ant-design/icons/EditOutlined";
-import KeyOutlined from "@ant-design/icons/KeyOutlined";
-import PlusOutlined from "@ant-design/icons/PlusOutlined";
+import { zodResolver } from "@hookform/resolvers/zod";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
-  Button,
-  Form,
-  Input,
-  Modal,
-  Popconfirm,
-  Select,
-  Space,
-  Table,
-  Tag,
-  message,
-} from "antd";
-import type { TableProps } from "antd";
+  KeyRoundIcon,
+  MoreHorizontalIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react";
+import { Controller, useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
 import {
@@ -27,8 +19,53 @@ import {
   resetUserPasswordAction,
   updateUserAction,
 } from "@/app/actions/users";
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableShell } from "@/components/data-table/data-table-shell";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/components/ui/toast";
 import { UserRole } from "@/generated/prisma/enums";
 import { formatDateTime } from "@/lib/date-time";
+import {
+  resetPasswordFormSchema,
+  type ResetPasswordFormValues,
+  userFormSchema,
+  type UserFormValues,
+} from "@/lib/users/schema";
 
 type UserItem = {
   id: string;
@@ -37,11 +74,11 @@ type UserItem = {
   createdAt: string;
 };
 
-type UserValues = {
-  username: string;
-  password?: string;
-  role: UserRole;
-};
+const PAGE_SIZE = 20;
+const ROLE_OPTIONS = [
+  { label: "管理员", value: UserRole.ADMIN },
+  { label: "普通用户", value: UserRole.MEMBER },
+];
 
 export function UserManagement({
   users,
@@ -51,269 +88,404 @@ export function UserManagement({
   currentUserId: string;
 }) {
   const router = useRouter();
-  const [messageApi, messageContext] = message.useMessage();
-  const [userForm] = Form.useForm<UserValues>();
-  const [passwordForm] = Form.useForm<{ password: string }>();
-  const [editingUser, setEditingUser] = useState<UserItem | null>();
-  const [passwordUser, setPasswordUser] = useState<UserItem | null>();
-  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserItem | null>(null);
+  const [passwordUser, setPasswordUser] = useState<UserItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<UserItem | null>(null);
+  const [userDialogOpen, setUserDialogOpen] = useState(false);
+  const [page, setPage] = useState(1);
   const [isPending, startTransition] = useTransition();
+  const userForm = useForm<UserFormValues>({
+    resolver: zodResolver(userFormSchema),
+    defaultValues: {
+      id: undefined,
+      username: "",
+      password: "",
+      role: UserRole.MEMBER,
+    },
+  });
+  const passwordForm = useForm<ResetPasswordFormValues>({
+    resolver: zodResolver(resetPasswordFormSchema),
+    defaultValues: { password: "" },
+  });
+
+  const pageCount = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pageItems = users.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
 
   function openCreate() {
     setEditingUser(null);
-    userForm.setFieldsValue({
+    userForm.reset({
+      id: undefined,
       username: "",
       password: "",
       role: UserRole.MEMBER,
     });
-    setUserModalOpen(true);
+    setUserDialogOpen(true);
   }
 
   function openEdit(user: UserItem) {
     setEditingUser(user);
-    userForm.setFieldsValue({
+    userForm.reset({
+      id: user.id,
       username: user.username,
+      password: "",
       role: user.role,
     });
-    setUserModalOpen(true);
+    setUserDialogOpen(true);
   }
 
-  function saveUser(values: UserValues) {
+  function closeUserDialog() {
+    if (isPending) return;
+    setUserDialogOpen(false);
+    setEditingUser(null);
+    userForm.reset();
+  }
+
+  function saveUser(values: UserFormValues) {
     startTransition(async () => {
-      const result = editingUser
+      const result = values.id
         ? await updateUserAction({
-            id: editingUser.id,
+            id: values.id,
             username: values.username,
             role: values.role,
           })
-        : await createUserAction(values);
+        : await createUserAction({
+            username: values.username,
+            password: values.password,
+            role: values.role,
+          });
 
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
 
-      messageApi.success(result.message);
-      setUserModalOpen(false);
+      setUserDialogOpen(false);
+      setEditingUser(null);
+      userForm.reset();
+      toast.add({ type: "success", description: result.message });
       router.refresh();
     });
   }
 
-  function resetPassword(values: { password: string }) {
+  function openPasswordDialog(user: UserItem) {
+    setPasswordUser(user);
+    passwordForm.reset({ password: "" });
+  }
+
+  function closePasswordDialog() {
+    if (isPending) return;
+    setPasswordUser(null);
+    passwordForm.reset();
+  }
+
+  function resetPassword(values: ResetPasswordFormValues) {
     if (!passwordUser) return;
+
     startTransition(async () => {
       const result = await resetUserPasswordAction({
         id: passwordUser.id,
         password: values.password,
       });
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
-      messageApi.success(result.message);
       setPasswordUser(null);
-      passwordForm.resetFields();
+      passwordForm.reset();
+      toast.add({ type: "success", description: result.message });
     });
   }
 
-  function deleteUser(id: string) {
+  function deleteUser() {
+    if (!deleteTarget) return;
+
     startTransition(async () => {
-      const result = await deleteUserAction(id);
+      const result = await deleteUserAction(deleteTarget.id);
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
-      messageApi.success(result.message);
+      setDeleteTarget(null);
+      toast.add({ type: "success", description: result.message });
       router.refresh();
     });
   }
 
-  const columns: TableProps<UserItem>["columns"] = [
+  const columns: ColumnDef<UserItem>[] = [
     {
-      title: "用户名",
-      dataIndex: "username",
-      render: (username: string, user) => (
-        <Space>
-          <strong>{username}</strong>
-          {user.id === currentUserId ? <Tag>当前用户</Tag> : null}
-        </Space>
+      accessorKey: "username",
+      header: "用户名",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{row.original.username}</span>
+          {row.original.id === currentUserId ? (
+            <Badge variant="secondary">当前用户</Badge>
+          ) : null}
+        </div>
       ),
     },
     {
-      title: "角色",
-      dataIndex: "role",
-      width: 150,
-      render: (role: UserRole) =>
-        role === UserRole.ADMIN ? <Tag>管理员</Tag> : <Tag>普通用户</Tag>,
+      accessorKey: "role",
+      header: "角色",
+      size: 150,
+      cell: ({ row }) => (
+        <Badge variant="outline">
+          {row.original.role === UserRole.ADMIN ? "管理员" : "普通用户"}
+        </Badge>
+      ),
     },
     {
-      title: "创建时间",
-      dataIndex: "createdAt",
-      width: 190,
-      render: (value: string) => formatDateTime(value),
+      accessorKey: "createdAt",
+      header: "创建时间",
+      size: 190,
+      meta: { cellClassName: "text-muted-foreground" },
+      cell: ({ row }) => formatDateTime(row.original.createdAt),
     },
     {
-      title: "操作",
-      key: "actions",
-      width: 270,
-      render: (_, user) => (
-        <Space size={2}>
+      id: "actions",
+      header: () => <span className="sr-only">操作</span>,
+      size: 116,
+      meta: { headerClassName: "text-right", cellClassName: "text-right" },
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-1">
           <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => openEdit(user)}
+            variant="ghost"
+            size="sm"
+            onClick={() => openEdit(row.original)}
           >
             编辑
           </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<KeyOutlined />}
-            onClick={() => setPasswordUser(user)}
-          >
-            重置密码
-          </Button>
-          <Popconfirm
-            title="删除用户"
-            description="删除后该用户将立即无法登录，且不能恢复。"
-            okText="删除"
-            cancelText="取消"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => deleteUser(user.id)}
-          >
-            <Button
-              type="link"
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              disabled={user.id === currentUserId}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="icon-sm" aria-label="更多操作" />
+              }
             >
-              删除
-            </Button>
-          </Popconfirm>
-        </Space>
+              <MoreHorizontalIcon />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  onClick={() => openPasswordDialog(row.original)}
+                >
+                  <KeyRoundIcon />
+                  重置密码
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={isPending || row.original.id === currentUserId}
+                  onClick={() => setDeleteTarget(row.original)}
+                >
+                  <Trash2Icon />
+                  删除
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       ),
     },
   ];
 
   return (
     <>
-      {messageContext}
-      <div className="content-panel table-page-panel">
-        <div className="table-toolbar">
-          <span className="table-toolbar__summary">
-            共 {users.length} 个用户
-          </span>
-          <Button
-            className="ml-auto"
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={openCreate}
-          >
-            新建用户
-          </Button>
-        </div>
-        <Table<UserItem>
-          rowKey="id"
+      <DataTableShell
+        toolbar={
+          <>
+            <span className="text-muted-foreground text-sm">
+              共 {users.length} 个用户
+            </span>
+            <Button className="ml-auto" onClick={openCreate}>
+              <PlusIcon data-icon="inline-start" />
+              新建用户
+            </Button>
+          </>
+        }
+        footer={
+          <DataTablePagination
+            page={safePage}
+            pageSize={PAGE_SIZE}
+            total={users.length}
+            itemName="个用户"
+            onChange={setPage}
+          />
+        }
+      >
+        <DataTable
           columns={columns}
-          dataSource={users}
-          tableLayout="fixed"
-          scroll={{ y: "100%" }}
-          pagination={{
-            pageSize: 20,
-            showSizeChanger: false,
-            showTotal: (count) => `共 ${count} 个用户`,
-          }}
+          data={pageItems}
+          loading={isPending}
+          emptyText="还没有用户"
+          getRowId={(user) => user.id}
         />
-      </div>
+      </DataTableShell>
 
-      <Modal
-        title={editingUser ? "编辑用户" : "新建用户"}
-        open={userModalOpen}
-        onCancel={() => setUserModalOpen(false)}
-        footer={null}
-        destroyOnHidden
-        width={480}
+      <Dialog
+        open={userDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) closeUserDialog();
+        }}
       >
-        <Form<UserValues>
-          form={userForm}
-          layout="vertical"
-          requiredMark={false}
-          onFinish={saveUser}
-          className="pt-3"
-        >
-          <Form.Item
-            name="username"
-            label="用户名"
-            rules={[{ required: true, message: "请输入用户名" }]}
-          >
-            <Input maxLength={50} autoComplete="off" />
-          </Form.Item>
-          {!editingUser ? (
-            <Form.Item
-              name="password"
-              label="初始密码"
-              rules={[
-                { required: true, message: "请输入初始密码" },
-                { min: 8, message: "密码至少需要 8 位" },
-              ]}
-            >
-              <Input.Password autoComplete="new-password" />
-            </Form.Item>
-          ) : null}
-          <Form.Item name="role" label="角色" rules={[{ required: true }]}>
-            <Select
-              options={[
-                { label: "管理员", value: UserRole.ADMIN },
-                { label: "普通用户", value: UserRole.MEMBER },
-              ]}
-            />
-          </Form.Item>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button onClick={() => setUserModalOpen(false)}>取消</Button>
-            <Button type="primary" htmlType="submit" loading={isPending}>
-              保存
-            </Button>
-          </div>
-        </Form>
-      </Modal>
+        <DialogContent>
+          <form onSubmit={userForm.handleSubmit(saveUser)}>
+            <DialogHeader>
+              <DialogTitle>{editingUser ? "编辑用户" : "新建用户"}</DialogTitle>
+              <DialogDescription>
+                用户名用于登录和显示，角色决定是否可以管理平台用户与模型。
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-5">
+              <FieldGroup>
+                <Field
+                  data-invalid={Boolean(userForm.formState.errors.username)}
+                >
+                  <FieldLabel htmlFor="user-username">用户名</FieldLabel>
+                  <Input
+                    id="user-username"
+                    maxLength={50}
+                    autoComplete="off"
+                    aria-invalid={Boolean(userForm.formState.errors.username)}
+                    {...userForm.register("username")}
+                  />
+                  <FieldError errors={[userForm.formState.errors.username]} />
+                </Field>
+                {!editingUser ? (
+                  <Field
+                    data-invalid={Boolean(userForm.formState.errors.password)}
+                  >
+                    <FieldLabel htmlFor="user-password">初始密码</FieldLabel>
+                    <Input
+                      id="user-password"
+                      type="password"
+                      autoComplete="new-password"
+                      aria-invalid={Boolean(userForm.formState.errors.password)}
+                      {...userForm.register("password")}
+                    />
+                    <FieldError errors={[userForm.formState.errors.password]} />
+                  </Field>
+                ) : null}
+                <Controller
+                  control={userForm.control}
+                  name="role"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="user-role">角色</FieldLabel>
+                      <Select
+                        items={ROLE_OPTIONS}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger
+                          id="user-role"
+                          aria-invalid={fieldState.invalid}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {ROLE_OPTIONS.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FieldError errors={[fieldState.error]} />
+                    </Field>
+                  )}
+                />
+              </FieldGroup>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={closeUserDialog}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? <Spinner data-icon="inline-start" /> : null}
+                保存
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-      <Modal
-        title={`重置密码${passwordUser ? `：${passwordUser.username}` : ""}`}
+      <Dialog
         open={Boolean(passwordUser)}
-        onCancel={() => setPasswordUser(null)}
-        footer={null}
-        destroyOnHidden
-        width={460}
+        onOpenChange={(open) => {
+          if (!open) closePasswordDialog();
+        }}
       >
-        <p className="mb-5 text-sm text-slate-500">
-          新密码保存后立即生效，该用户的现有会话将全部失效。
-        </p>
-        <Form<{ password: string }>
-          form={passwordForm}
-          layout="vertical"
-          requiredMark={false}
-          onFinish={resetPassword}
-        >
-          <Form.Item
-            name="password"
-            label="新密码"
-            rules={[
-              { required: true, message: "请输入新密码" },
-              { min: 8, message: "密码至少需要 8 位" },
-            ]}
-          >
-            <Input.Password autoComplete="new-password" />
-          </Form.Item>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button onClick={() => setPasswordUser(null)}>取消</Button>
-            <Button type="primary" htmlType="submit" loading={isPending}>
-              保存新密码
-            </Button>
-          </div>
-        </Form>
-      </Modal>
+        <DialogContent>
+          <form onSubmit={passwordForm.handleSubmit(resetPassword)}>
+            <DialogHeader>
+              <DialogTitle>
+                重置密码{passwordUser ? `：${passwordUser.username}` : ""}
+              </DialogTitle>
+              <DialogDescription>
+                新密码保存后立即生效，该用户的现有会话将全部失效。
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-5">
+              <Field
+                data-invalid={Boolean(passwordForm.formState.errors.password)}
+              >
+                <FieldLabel htmlFor="reset-user-password">新密码</FieldLabel>
+                <Input
+                  id="reset-user-password"
+                  type="password"
+                  autoComplete="new-password"
+                  aria-invalid={Boolean(passwordForm.formState.errors.password)}
+                  {...passwordForm.register("password")}
+                />
+                <FieldError errors={[passwordForm.formState.errors.password]} />
+              </Field>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={closePasswordDialog}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? <Spinner data-icon="inline-start" /> : null}
+                保存新密码
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="删除用户"
+        description="删除后该用户将立即无法登录，且不能恢复。"
+        confirmLabel="删除"
+        destructive
+        pending={isPending}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        onConfirm={deleteUser}
+      />
     </>
   );
 }

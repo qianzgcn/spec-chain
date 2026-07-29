@@ -1,20 +1,21 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition, type ComponentType } from "react";
 
-import ApartmentOutlined from "@ant-design/icons/ApartmentOutlined";
-import ApiOutlined from "@ant-design/icons/ApiOutlined";
-import DownOutlined from "@ant-design/icons/DownOutlined";
-import FileTextOutlined from "@ant-design/icons/FileTextOutlined";
-import FolderOpenOutlined from "@ant-design/icons/FolderOpenOutlined";
-import HistoryOutlined from "@ant-design/icons/HistoryOutlined";
-import LogoutOutlined from "@ant-design/icons/LogoutOutlined";
-import SettingOutlined from "@ant-design/icons/SettingOutlined";
-import SolutionOutlined from "@ant-design/icons/SolutionOutlined";
-import TeamOutlined from "@ant-design/icons/TeamOutlined";
-import UserOutlined from "@ant-design/icons/UserOutlined";
-import { Avatar, Dropdown, Layout, Menu, Select, message } from "antd";
-import type { MenuProps } from "antd";
+import {
+  BotIcon,
+  ChevronRightIcon,
+  ChevronsUpDownIcon,
+  ClipboardCheckIcon,
+  FileTextIcon,
+  FolderKanbanIcon,
+  HistoryIcon,
+  KeyRoundIcon,
+  LogOutIcon,
+  SettingsIcon,
+  UsersIcon,
+} from "lucide-react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { logoutAction } from "@/app/actions/auth";
@@ -22,12 +23,53 @@ import { switchProjectAction } from "@/app/actions/projects";
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
 import { ChangePasswordModal } from "@/components/auth/change-password-modal";
 import { SpecChainMark } from "@/components/brand/specchain-mark";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/components/ui/toast";
 import { UserRole } from "@/generated/prisma/enums";
 import { confirmLeaveIfDirty } from "@/hooks/use-unsaved-changes";
-
-import styles from "./app-shell.module.css";
-
-const { Header, Sider, Content } = Layout;
+import { cn } from "@/lib/utils";
 
 const TABLE_PAGE_PATHS = new Set([
   "/requirements",
@@ -40,6 +82,86 @@ const TABLE_PAGE_PATHS = new Set([
   "/users",
 ]);
 
+type NavItem = {
+  label: string;
+  href: string;
+};
+
+type NavGroup = {
+  label: string;
+  icon: ComponentType;
+  href?: string;
+  children?: NavItem[];
+};
+
+function isPathActive(pathname: string, href: string) {
+  if (href === "/requirements") {
+    return (
+      pathname === href ||
+      pathname.startsWith("/features") ||
+      pathname.startsWith("/user-stories")
+    );
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function NavigationGroup({
+  group,
+  pathname,
+}: {
+  group: NavGroup;
+  pathname: string;
+}) {
+  const Icon = group.icon;
+
+  if (group.href) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          isActive={isPathActive(pathname, group.href)}
+          tooltip={group.label}
+          render={<Link href={group.href} />}
+        >
+          <Icon />
+          <span>{group.label}</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  const active = group.children?.some((item) =>
+    isPathActive(pathname, item.href),
+  );
+
+  return (
+    <Collapsible defaultOpen={active ?? true}>
+      <SidebarMenuItem>
+        <CollapsibleTrigger
+          render={<SidebarMenuButton tooltip={group.label} />}
+        >
+          <Icon />
+          <span>{group.label}</span>
+          <ChevronRightIcon className="ml-auto transition-transform data-panel-open:rotate-90" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {group.children?.map((item) => (
+              <SidebarMenuSubItem key={item.href}>
+                <SidebarMenuSubButton
+                  isActive={isPathActive(pathname, item.href)}
+                  render={<Link href={item.href} />}
+                >
+                  <span>{item.label}</span>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
+  );
+}
+
 type AppShellProps = {
   user: {
     id: string;
@@ -51,29 +173,6 @@ type AppShellProps = {
   children: React.ReactNode;
 };
 
-function resolveSelectedKey(pathname: string) {
-  if (pathname.startsWith("/requirements/pending-review")) {
-    return "/requirements/pending-review";
-  }
-  if (pathname.startsWith("/requirements")) return "/requirements";
-  if (pathname.startsWith("/features")) return "/requirements";
-  if (pathname.startsWith("/user-stories")) return "/requirements";
-  if (pathname.startsWith("/ai-executions")) return "/ai-executions";
-  if (pathname.startsWith("/ai-settings")) return "/ai-settings";
-  if (pathname.startsWith("/test-case-groups")) return "/test-case-groups";
-  if (pathname.startsWith("/test-cases")) return "/test-cases";
-  if (pathname.startsWith("/project-settings/repositories")) {
-    return "/project-settings/repositories";
-  }
-  if (pathname.startsWith("/project-settings/testing")) {
-    return "/project-settings/testing";
-  }
-  if (pathname.startsWith("/project-settings")) return "/project-settings";
-  if (pathname.startsWith("/projects")) return "/projects";
-  if (pathname.startsWith("/users")) return "/users";
-  return pathname;
-}
-
 export function AppShell({
   user,
   projects,
@@ -82,134 +181,75 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const contentClassName = TABLE_PAGE_PATHS.has(pathname)
-    ? `${styles.content} ${styles.tableContent}`
-    : styles.content;
   const { isNavigating, navigate } = useNavigationFeedback();
-  const [messageApi, messageContext] = message.useMessage();
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [isSwitching, startSwitchTransition] = useTransition();
   const [isLoggingOut, startLogoutTransition] = useTransition();
+  const tablePage = TABLE_PAGE_PATHS.has(pathname);
+  const projectOptions = projects.map((project) => ({
+    label: project.name,
+    value: project.id,
+  }));
 
-  const menuItems = useMemo<MenuProps["items"]>(
-    () => [
-      {
-        key: "requirements-root",
-        icon: <FileTextOutlined />,
-        label: "需求",
-        children: [
-          {
-            key: "/requirements",
-            label: "需求列表",
-          },
-          {
-            key: "/requirements/pending-review",
-            label: "待评审需求",
-          },
-        ],
-      },
-      {
-        key: "/ai-executions",
-        icon: <HistoryOutlined />,
-        label: "AI 执行记录",
-      },
-      {
-        key: "test-cases-root",
-        icon: <SolutionOutlined />,
-        label: "测试用例",
-        children: [
-          {
-            key: "/test-cases",
-            label: "用例列表",
-          },
-          {
-            key: "/test-case-groups",
-            label: "分组管理",
-          },
-        ],
-      },
-      {
-        key: "project-settings-root",
-        icon: <SettingOutlined />,
-        label: "项目设置",
-        children: [
-          {
-            key: "/project-settings",
-            label: "基础设置",
-          },
-          {
-            key: "/project-settings/repositories",
-            label: "代码仓库",
-          },
-          {
-            key: "/project-settings/testing",
-            label: "测试设置",
-          },
-        ],
-      },
-      {
-        key: "/projects",
-        icon: <FolderOpenOutlined />,
-        label: "项目管理",
-      },
-      ...(user.role === UserRole.ADMIN
-        ? [
-            {
-              key: "/ai-settings",
-              icon: <ApiOutlined />,
-              label: "模型配置",
-            },
-            {
-              key: "/users",
-              icon: <TeamOutlined />,
-              label: "用户管理",
-            },
-          ]
-        : []),
-    ],
-    [user.role],
-  );
-
-  const userMenu: MenuProps["items"] = [
+  const navigation: NavGroup[] = [
     {
-      key: "identity",
-      label: (
-        <div className={styles.identity}>
-          <strong>{user.username}</strong>
-          <span>{user.role === UserRole.ADMIN ? "管理员" : "普通用户"}</span>
-        </div>
-      ),
-      disabled: true,
-    },
-    { type: "divider" },
-    {
-      key: "password",
-      icon: <UserOutlined />,
-      label: "修改密码",
-      onClick: () => setPasswordModalOpen(true),
+      label: "需求",
+      icon: FileTextIcon,
+      children: [
+        { label: "需求列表", href: "/requirements" },
+        { label: "待评审需求", href: "/requirements/pending-review" },
+      ],
     },
     {
-      key: "logout",
-      icon: <LogoutOutlined />,
-      label: isLoggingOut ? "正在退出…" : "退出登录",
-      disabled: isLoggingOut,
-      onClick: () => startLogoutTransition(() => logoutAction()),
+      label: "AI 执行记录",
+      icon: HistoryIcon,
+      href: "/ai-executions",
     },
+    {
+      label: "测试用例",
+      icon: ClipboardCheckIcon,
+      children: [
+        { label: "用例列表", href: "/test-cases" },
+        { label: "分组管理", href: "/test-case-groups" },
+      ],
+    },
+    {
+      label: "项目设置",
+      icon: SettingsIcon,
+      children: [
+        { label: "基础设置", href: "/project-settings" },
+        { label: "代码仓库", href: "/project-settings/repositories" },
+        { label: "测试设置", href: "/project-settings/testing" },
+      ],
+    },
+    {
+      label: "项目管理",
+      icon: FolderKanbanIcon,
+      href: "/projects",
+    },
+    ...(user.role === UserRole.ADMIN
+      ? [
+          {
+            label: "模型配置",
+            icon: BotIcon,
+            href: "/ai-settings",
+          },
+          {
+            label: "用户管理",
+            icon: UsersIcon,
+            href: "/users",
+          },
+        ]
+      : []),
   ];
 
-  function navigateFromMenu({ key }: { key: string }) {
-    if (key.startsWith("/")) {
-      navigate(key);
-    }
-  }
-
-  function switchProject(projectId: string) {
-    if (!confirmLeaveIfDirty()) return;
+  function switchProject(projectId: string | null) {
+    if (!projectId || !confirmLeaveIfDirty()) return;
 
     startSwitchTransition(async () => {
       const result = await switchProjectAction(projectId);
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
       navigate("/requirements");
@@ -219,78 +259,150 @@ export function AppShell({
 
   return (
     <>
-      {messageContext}
-      <Layout className={styles.layout}>
-        <Sider className={styles.sider} width={224}>
-          <div className={styles.logo}>
-            <SpecChainMark className={styles.logoMark} size={34} />
-            <span className={styles.logoName}>SpecChain</span>
-          </div>
-
-          <Menu
-            className={styles.menu}
-            theme="light"
-            mode="inline"
-            items={menuItems}
-            selectedKeys={[resolveSelectedKey(pathname)]}
-            defaultOpenKeys={[
-              "requirements-root",
-              "test-cases-root",
-              "project-settings-root",
-            ]}
-            onClick={navigateFromMenu}
-          />
-        </Sider>
-
-        <Layout className={styles.mainLayout}>
-          <Header className={styles.header}>
-            <div className={styles.projectContext}>
-              <span className={styles.projectContextIcon}>
-                <ApartmentOutlined />
+      <SidebarProvider
+        className="h-dvh min-h-0 overflow-hidden"
+        style={{ "--sidebar-width": "14rem" } as React.CSSProperties}
+      >
+        <Sidebar collapsible="icon">
+          <SidebarHeader className="h-14 justify-center border-b">
+            <Link
+              href="/requirements"
+              className="flex min-w-0 items-center gap-2 px-2"
+            >
+              <SpecChainMark size={28} />
+              <span className="truncate text-base font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
+                SpecChain
               </span>
-              <div className={styles.projectContextBody}>
-                <span className={styles.projectContextLabel}>当前项目</span>
-                {projects.length > 0 ? (
-                  <Select
-                    className={styles.projectSelect}
-                    value={currentProject?.id}
-                    placeholder="请选择项目"
-                    options={projects.map((project) => ({
-                      label: project.name,
-                      value: project.id,
-                    }))}
-                    onChange={switchProject}
-                    loading={isSwitching}
-                    variant="borderless"
-                    suffixIcon={<DownOutlined />}
-                  />
-                ) : (
-                  <button
-                    className={styles.emptyProject}
-                    type="button"
-                    onClick={() => navigate("/projects")}
+            </Link>
+          </SidebarHeader>
+          <SidebarContent>
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {navigation.map((group) => (
+                    <NavigationGroup
+                      key={group.href ?? group.label}
+                      group={group}
+                      pathname={pathname}
+                    />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
+          <SidebarFooter className="border-t">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger render={<SidebarMenuButton size="lg" />}>
+                    <Avatar className="size-7 rounded-md">
+                      <AvatarFallback className="rounded-md text-xs">
+                        {user.username.slice(0, 1).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1 text-left">
+                      <div className="truncate text-sm font-medium">
+                        {user.username}
+                      </div>
+                      <div className="text-muted-foreground truncate text-xs">
+                        {user.role === UserRole.ADMIN ? "管理员" : "普通用户"}
+                      </div>
+                    </div>
+                    <ChevronsUpDownIcon className="ml-auto" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    side="right"
+                    align="end"
+                    className="w-56"
                   >
-                    <span>暂无项目</span>
-                    <strong>创建项目</strong>
-                  </button>
-                )}
-              </div>
-            </div>
-            <Dropdown menu={{ items: userMenu }} trigger={["click"]}>
-              <button className={styles.userButton} type="button">
-                <Avatar className={styles.userAvatar} size={30}>
-                  {user.username.slice(0, 1).toUpperCase()}
-                </Avatar>
-                <span className={styles.userName}>{user.username}</span>
-                <DownOutlined className={styles.userChevron} />
-              </button>
-            </Dropdown>
-          </Header>
-          <Content className={contentClassName} aria-busy={isNavigating}>
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col gap-1">
+                        <span>{user.username}</span>
+                        <span className="text-muted-foreground text-xs font-normal">
+                          {user.role === UserRole.ADMIN ? "管理员" : "普通用户"}
+                        </span>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem
+                        onClick={() => setPasswordModalOpen(true)}
+                      >
+                        <KeyRoundIcon />
+                        修改密码
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={isLoggingOut}
+                        onClick={() =>
+                          startLogoutTransition(() => logoutAction())
+                        }
+                      >
+                        {isLoggingOut ? <Spinner /> : <LogOutIcon />}
+                        {isLoggingOut ? "正在退出…" : "退出登录"}
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarFooter>
+          <SidebarRail />
+        </Sidebar>
+
+        <SidebarInset className="h-dvh min-h-0 overflow-hidden">
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
+            <SidebarTrigger />
+            <div className="bg-border h-5 w-px" aria-hidden />
+            <span className="text-muted-foreground text-xs">当前项目</span>
+            {projects.length ? (
+              <Select
+                items={projectOptions}
+                value={currentProject?.id ?? null}
+                onValueChange={switchProject}
+              >
+                <SelectTrigger
+                  className="w-64 border-0 bg-transparent shadow-none"
+                  aria-label="当前项目"
+                >
+                  <SelectValue>
+                    {(value: string | null) =>
+                      projects.find((project) => project.id === value)?.name ??
+                      "请选择项目"
+                    }
+                  </SelectValue>
+                  {isSwitching ? <Spinner /> : null}
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/projects")}
+              >
+                暂无项目，立即创建
+              </Button>
+            )}
+          </header>
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col p-5",
+              tablePage ? "overflow-hidden" : "overflow-y-auto",
+            )}
+            aria-busy={isNavigating}
+          >
             {children}
-          </Content>
-        </Layout>
-      </Layout>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
 
       <ChangePasswordModal
         open={passwordModalOpen}

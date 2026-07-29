@@ -16,7 +16,7 @@ export function FormPage({
   children: ReactNode;
 }) {
   return (
-    <div className="page-shell form-page">
+    <div className="mx-auto flex w-full max-w-[1600px] min-w-0 flex-col gap-5">
       <PageHeader
         title={title}
         description={description}

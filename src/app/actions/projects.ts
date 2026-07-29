@@ -1,7 +1,5 @@
 "use server";
 
-import { z } from "zod";
-
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
@@ -11,6 +9,15 @@ import {
   GIT_PROVIDER_LABELS,
   parseRepositoryUrl,
 } from "@/lib/git/repository-url";
+import {
+  deleteProjectPatSchema,
+  projectBasicSettingsSchema,
+  projectPatSchema,
+  projectRepositoriesSchema,
+  projectSchema,
+  projectTestingSettingsSchema,
+  repositoryConnectionSchema,
+} from "@/lib/projects/schema";
 import { decryptAesGcm, encryptAesGcm } from "@/lib/security/aes-gcm";
 import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
@@ -22,101 +29,6 @@ import {
   type RepositoryConnectionSummary,
   verifyGitCredential,
 } from "@/server/projects/repository-connection";
-
-const projectSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "请输入项目名称")
-    .max(100, "项目名称不能超过 100 个字符"),
-  description: z
-    .string()
-    .trim()
-    .max(1_000, "项目描述不能超过 1000 个字符")
-    .optional()
-    .default(""),
-});
-
-const repositorySchema = z.object({
-  id: z.string().optional(),
-  gitUrl: z
-    .string()
-    .trim()
-    .min(1, "请输入 Git 地址")
-    .max(500, "Git 地址不能超过 500 个字符")
-    .refine(
-      (value) => {
-        try {
-          parseRepositoryUrl(value);
-          return true;
-        } catch {
-          return false;
-        }
-      },
-      { message: "请输入有效的 GitHub 或 Gitee 官方仓库地址" },
-    ),
-  branch: z
-    .string()
-    .trim()
-    .min(1, "请输入分支")
-    .max(100, "分支不能超过 100 个字符"),
-});
-
-const variableSchema = z.object({
-  id: z.string().optional(),
-  name: z
-    .string()
-    .trim()
-    .regex(
-      /^[A-Za-z_][A-Za-z0-9_]*$/,
-      "变量名只能包含字母、数字和下划线，且不能以数字开头",
-    ),
-  value: z.string().optional().default(""),
-  description: z
-    .string()
-    .trim()
-    .max(500, "描述不能超过 500 个字符")
-    .optional()
-    .default(""),
-  kind: z.enum(VariableKind),
-});
-
-const gitProviderSchema = z.enum(["GITHUB", "GITEE"]);
-
-const projectBasicSettingsSchema = z.object({
-  projectId: z.string().min(1),
-  name: projectSchema.shape.name,
-  description: projectSchema.shape.description,
-});
-
-const projectRepositoriesSchema = z.object({
-  projectId: z.string().min(1),
-  repositories: z.array(repositorySchema),
-});
-
-const projectTestingSettingsSchema = z.object({
-  projectId: z.string().min(1),
-  baseUrl: z.union([z.literal(""), z.url("请输入有效的 Base URL")]),
-  variables: z.array(variableSchema),
-});
-
-const projectPatSchema = z.object({
-  projectId: z.string().min(1),
-  provider: gitProviderSchema,
-  pat: z
-    .string()
-    .trim()
-    .min(1, "请输入 PAT")
-    .max(500, "PAT 不能超过 500 个字符"),
-});
-
-const deleteProjectPatSchema = projectPatSchema.omit({ pat: true });
-
-const repositoryConnectionSchema = z.object({
-  projectId: z.string().min(1),
-  gitUrl: repositorySchema.shape.gitUrl,
-  branch: repositorySchema.shape.branch,
-});
 
 type CredentialStatus = {
   hasGithubPat: boolean;

@@ -1,28 +1,30 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
-import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import EditOutlined from "@ant-design/icons/EditOutlined";
-import HistoryOutlined from "@ant-design/icons/HistoryOutlined";
-import { Button, Popconfirm, Space, message } from "antd";
+import { HistoryIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { deleteTestCaseAction } from "@/app/actions/test-cases";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
 
 export function TestCaseDetailActions({ id }: { id: string }) {
   const router = useRouter();
-  const [messageApi, messageContext] = message.useMessage();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function remove() {
     startTransition(async () => {
       const result = await deleteTestCaseAction(id);
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
-      messageApi.success(result.message);
+      setConfirmOpen(false);
+      toast.add({ type: "success", description: result.message });
       router.push("/test-cases");
       router.refresh();
     });
@@ -30,31 +32,42 @@ export function TestCaseDetailActions({ id }: { id: string }) {
 
   return (
     <>
-      {messageContext}
-      <Space>
+      <div className="flex items-center gap-2">
         <Button
-          type="primary"
-          icon={<HistoryOutlined />}
-          href={`/test-cases/${id}/runs`}
+          nativeButton={false}
+          render={<Link href={`/test-cases/${id}/runs`} />}
         >
+          <HistoryIcon data-icon="inline-start" />
           执行记录
         </Button>
-        <Button icon={<EditOutlined />} href={`/test-cases/${id}/edit`}>
+        <Button
+          variant="outline"
+          nativeButton={false}
+          render={<Link href={`/test-cases/${id}/edit`} />}
+        >
+          <PencilIcon data-icon="inline-start" />
           编辑
         </Button>
-        <Popconfirm
-          title="删除测试用例"
-          description="删除后不能恢复，运行历史仍会保留。"
-          okText="删除"
-          cancelText="取消"
-          okButtonProps={{ danger: true }}
-          onConfirm={remove}
+        <Button
+          variant="outline"
+          disabled={isPending}
+          onClick={() => setConfirmOpen(true)}
         >
-          <Button danger icon={<DeleteOutlined />} disabled={isPending}>
-            删除
-          </Button>
-        </Popconfirm>
-      </Space>
+          <Trash2Icon data-icon="inline-start" />
+          删除
+        </Button>
+      </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="删除测试用例"
+        description="删除后不能恢复，运行历史仍会保留。"
+        confirmLabel="删除"
+        destructive
+        pending={isPending}
+        onOpenChange={setConfirmOpen}
+        onConfirm={remove}
+      />
     </>
   );
 }

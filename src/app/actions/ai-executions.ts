@@ -1,7 +1,5 @@
 "use server";
 
-import { z } from "zod";
-
 import { revalidatePath } from "next/cache";
 
 import {
@@ -11,19 +9,11 @@ import {
   AiExecutionStatus,
 } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
+import { createAiExecutionSchema } from "@/lib/ai/execution-schema";
 import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { startAiQueueWorker } from "@/server/ai/launcher";
 import { getCurrentProject } from "@/server/projects/current-project";
-
-const createExecutionSchema = z.object({
-  requirementText: z
-    .string()
-    .trim()
-    .min(1, "请输入需求内容")
-    .max(10_000, "需求内容不能超过 10000 个字符"),
-  featureId: z.string().nullable().optional(),
-});
 
 async function getCurrentActionContext() {
   const [user, project] = await Promise.all([
@@ -37,7 +27,7 @@ export async function createAiUserStoryExecutionAction(
   input: unknown,
 ): Promise<ActionResult<{ id: string }>> {
   const { user, project } = await getCurrentActionContext();
-  const parsed = createExecutionSchema.safeParse(input);
+  const parsed = createAiExecutionSchema.safeParse(input);
   if (!project) {
     return { ok: false, message: "请先创建项目" };
   }

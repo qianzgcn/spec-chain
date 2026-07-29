@@ -1,43 +1,88 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 
-import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import PlusOutlined from "@ant-design/icons/PlusOutlined";
-import { Button, Form, Input, Select, message } from "antd";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { PlusIcon, SaveIcon, Trash2Icon } from "lucide-react";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 
 import { updateProjectTestingSettingsAction } from "@/app/actions/projects";
+import { FormPage } from "@/components/layout/form-page";
+import { PageSection } from "@/components/layout/page-section";
+import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/components/ui/toast";
 import { VariableKind } from "@/generated/prisma/enums";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import {
+  projectTestingSettingsFormSchema,
+  type ProjectTestingSettingsFormValues,
+} from "@/lib/projects/schema";
 
-import styles from "./project-settings-form.module.css";
-import { ProjectSettingsSaveButton } from "./project-settings-save-button";
+const VARIABLE_KIND_OPTIONS = [
+  { label: "普通变量", value: VariableKind.PLAIN },
+  { label: "敏感变量", value: VariableKind.SECRET },
+];
 
-type VariableValue = {
-  id?: string;
-  name: string;
-  value: string;
-  description: string;
-  kind: VariableKind;
-};
-
-type TestingSettingsFormValues = {
-  baseUrl: string;
-  variables: VariableValue[];
+const emptyVariable = {
+  name: "",
+  value: "",
+  description: "",
+  kind: VariableKind.PLAIN,
 };
 
 export function ProjectTestingSettingsForm({
   project,
 }: {
-  project: { id: string; baseUrl: string; variables: VariableValue[] };
+  project: {
+    id: string;
+    baseUrl: string;
+    variables: ProjectTestingSettingsFormValues["variables"];
+  };
 }) {
-  const [form] = Form.useForm<TestingSettingsFormValues>();
-  const [messageApi, messageContext] = message.useMessage();
-  const [dirty, setDirty] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const form = useForm<ProjectTestingSettingsFormValues>({
+    resolver: zodResolver(projectTestingSettingsFormSchema),
+    defaultValues: {
+      baseUrl: project.baseUrl,
+      variables: project.variables,
+    },
+  });
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "variables",
+    keyName: "fieldKey",
+  });
+  const dirty = form.formState.isDirty;
+  const variableValues = useWatch({
+    control: form.control,
+    name: "variables",
+  });
   useUnsavedChanges(dirty);
 
-  function submit(values: TestingSettingsFormValues) {
+  function submit(values: ProjectTestingSettingsFormValues) {
     startTransition(async () => {
       const result = await updateProjectTestingSettingsAction({
         ...values,
@@ -45,207 +90,262 @@ export function ProjectTestingSettingsForm({
       });
 
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
 
       if (result.data) {
-        form.setFieldsValue(result.data);
+        form.reset(result.data);
       }
-      setDirty(false);
-      messageApi.success(result.message);
+      toast.add({ type: "success", description: result.message });
     });
   }
 
   return (
-    <>
-      {messageContext}
-      <Form<TestingSettingsFormValues>
-        form={form}
-        className={styles.form}
-        layout="vertical"
-        requiredMark={false}
-        initialValues={project}
-        onValuesChange={() => setDirty(true)}
-        onFinish={submit}
+    <FormPage
+      title="测试设置"
+      description="配置自动化测试访问地址和运行环境变量。"
+      actions={
+        <Button
+          type="submit"
+          form="project-testing-settings-form"
+          disabled={!dirty || isPending}
+        >
+          {isPending ? (
+            <Spinner data-icon="inline-start" />
+          ) : (
+            <SaveIcon data-icon="inline-start" />
+          )}
+          保存
+        </Button>
+      }
+    >
+      <form
+        id="project-testing-settings-form"
+        className="flex flex-col gap-4"
+        onSubmit={form.handleSubmit(submit)}
       >
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <div className={styles.sectionIntro}>
-              <h2>测试环境</h2>
-              <p>自动化运行会使用此地址和下方变量访问被测系统。</p>
-            </div>
-            <ProjectSettingsSaveButton dirty={dirty} pending={isPending}>
-              保存
-            </ProjectSettingsSaveButton>
-          </div>
-          <div className={styles.sectionContent}>
-            <Form.Item
-              className={styles.baseUrlField}
-              name="baseUrl"
-              label="Base URL"
-              rules={[{ type: "url", message: "请输入有效的 URL" }]}
-            >
-              <Input placeholder="https://example.com" />
-            </Form.Item>
-          </div>
-        </section>
+        <PageSection
+          title="测试环境"
+          description="自动化运行会使用此地址访问被测系统。"
+        >
+          <FieldGroup className="max-w-3xl">
+            <Field data-invalid={Boolean(form.formState.errors.baseUrl)}>
+              <FieldLabel htmlFor="project-base-url">Base URL</FieldLabel>
+              <Input
+                id="project-base-url"
+                type="url"
+                placeholder="https://example.com"
+                aria-invalid={Boolean(form.formState.errors.baseUrl)}
+                {...form.register("baseUrl")}
+              />
+              <FieldError errors={[form.formState.errors.baseUrl]} />
+            </Field>
+          </FieldGroup>
+        </PageSection>
 
-        <section className={styles.section}>
-          <div className={styles.sectionIntro}>
-            <h2>环境变量</h2>
-            <p>敏感值会加密保存；已有敏感变量留空表示保留原值。</p>
-          </div>
-          <div className={styles.sectionContent}>
-            <Form.List name="variables">
-              {(fields, { add, remove }) =>
-                fields.length === 0 ? (
-                  <div className={styles.emptyList}>
-                    <div>
-                      <strong>尚未配置项目变量</strong>
-                      <span>按需添加普通变量或加密保存的敏感变量。</span>
-                    </div>
-                    <Button
-                      icon={<PlusOutlined />}
-                      onClick={() => {
-                        add({
-                          name: "",
-                          value: "",
-                          description: "",
-                          kind: VariableKind.PLAIN,
-                        });
-                        setDirty(true);
-                      }}
+        <PageSection
+          title="环境变量"
+          description="敏感值会加密保存；已有敏感变量留空表示保留原值。"
+          actions={
+            fields.length ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => append(emptyVariable)}
+              >
+                <PlusIcon data-icon="inline-start" />
+                添加变量
+              </Button>
+            ) : null
+          }
+        >
+          {fields.length ? (
+            <div className="flex flex-col gap-2">
+              <div
+                className="text-muted-foreground grid grid-cols-[minmax(170px,1.25fr)_140px_minmax(190px,1.5fr)_minmax(180px,1fr)_32px] gap-3 px-1 text-xs font-medium"
+                aria-hidden
+              >
+                <span>变量名</span>
+                <span>类型</span>
+                <span>值</span>
+                <span>描述</span>
+                <span />
+              </div>
+              {fields.map((field, index) => {
+                const kind = variableValues[index]?.kind ?? VariableKind.PLAIN;
+                const existing = Boolean(field.id);
+
+                return (
+                  <div
+                    key={field.fieldKey}
+                    className="bg-muted/40 grid grid-cols-[minmax(170px,1.25fr)_140px_minmax(190px,1.5fr)_minmax(180px,1fr)_32px] items-start gap-3 rounded-lg p-3"
+                  >
+                    <input
+                      type="hidden"
+                      {...form.register(`variables.${index}.id`)}
+                    />
+                    <Field
+                      data-invalid={Boolean(
+                        form.formState.errors.variables?.[index]?.name,
+                      )}
                     >
-                      添加变量
-                    </Button>
-                  </div>
-                ) : (
-                  <div className={styles.list}>
-                    {fields.map((field, index) => (
-                      <div key={field.key} className={styles.variableRow}>
-                        <Form.Item name={[field.name, "id"]} hidden>
-                          <Input />
-                        </Form.Item>
-                        <Form.Item
-                          name={[field.name, "name"]}
-                          label="变量名"
-                          rules={[
-                            { required: true, message: "请输入变量名" },
-                            {
-                              pattern: /^[A-Za-z_][A-Za-z0-9_]*$/,
-                              message:
-                                "只能包含字母、数字和下划线，不能以数字开头",
-                            },
-                          ]}
-                        >
-                          <Input placeholder="API_TOKEN" />
-                        </Form.Item>
-                        <Form.Item
-                          name={[field.name, "kind"]}
-                          label="类型"
-                          rules={[{ required: true }]}
-                        >
+                      <FieldLabel
+                        className="sr-only"
+                        htmlFor={`variable-${index}-name`}
+                      >
+                        变量名
+                      </FieldLabel>
+                      <Input
+                        id={`variable-${index}-name`}
+                        placeholder="API_TOKEN"
+                        aria-invalid={Boolean(
+                          form.formState.errors.variables?.[index]?.name,
+                        )}
+                        {...form.register(`variables.${index}.name`)}
+                      />
+                      <FieldError
+                        errors={[
+                          form.formState.errors.variables?.[index]?.name,
+                        ]}
+                      />
+                    </Field>
+                    <Controller
+                      control={form.control}
+                      name={`variables.${index}.kind`}
+                      render={({ field: kindField, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                          <FieldLabel
+                            className="sr-only"
+                            htmlFor={`variable-${index}-kind`}
+                          >
+                            类型
+                          </FieldLabel>
                           <Select
-                            options={[
-                              {
-                                label: "普通变量",
-                                value: VariableKind.PLAIN,
-                              },
-                              {
-                                label: "敏感变量",
-                                value: VariableKind.SECRET,
-                              },
-                            ]}
-                          />
-                        </Form.Item>
-                        <Form.Item
-                          noStyle
-                          shouldUpdate={(previous, current) =>
-                            previous.variables?.[field.name]?.kind !==
-                            current.variables?.[field.name]?.kind
-                          }
-                        >
-                          {({ getFieldValue }) => {
-                            const kind = getFieldValue([
-                              "variables",
-                              field.name,
-                              "kind",
-                            ]) as VariableKind | undefined;
-                            const existingId = getFieldValue([
-                              "variables",
-                              field.name,
-                              "id",
-                            ]) as string | undefined;
-
-                            return (
-                              <Form.Item
-                                name={[field.name, "value"]}
-                                label="值"
-                                rules={[
-                                  {
-                                    required: !existingId,
-                                    message: "请输入变量值",
-                                  },
-                                ]}
-                              >
-                                {kind === VariableKind.SECRET ? (
-                                  <Input.Password
-                                    placeholder={
-                                      existingId
-                                        ? "••••••••（留空保留原值）"
-                                        : "请输入敏感值"
-                                    }
-                                    autoComplete="new-password"
-                                  />
-                                ) : (
-                                  <Input placeholder="请输入变量值" />
-                                )}
-                              </Form.Item>
-                            );
-                          }}
-                        </Form.Item>
-                        <Form.Item
-                          name={[field.name, "description"]}
-                          label="描述"
-                        >
-                          <Input placeholder="说明变量用途" maxLength={500} />
-                        </Form.Item>
-                        <Button
-                          className={styles.deleteButton}
-                          type="text"
-                          danger
-                          icon={<DeleteOutlined />}
-                          aria-label={`删除第 ${index + 1} 个变量`}
-                          onClick={() => {
-                            remove(field.name);
-                            setDirty(true);
-                          }}
-                        />
-                      </div>
-                    ))}
-                    <Button
-                      className={styles.addButton}
-                      icon={<PlusOutlined />}
-                      onClick={() => {
-                        add({
-                          name: "",
-                          value: "",
-                          description: "",
-                          kind: VariableKind.PLAIN,
-                        });
-                        setDirty(true);
-                      }}
+                            items={VARIABLE_KIND_OPTIONS}
+                            value={kindField.value}
+                            onValueChange={kindField.onChange}
+                          >
+                            <SelectTrigger
+                              id={`variable-${index}-kind`}
+                              aria-invalid={fieldState.invalid}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                {VARIABLE_KIND_OPTIONS.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                          <FieldError errors={[fieldState.error]} />
+                        </Field>
+                      )}
+                    />
+                    <Field
+                      data-invalid={Boolean(
+                        form.formState.errors.variables?.[index]?.value,
+                      )}
                     >
-                      添加变量
+                      <FieldLabel
+                        className="sr-only"
+                        htmlFor={`variable-${index}-value`}
+                      >
+                        值
+                      </FieldLabel>
+                      <Input
+                        id={`variable-${index}-value`}
+                        type={
+                          kind === VariableKind.SECRET ? "password" : "text"
+                        }
+                        autoComplete={
+                          kind === VariableKind.SECRET ? "new-password" : "off"
+                        }
+                        placeholder={
+                          kind === VariableKind.SECRET && existing
+                            ? "••••••••（留空保留）"
+                            : "请输入变量值"
+                        }
+                        aria-invalid={Boolean(
+                          form.formState.errors.variables?.[index]?.value,
+                        )}
+                        {...form.register(`variables.${index}.value`)}
+                      />
+                      <FieldError
+                        errors={[
+                          form.formState.errors.variables?.[index]?.value,
+                        ]}
+                      />
+                    </Field>
+                    <Field
+                      data-invalid={Boolean(
+                        form.formState.errors.variables?.[index]?.description,
+                      )}
+                    >
+                      <FieldLabel
+                        className="sr-only"
+                        htmlFor={`variable-${index}-description`}
+                      >
+                        描述
+                      </FieldLabel>
+                      <Input
+                        id={`variable-${index}-description`}
+                        maxLength={500}
+                        placeholder="说明变量用途"
+                        aria-invalid={Boolean(
+                          form.formState.errors.variables?.[index]?.description,
+                        )}
+                        {...form.register(`variables.${index}.description`)}
+                      />
+                      <FieldError
+                        errors={[
+                          form.formState.errors.variables?.[index]?.description,
+                        ]}
+                      />
+                    </Field>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`删除第 ${index + 1} 个变量`}
+                      onClick={() => remove(index)}
+                    >
+                      <Trash2Icon />
                     </Button>
                   </div>
-                )
-              }
-            </Form.List>
-          </div>
-        </section>
-      </Form>
-    </>
+                );
+              })}
+            </div>
+          ) : (
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>尚未配置项目变量</EmptyTitle>
+                <EmptyDescription>
+                  按需添加普通变量或加密保存的敏感变量。
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => append(emptyVariable)}
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  添加变量
+                </Button>
+              </EmptyContent>
+            </Empty>
+          )}
+        </PageSection>
+      </form>
+    </FormPage>
   );
 }

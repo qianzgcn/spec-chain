@@ -2,20 +2,34 @@
 
 import { useState, useTransition } from "react";
 
-import LockOutlined from "@ant-design/icons/LockOutlined";
-import UserOutlined from "@ant-design/icons/UserOutlined";
-import { Alert, Button, Form, Input } from "antd";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { LockKeyholeIcon, UserIcon } from "lucide-react";
+import { useForm } from "react-hook-form";
 
 import { loginAction } from "@/app/actions/auth";
-
-type LoginValues = {
-  username: string;
-  password: string;
-};
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import { Spinner } from "@/components/ui/spinner";
+import { loginSchema, type LoginValues } from "@/lib/auth/schemas";
 
 export function LoginForm({ passwordChanged }: { passwordChanged: boolean }) {
   const [errorMessage, setErrorMessage] = useState<string>();
   const [isPending, startTransition] = useTransition();
+  const form = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { username: "", password: "" },
+  });
 
   function submit(values: LoginValues) {
     setErrorMessage(undefined);
@@ -28,59 +42,63 @@ export function LoginForm({ passwordChanged }: { passwordChanged: boolean }) {
   }
 
   return (
-    <Form<LoginValues>
-      layout="vertical"
-      requiredMark={false}
-      onFinish={submit}
-      size="large"
-    >
+    <form className="flex flex-col gap-5" onSubmit={form.handleSubmit(submit)}>
       {passwordChanged ? (
-        <Alert
-          className="mb-5"
-          type="success"
-          showIcon
-          title="密码已修改，请使用新密码重新登录"
-        />
+        <Alert>
+          <AlertDescription>
+            密码已修改，请使用新密码重新登录。
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       {errorMessage ? (
-        <Alert className="mb-5" type="error" showIcon title={errorMessage} />
+        <Alert variant="destructive">
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
       ) : null}
 
-      <Form.Item
-        label="用户名"
-        name="username"
-        rules={[{ required: true, message: "请输入用户名" }]}
-      >
-        <Input
-          prefix={<UserOutlined />}
-          autoComplete="username"
-          placeholder="请输入用户名"
-          autoFocus
-        />
-      </Form.Item>
+      <FieldGroup>
+        <Field data-invalid={Boolean(form.formState.errors.username)}>
+          <FieldLabel htmlFor="username">用户名</FieldLabel>
+          <InputGroup>
+            <InputGroupAddon>
+              <UserIcon />
+            </InputGroupAddon>
+            <InputGroupInput
+              id="username"
+              autoComplete="username"
+              placeholder="请输入用户名"
+              autoFocus
+              aria-invalid={Boolean(form.formState.errors.username)}
+              {...form.register("username")}
+            />
+          </InputGroup>
+          <FieldError errors={[form.formState.errors.username]} />
+        </Field>
 
-      <Form.Item
-        label="密码"
-        name="password"
-        rules={[{ required: true, message: "请输入密码" }]}
-      >
-        <Input.Password
-          prefix={<LockOutlined />}
-          autoComplete="current-password"
-          placeholder="请输入密码"
-        />
-      </Form.Item>
+        <Field data-invalid={Boolean(form.formState.errors.password)}>
+          <FieldLabel htmlFor="password">密码</FieldLabel>
+          <InputGroup>
+            <InputGroupAddon>
+              <LockKeyholeIcon />
+            </InputGroupAddon>
+            <InputGroupInput
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              placeholder="请输入密码"
+              aria-invalid={Boolean(form.formState.errors.password)}
+              {...form.register("password")}
+            />
+          </InputGroup>
+          <FieldError errors={[form.formState.errors.password]} />
+        </Field>
+      </FieldGroup>
 
-      <Button
-        className="mt-2"
-        type="primary"
-        htmlType="submit"
-        block
-        loading={isPending}
-      >
+      <Button className="w-full" size="lg" type="submit" disabled={isPending}>
+        {isPending ? <Spinner data-icon="inline-start" /> : null}
         登录
       </Button>
-    </Form>
+    </form>
   );
 }

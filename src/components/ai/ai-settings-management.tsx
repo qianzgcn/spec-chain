@@ -2,22 +2,10 @@
 
 import { useState, useTransition } from "react";
 
-import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import PlusOutlined from "@ant-design/icons/PlusOutlined";
-import {
-  Button,
-  Form,
-  Input,
-  Modal,
-  Popconfirm,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Typography,
-  message,
-} from "antd";
-import type { TableProps } from "antd";
+import { zodResolver } from "@hookform/resolvers/zod";
+import type { ColumnDef } from "@tanstack/react-table";
+import { MoreHorizontalIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
 import {
@@ -27,6 +15,49 @@ import {
   deleteAiModelProfileAction,
   updateAiModelProfileAction,
 } from "@/app/actions/ai-settings";
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableShell } from "@/components/data-table/data-table-shell";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/components/ui/toast";
+import {
+  aiModelProfileFormSchema,
+  type AiModelProfileFormValues,
+} from "@/lib/ai/model-profile";
 import { formatCompactDateTime } from "@/lib/date-time";
 
 type ModelProfileItem = {
@@ -37,12 +68,7 @@ type ModelProfileItem = {
   updatedAt: string;
 };
 
-type ModelProfileValues = {
-  name: string;
-  baseUrl: string;
-  modelId: string;
-  apiKey: string;
-};
+const PAGE_SIZE = 20;
 
 export function AiSettingsManagement({
   profiles,
@@ -52,68 +78,114 @@ export function AiSettingsManagement({
   defaultProfileId: string | null;
 }) {
   const router = useRouter();
-  const [messageApi, messageContext] = message.useMessage();
-  const [form] = Form.useForm<ModelProfileValues>();
   const [editingProfile, setEditingProfile] = useState<ModelProfileItem | null>(
     null,
   );
-  const [modalOpen, setModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ModelProfileItem | null>(
+    null,
+  );
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [checkingProfileId, setCheckingProfileId] = useState<string | null>(
     null,
   );
+  const [page, setPage] = useState(1);
   const [isPending, startTransition] = useTransition();
+  const form = useForm<AiModelProfileFormValues>({
+    resolver: zodResolver(aiModelProfileFormSchema),
+    defaultValues: {
+      id: undefined,
+      name: "",
+      baseUrl: "",
+      modelId: "",
+      apiKey: "",
+    },
+  });
+
+  const profileOptions = [
+    { value: null, label: "请选择默认模型" },
+    ...profiles.map((profile) => ({
+      value: profile.id,
+      label: `${profile.name} · ${profile.modelId}`,
+    })),
+  ];
+  const pageCount = Math.max(1, Math.ceil(profiles.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pageItems = profiles.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
 
   function openCreate() {
     setEditingProfile(null);
-    form.setFieldsValue({
+    form.reset({
+      id: undefined,
       name: "",
       baseUrl: "",
       modelId: "",
       apiKey: "",
     });
-    setModalOpen(true);
+    setDialogOpen(true);
   }
 
   function openEdit(profile: ModelProfileItem) {
     setEditingProfile(profile);
-    form.setFieldsValue({
+    form.reset({
+      id: profile.id,
       name: profile.name,
       baseUrl: profile.baseUrl,
       modelId: profile.modelId,
       apiKey: "",
     });
-    setModalOpen(true);
+    setDialogOpen(true);
   }
 
-  function saveProfile(values: ModelProfileValues) {
+  function closeDialog() {
+    if (isPending) return;
+    setDialogOpen(false);
+    setEditingProfile(null);
+    form.reset();
+  }
+
+  function saveProfile(values: AiModelProfileFormValues) {
     startTransition(async () => {
-      const result = editingProfile
+      const result = values.id
         ? await updateAiModelProfileAction({
-            id: editingProfile.id,
-            ...values,
+            id: values.id,
+            name: values.name,
+            baseUrl: values.baseUrl,
+            modelId: values.modelId,
+            apiKey: values.apiKey,
           })
-        : await createAiModelProfileAction(values);
+        : await createAiModelProfileAction({
+            name: values.name,
+            baseUrl: values.baseUrl,
+            modelId: values.modelId,
+            apiKey: values.apiKey,
+          });
 
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
 
-      form.setFieldValue("apiKey", "");
-      setModalOpen(false);
-      messageApi.success(result.message);
+      setDialogOpen(false);
+      setEditingProfile(null);
+      form.reset();
+      toast.add({ type: "success", description: result.message });
       router.refresh();
     });
   }
 
-  function bindDefaultModel(profileId: string) {
+  function bindDefaultModel(profileId: string | null) {
+    if (!profileId) return;
+
     startTransition(async () => {
       const result = await bindUserStoryModelAction(profileId);
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
-      messageApi.success(result.message);
+      toast.add({ type: "success", description: result.message });
       router.refresh();
     });
   }
@@ -121,234 +193,299 @@ export function AiSettingsManagement({
   function checkProfile(profileId: string) {
     setCheckingProfileId(profileId);
     startTransition(async () => {
-      const result = await checkAiModelProfileAction(profileId);
-      setCheckingProfileId(null);
-      if (!result.ok) {
-        messageApi.error(result.message);
-        return;
+      try {
+        const result = await checkAiModelProfileAction(profileId);
+        if (!result.ok) {
+          toast.add({ type: "error", description: result.message });
+          return;
+        }
+        toast.add({ type: "success", description: result.message });
+      } finally {
+        setCheckingProfileId(null);
       }
-      messageApi.success(result.message);
     });
   }
 
-  function deleteProfile(profileId: string) {
+  function deleteProfile() {
+    if (!deleteTarget) return;
+
     startTransition(async () => {
-      const result = await deleteAiModelProfileAction(profileId);
+      const result = await deleteAiModelProfileAction(deleteTarget.id);
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
-      messageApi.success(result.message);
+      setDeleteTarget(null);
+      toast.add({ type: "success", description: result.message });
       router.refresh();
     });
   }
 
-  const columns: TableProps<ModelProfileItem>["columns"] = [
+  const columns: ColumnDef<ModelProfileItem>[] = [
     {
-      title: "模型名称",
-      dataIndex: "name",
-      ellipsis: true,
-      render: (name: string, profile) => (
-        <Space>
-          <Typography.Text strong>{name}</Typography.Text>
-          {profile.id === defaultProfileId ? <Tag>生成 US 默认</Tag> : null}
-        </Space>
+      accessorKey: "name",
+      header: "模型名称",
+      cell: ({ row }) => (
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate font-medium">{row.original.name}</span>
+          {row.original.id === defaultProfileId ? (
+            <Badge variant="secondary">生成 US 默认</Badge>
+          ) : null}
+        </div>
       ),
     },
     {
-      title: "Base URL",
-      dataIndex: "baseUrl",
-      width: 220,
-      ellipsis: true,
-      responsive: ["lg"],
-      render: (value: string) => (
-        <Typography.Text code title={value}>
-          {value}
-        </Typography.Text>
-      ),
+      accessorKey: "baseUrl",
+      header: "Base URL",
+      size: 250,
+      meta: { cellClassName: "truncate font-mono text-xs" },
     },
     {
-      title: "模型 ID",
-      dataIndex: "modelId",
-      width: 180,
-      ellipsis: true,
-      render: (value: string) => (
-        <Typography.Text code title={value}>
-          {value}
-        </Typography.Text>
-      ),
+      accessorKey: "modelId",
+      header: "模型 ID",
+      size: 180,
+      meta: { cellClassName: "truncate font-mono text-xs" },
     },
     {
-      title: "API Key",
-      key: "apiKey",
-      width: 90,
-      responsive: ["xl"],
-      render: () => <span className="text-slate-500">••••••••</span>,
+      id: "apiKey",
+      header: "API Key",
+      size: 96,
+      meta: {
+        headerClassName: "max-[1500px]:hidden",
+        cellClassName:
+          "max-[1500px]:hidden font-mono text-xs text-muted-foreground",
+      },
+      cell: () => "••••••••",
     },
     {
-      title: "更新时间",
-      dataIndex: "updatedAt",
-      width: 145,
-      responsive: ["xl"],
-      render: (value: string) => formatCompactDateTime(value),
+      accessorKey: "updatedAt",
+      header: "更新时间",
+      size: 140,
+      meta: {
+        headerClassName: "max-[1650px]:hidden",
+        cellClassName: "max-[1650px]:hidden text-muted-foreground",
+      },
+      cell: ({ row }) => formatCompactDateTime(row.original.updatedAt),
     },
     {
-      title: "操作",
-      key: "actions",
-      width: 155,
-      render: (_, profile) => (
-        <Space size={2}>
+      id: "actions",
+      header: () => <span className="sr-only">操作</span>,
+      size: 148,
+      meta: { headerClassName: "text-right", cellClassName: "text-right" },
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-1">
           <Button
-            type="link"
-            size="small"
-            loading={checkingProfileId === profile.id}
+            variant="ghost"
+            size="sm"
             disabled={
               isPending &&
               checkingProfileId !== null &&
-              checkingProfileId !== profile.id
+              checkingProfileId !== row.original.id
             }
-            onClick={() => checkProfile(profile.id)}
+            onClick={() => checkProfile(row.original.id)}
           >
+            {checkingProfileId === row.original.id ? (
+              <Spinner data-icon="inline-start" />
+            ) : null}
             检查
           </Button>
-          <Button type="link" size="small" onClick={() => openEdit(profile)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openEdit(row.original)}
+          >
             编辑
           </Button>
-          <Popconfirm
-            title="删除模型配置"
-            description="删除后 API Key 将立即清除，且不能恢复。"
-            okText="删除"
-            cancelText="取消"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => deleteProfile(profile.id)}
-          >
-            <Button
-              type="text"
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              aria-label="删除"
-              disabled={profile.id === defaultProfileId}
-            />
-          </Popconfirm>
-        </Space>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="icon-sm" aria-label="更多操作" />
+              }
+            >
+              <MoreHorizontalIcon />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={isPending || row.original.id === defaultProfileId}
+                  onClick={() => setDeleteTarget(row.original)}
+                >
+                  <Trash2Icon />
+                  删除
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       ),
     },
   ];
 
   return (
     <>
-      {messageContext}
-      <div className="content-panel table-page-panel">
-        <div className="table-toolbar">
-          <span className="text-sm font-medium text-slate-700">
-            生成 US 默认模型
-          </span>
-          <Select
-            className="w-72"
-            aria-label="生成 US 默认模型"
-            value={defaultProfileId ?? undefined}
-            placeholder="请选择默认模型"
-            options={profiles.map((profile) => ({
-              value: profile.id,
-              label: `${profile.name} · ${profile.modelId}`,
-            }))}
-            disabled={profiles.length === 0 || isPending}
-            onChange={bindDefaultModel}
-          />
-          <span className="text-xs text-slate-500">
-            用户发起任务时自动使用该模型
-          </span>
-          <Button
-            className="ml-auto"
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={openCreate}
-          >
-            新建模型
-          </Button>
-        </div>
-
-        <Table<ModelProfileItem>
-          rowKey="id"
-          columns={columns}
-          dataSource={profiles}
-          tableLayout="fixed"
-          scroll={{ y: "100%" }}
-          pagination={{
-            pageSize: 20,
-            showSizeChanger: false,
-            showTotal: (count) => `共 ${count} 个模型`,
-          }}
-          locale={{ emptyText: "尚未配置模型" }}
-        />
-      </div>
-
-      <Modal
-        title={editingProfile ? "编辑模型" : "新建模型"}
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        footer={null}
-        destroyOnHidden
-        width={620}
-      >
-        <Form<ModelProfileValues>
-          form={form}
-          layout="vertical"
-          requiredMark={false}
-          className="pt-3"
-          onFinish={saveProfile}
-        >
-          <Form.Item
-            name="name"
-            label="模型名称"
-            rules={[{ required: true, message: "请输入模型名称" }]}
-          >
-            <Input maxLength={100} placeholder="例如：DeepSeek 生产模型" />
-          </Form.Item>
-          <Form.Item
-            name="baseUrl"
-            label="OpenAI 兼容 Base URL"
-            rules={[{ required: true, message: "请输入 Base URL" }]}
-            extra="填写兼容接口的根地址，例如 https://api.deepseek.com/v1。"
-          >
-            <Input maxLength={500} placeholder="https://api.example.com/v1" />
-          </Form.Item>
-          <Form.Item
-            name="modelId"
-            label="模型 ID"
-            rules={[{ required: true, message: "请输入模型 ID" }]}
-          >
-            <Input maxLength={200} placeholder="例如：deepseek-chat" />
-          </Form.Item>
-          <Form.Item
-            name="apiKey"
-            label="API Key"
-            rules={
-              editingProfile
-                ? []
-                : [{ required: true, message: "请输入模型 API Key" }]
-            }
-            extra={
-              editingProfile
-                ? "已配置的密钥不会回显；留空表示保留原值。"
-                : "密钥使用 AES-256-GCM 加密保存，之后不会回显。"
-            }
-          >
-            <Input.Password
-              maxLength={4_000}
-              autoComplete="new-password"
-              placeholder={editingProfile ? "留空保留原 API Key" : ""}
-            />
-          </Form.Item>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button onClick={() => setModalOpen(false)}>取消</Button>
-            <Button type="primary" htmlType="submit" loading={isPending}>
-              保存
+      <DataTableShell
+        toolbar={
+          <>
+            <span className="text-sm font-medium">生成 US 默认模型</span>
+            <Select
+              items={profileOptions}
+              value={defaultProfileId}
+              disabled={!profiles.length || isPending}
+              onValueChange={bindDefaultModel}
+            >
+              <SelectTrigger className="w-80" aria-label="生成 US 默认模型">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {profileOptions.map((option) => (
+                    <SelectItem
+                      key={option.value ?? "placeholder"}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <span className="text-muted-foreground text-xs">
+              用户发起任务时自动使用该模型
+            </span>
+            <Button className="ml-auto" onClick={openCreate}>
+              <PlusIcon data-icon="inline-start" />
+              新建模型
             </Button>
-          </div>
-        </Form>
-      </Modal>
+          </>
+        }
+        footer={
+          <DataTablePagination
+            page={safePage}
+            pageSize={PAGE_SIZE}
+            total={profiles.length}
+            itemName="个模型"
+            onChange={setPage}
+          />
+        }
+      >
+        <DataTable
+          columns={columns}
+          data={pageItems}
+          loading={isPending && checkingProfileId === null}
+          emptyText="尚未配置模型"
+          getRowId={(profile) => profile.id}
+        />
+      </DataTableShell>
+
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (!open) closeDialog();
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <form onSubmit={form.handleSubmit(saveProfile)}>
+            <DialogHeader>
+              <DialogTitle>
+                {editingProfile ? "编辑模型" : "新建模型"}
+              </DialogTitle>
+              <DialogDescription>
+                配置 OpenAI 兼容接口；API Key 加密保存且不会回显。
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-5">
+              <FieldGroup>
+                <Field data-invalid={Boolean(form.formState.errors.name)}>
+                  <FieldLabel htmlFor="model-name">模型名称</FieldLabel>
+                  <Input
+                    id="model-name"
+                    maxLength={100}
+                    placeholder="例如：DeepSeek 生产模型"
+                    aria-invalid={Boolean(form.formState.errors.name)}
+                    {...form.register("name")}
+                  />
+                  <FieldError errors={[form.formState.errors.name]} />
+                </Field>
+                <Field data-invalid={Boolean(form.formState.errors.baseUrl)}>
+                  <FieldLabel htmlFor="model-base-url">
+                    OpenAI 兼容 Base URL
+                  </FieldLabel>
+                  <Input
+                    id="model-base-url"
+                    maxLength={500}
+                    placeholder="https://api.example.com/v1"
+                    aria-invalid={Boolean(form.formState.errors.baseUrl)}
+                    {...form.register("baseUrl")}
+                  />
+                  <FieldDescription>
+                    填写兼容接口的根地址，例如 https://api.deepseek.com/v1。
+                  </FieldDescription>
+                  <FieldError errors={[form.formState.errors.baseUrl]} />
+                </Field>
+                <Field data-invalid={Boolean(form.formState.errors.modelId)}>
+                  <FieldLabel htmlFor="model-id">模型 ID</FieldLabel>
+                  <Input
+                    id="model-id"
+                    maxLength={200}
+                    placeholder="例如：deepseek-chat"
+                    aria-invalid={Boolean(form.formState.errors.modelId)}
+                    {...form.register("modelId")}
+                  />
+                  <FieldError errors={[form.formState.errors.modelId]} />
+                </Field>
+                <Field data-invalid={Boolean(form.formState.errors.apiKey)}>
+                  <FieldLabel htmlFor="model-api-key">API Key</FieldLabel>
+                  <Input
+                    id="model-api-key"
+                    type="password"
+                    maxLength={4_000}
+                    autoComplete="new-password"
+                    placeholder={
+                      editingProfile ? "留空保留原 API Key" : undefined
+                    }
+                    aria-invalid={Boolean(form.formState.errors.apiKey)}
+                    {...form.register("apiKey")}
+                  />
+                  <FieldDescription>
+                    {editingProfile
+                      ? "已配置的密钥不会回显；留空表示保留原值。"
+                      : "密钥使用 AES-256-GCM 加密保存，之后不会回显。"}
+                  </FieldDescription>
+                  <FieldError errors={[form.formState.errors.apiKey]} />
+                </Field>
+              </FieldGroup>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={closeDialog}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? <Spinner data-icon="inline-start" /> : null}
+                保存
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="删除模型配置"
+        description="删除后 API Key 将立即清除，且不能恢复。"
+        confirmLabel="删除"
+        destructive
+        pending={isPending}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        onConfirm={deleteProfile}
+      />
     </>
   );
 }

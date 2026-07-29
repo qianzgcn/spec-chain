@@ -2,26 +2,32 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import ArrowLeftOutlined from "@ant-design/icons/ArrowLeftOutlined";
-import FileSearchOutlined from "@ant-design/icons/FileSearchOutlined";
 import {
-  Alert,
-  Button,
-  Descriptions,
-  Empty,
-  Space,
-  Spin,
-  Tag,
-  Typography,
-} from "antd";
+  AlertCircleIcon,
+  ArrowLeftIcon,
+  FileSearchIcon,
+  Trash2Icon,
+} from "lucide-react";
 import {
   QueryClient,
   QueryClientProvider,
   useQuery,
 } from "@tanstack/react-query";
+import Link from "next/link";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { PageSection } from "@/components/layout/page-section";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Spinner } from "@/components/ui/spinner";
 import { AiExecutionLogLevel } from "@/generated/prisma/enums";
 import {
   ACTIVE_AI_EXECUTION_STATUSES,
@@ -33,6 +39,7 @@ import type {
   AiExecutionLogEntry,
 } from "@/lib/ai/execution-types";
 import { formatDetailedDateTime } from "@/lib/date-time";
+import { cn } from "@/lib/utils";
 
 async function readExecution(executionId: string) {
   const response = await fetch(`/api/ai-executions/${executionId}`, {
@@ -79,15 +86,15 @@ function formatLogDateTime(value: string) {
 const LOG_LEVEL_META = {
   [AiExecutionLogLevel.INFO]: {
     label: "INFO",
-    className: "execution-log__level--info",
+    className: "text-background/70",
   },
   [AiExecutionLogLevel.WARN]: {
     label: "WARN",
-    className: "execution-log__level--warn",
+    className: "text-background",
   },
   [AiExecutionLogLevel.ERROR]: {
     label: "ERROR",
-    className: "execution-log__level--error",
+    className: "text-destructive",
   },
 } satisfies Record<AiExecutionLogLevel, { label: string; className: string }>;
 
@@ -120,34 +127,41 @@ function ExecutionLogPanel({
   }
 
   return (
-    <section className="execution-log">
-      <header className="execution-log__header">
-        <div>
-          <h2>执行日志</h2>
-          <p>
-            {active
-              ? "任务运行中，日志会实时更新。"
-              : `本次任务共记录 ${logs.length} 条日志。`}
-          </p>
-        </div>
-        {active ? (
-          <span className="execution-log__live">
-            <Spin size="small" />
+    <PageSection
+      title="执行日志"
+      description={
+        active
+          ? "任务运行中，日志会实时更新。"
+          : `本次任务共记录 ${logs.length} 条日志。`
+      }
+      actions={
+        active ? (
+          <Badge variant="secondary">
+            <Spinner data-icon="inline-start" />
             实时
-          </span>
-        ) : null}
-      </header>
-
+          </Badge>
+        ) : null
+      }
+      contentClassName="p-0"
+    >
       {logs.length === 0 ? (
-        <Empty
-          className="execution-log__empty"
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="暂无执行日志"
-        />
+        <Empty className="min-h-56">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <FileSearchIcon />
+            </EmptyMedia>
+            <EmptyTitle>暂无执行日志</EmptyTitle>
+            <EmptyDescription>
+              {active
+                ? "任务开始执行后，日志会显示在这里。"
+                : "本次任务没有日志。"}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <div
           ref={viewportRef}
-          className="execution-log__viewport"
+          className="bg-foreground text-background max-h-[440px] min-h-56 overflow-y-auto px-5 py-4 font-mono text-[13px] leading-6"
           role="log"
           aria-live={active ? "polite" : "off"}
           onScroll={trackScroll}
@@ -158,19 +172,26 @@ function ExecutionLogPanel({
               ? AI_EXECUTION_STAGE_LABELS[log.stage]
               : "系统";
             return (
-              <div className="execution-log__line" key={log.position}>
-                <time>{formatLogDateTime(log.createdAt)}</time>
-                <span className={`execution-log__level ${level.className}`}>
+              <div
+                className="grid min-w-0 grid-cols-[12.5rem_3.5rem_minmax(8rem,auto)_minmax(0,1fr)] gap-x-3"
+                key={log.position}
+              >
+                <time className="text-background/60">
+                  {formatLogDateTime(log.createdAt)}
+                </time>
+                <span className={cn("font-semibold", level.className)}>
                   {level.label}
                 </span>
-                <span className="execution-log__stage">[{stage}]</span>
-                <span className="execution-log__message">{log.message}</span>
+                <span className="text-background/75 truncate">[{stage}]</span>
+                <span className="min-w-0 break-words whitespace-pre-wrap">
+                  {log.message}
+                </span>
               </div>
             );
           })}
         </div>
       )}
-    </section>
+    </PageSection>
   );
 }
 
@@ -219,9 +240,35 @@ function AiExecutionDetailContent({
         ? `/user-stories/${execution.result.confirmedUserStoryId}`
         : `/requirements/pending-review/${execution.result.id}`
       : null;
+  const information = [
+    { label: "发起用户", value: execution.requestedBy },
+    {
+      label: "发起时间",
+      value: formatDetailedDateTime(execution.queuedAt),
+    },
+    { label: "耗时", value: formatDuration(execution.durationMs) },
+    {
+      label: "模型配置",
+      value: execution.modelProfileNameSnapshot ?? "—",
+    },
+    { label: "模型 ID", value: execution.modelIdSnapshot ?? "—" },
+    {
+      label: "Skill",
+      value: execution.skillNameSnapshot
+        ? `${execution.skillNameSnapshot} v${execution.skillVersionSnapshot}`
+        : "—",
+    },
+    {
+      label: "Token",
+      value:
+        execution.totalTokens === null
+          ? "—"
+          : `${execution.totalTokens}（输入 ${execution.promptTokens ?? 0} / 输出 ${execution.completionTokens ?? 0}）`,
+    },
+  ];
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-w-0 flex-col gap-5">
       <PageHeader
         title="AI辅助生成US"
         description={
@@ -230,87 +277,85 @@ function AiExecutionDetailContent({
             : undefined
         }
         meta={
-          <Space size={8}>
-            <Tag color={statusMeta.color}>{statusMeta.label}</Tag>
+          <>
+            <Badge variant={statusMeta.badgeVariant}>{statusMeta.label}</Badge>
             <span>{AI_EXECUTION_STAGE_LABELS[execution.stage]}</span>
-          </Space>
+          </>
         }
         actions={
-          <Space>
-            <Button icon={<ArrowLeftOutlined />} href="/ai-executions">
+          <>
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href="/ai-executions" />}
+            >
+              <ArrowLeftIcon data-icon="inline-start" />
               返回执行记录
             </Button>
             {resultHref ? (
-              <Button icon={<FileSearchOutlined />} href={resultHref}>
+              <Button nativeButton={false} render={<Link href={resultHref} />}>
+                <FileSearchIcon data-icon="inline-start" />
                 查看生成结果
               </Button>
             ) : null}
-          </Space>
+          </>
         }
       />
 
       {executionActive ? (
-        <Alert
-          type="info"
-          showIcon
-          icon={<Spin size="small" />}
-          title="任务正在后台执行"
-          description="可以离开此页面，任务完成后仍可从 AI 执行记录中查看。"
-        />
+        <Alert>
+          <Spinner />
+          <AlertTitle>任务正在后台执行</AlertTitle>
+          <AlertDescription>
+            可以离开此页面，任务完成后仍可从 AI 执行记录中查看。
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {executionQuery.isError ? (
+        <Alert variant="destructive">
+          <AlertCircleIcon />
+          <AlertTitle>状态更新失败</AlertTitle>
+          <AlertDescription>
+            {executionQuery.error instanceof Error
+              ? executionQuery.error.message
+              : "暂时无法刷新任务状态，请稍后重试。"}
+          </AlertDescription>
+        </Alert>
       ) : null}
       {execution.errorMessage ? (
-        <Alert
-          type="error"
-          showIcon
-          title="生成失败"
-          description={execution.errorMessage}
-        />
+        <Alert variant="destructive">
+          <AlertCircleIcon />
+          <AlertTitle>生成失败</AlertTitle>
+          <AlertDescription>{execution.errorMessage}</AlertDescription>
+        </Alert>
       ) : null}
       {execution.result?.deleted ? (
-        <Alert
-          type="warning"
-          showIcon
-          title="本次生成结果已删除"
-          description="执行记录与日志仍然保留。"
-        />
+        <Alert>
+          <Trash2Icon />
+          <AlertTitle>本次生成结果已删除</AlertTitle>
+          <AlertDescription>执行记录与日志仍然保留。</AlertDescription>
+        </Alert>
       ) : null}
 
       <PageSection title="执行信息">
-        <Descriptions column={4} size="small">
-          <Descriptions.Item label="发起用户">
-            {execution.requestedBy}
-          </Descriptions.Item>
-          <Descriptions.Item label="发起时间">
-            {formatDetailedDateTime(execution.queuedAt)}
-          </Descriptions.Item>
-          <Descriptions.Item label="耗时">
-            {formatDuration(execution.durationMs)}
-          </Descriptions.Item>
-          <Descriptions.Item label="模型配置">
-            {execution.modelProfileNameSnapshot ?? "—"}
-          </Descriptions.Item>
-          <Descriptions.Item label="模型 ID">
-            {execution.modelIdSnapshot ?? "—"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Skill">
-            {execution.skillNameSnapshot
-              ? `${execution.skillNameSnapshot} v${execution.skillVersionSnapshot}`
-              : "—"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Token">
-            {execution.totalTokens === null
-              ? "—"
-              : `${execution.totalTokens}（输入 ${execution.promptTokens ?? 0} / 输出 ${execution.completionTokens ?? 0}）`}
-          </Descriptions.Item>
-        </Descriptions>
+        <dl className="grid grid-cols-2 gap-x-8 gap-y-5 min-[1440px]:grid-cols-4">
+          {information.map((item) => (
+            <div className="min-w-0" key={item.label}>
+              <dt className="text-muted-foreground text-xs">{item.label}</dt>
+              <dd className="mt-1 text-sm font-medium break-words">
+                {item.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </PageSection>
 
       <ExecutionLogPanel logs={execution.logs} active={executionActive} />
 
       <PageSection title="输入的需求内容">
-        <Typography.Paragraph className="!mb-0 whitespace-pre-wrap">
+        <p className="text-sm leading-6 break-words whitespace-pre-wrap">
           {execution.requirementText}
-        </Typography.Paragraph>
+        </p>
       </PageSection>
     </div>
   );

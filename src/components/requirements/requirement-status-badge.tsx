@@ -1,11 +1,15 @@
+import { Badge } from "@/components/ui/badge";
 import { RequirementStatus } from "@/generated/prisma/enums";
 import { REQUIREMENT_STATUS_META } from "@/lib/requirements/status";
 
-const toneClassNames: Record<RequirementStatus, string> = {
-  [RequirementStatus.DESIGN]: "requirement-status-badge--design",
-  [RequirementStatus.DEVELOPMENT]: "requirement-status-badge--development",
-  [RequirementStatus.TESTING]: "requirement-status-badge--testing",
-  [RequirementStatus.COMPLETED]: "requirement-status-badge--completed",
+const statusVariants: Record<
+  RequirementStatus,
+  "default" | "secondary" | "outline" | "ghost"
+> = {
+  [RequirementStatus.DESIGN]: "outline",
+  [RequirementStatus.DEVELOPMENT]: "secondary",
+  [RequirementStatus.TESTING]: "default",
+  [RequirementStatus.COMPLETED]: "ghost",
 };
 
 export function RequirementStatusBadge({
@@ -14,8 +18,8 @@ export function RequirementStatusBadge({
   status: RequirementStatus;
 }) {
   return (
-    <span className={`requirement-status-badge ${toneClassNames[status]}`}>
+    <Badge variant={statusVariants[status]}>
       {REQUIREMENT_STATUS_META[status].label}
-    </span>
+    </Badge>
   );
 }

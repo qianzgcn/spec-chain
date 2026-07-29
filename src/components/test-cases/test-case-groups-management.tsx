@@ -2,21 +2,11 @@
 
 import { useState, useTransition } from "react";
 
-import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
-import EditOutlined from "@ant-design/icons/EditOutlined";
-import PlusOutlined from "@ant-design/icons/PlusOutlined";
-import {
-  Button,
-  Form,
-  Input,
-  Modal,
-  Popconfirm,
-  Space,
-  Table,
-  message,
-} from "antd";
-import type { TableProps } from "antd";
+import { zodResolver } from "@hookform/resolvers/zod";
+import type { ColumnDef } from "@tanstack/react-table";
+import { MoreHorizontalIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
+import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
 import {
@@ -24,7 +14,40 @@ import {
   deleteTestCaseGroupAction,
   updateTestCaseGroupAction,
 } from "@/app/actions/test-cases";
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableShell } from "@/components/data-table/data-table-shell";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/components/ui/toast";
 import { formatDateTime } from "@/lib/date-time";
+import {
+  testCaseGroupFormSchema,
+  type TestCaseGroupFormValues,
+} from "@/lib/test-cases/schema";
 
 type GroupItem = {
   id: string;
@@ -33,196 +56,246 @@ type GroupItem = {
   updatedAt: string;
 };
 
-type GroupFormValues = {
-  name: string;
-};
+const PAGE_SIZE = 20;
 
 export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
   const router = useRouter();
-  const [messageApi, messageContext] = message.useMessage();
   const [editingGroup, setEditingGroup] = useState<GroupItem | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<GroupItem | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [page, setPage] = useState(1);
   const [isPending, startTransition] = useTransition();
+  const form = useForm<TestCaseGroupFormValues>({
+    resolver: zodResolver(testCaseGroupFormSchema),
+    defaultValues: { name: "" },
+  });
+
+  const pageCount = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pageItems = groups.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
 
   function openCreate() {
     setEditingGroup(null);
-    setModalOpen(true);
+    form.reset({ name: "" });
+    setDialogOpen(true);
   }
 
   function openEdit(group: GroupItem) {
     setEditingGroup(group);
-    setModalOpen(true);
+    form.reset({ name: group.name });
+    setDialogOpen(true);
   }
 
-  function submit(values: GroupFormValues) {
+  function closeDialog() {
+    if (isPending) return;
+    setDialogOpen(false);
+    setEditingGroup(null);
+    form.reset({ name: "" });
+  }
+
+  function submit(values: TestCaseGroupFormValues) {
     startTransition(async () => {
       const result = editingGroup
         ? await updateTestCaseGroupAction(editingGroup.id, values.name)
         : await createTestCaseGroupAction(values.name);
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
 
-      messageApi.success(result.message);
-      setModalOpen(false);
+      setDialogOpen(false);
+      setEditingGroup(null);
+      form.reset({ name: "" });
+      toast.add({ type: "success", description: result.message });
       router.refresh();
     });
   }
 
-  function remove(id: string) {
+  function remove() {
+    if (!deleteTarget) return;
+
     startTransition(async () => {
-      const result = await deleteTestCaseGroupAction(id);
+      const result = await deleteTestCaseGroupAction(deleteTarget.id);
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
 
-      messageApi.success(result.message);
+      setDeleteTarget(null);
+      toast.add({ type: "success", description: result.message });
       router.refresh();
     });
   }
 
-  const columns: TableProps<GroupItem>["columns"] = [
+  const columns: ColumnDef<GroupItem>[] = [
     {
-      title: "分组名称",
-      dataIndex: "name",
-      render: (name: string) => <strong>{name}</strong>,
+      accessorKey: "name",
+      header: "分组名称",
+      cell: ({ row }) => (
+        <span className="font-medium">{row.original.name}</span>
+      ),
     },
     {
-      title: "用例数量",
-      dataIndex: "testCaseCount",
-      width: 140,
-      render: (count: number, group) => (
+      accessorKey: "testCaseCount",
+      header: "用例数量",
+      size: 140,
+      cell: ({ row }) => (
         <Link
-          href={{
-            pathname: "/test-cases",
-            query: { group: group.id },
-          }}
-          className="entity-link entity-link--accent"
-          aria-label={`查看 ${group.name} 分组的 ${count} 个测试用例`}
+          href={`/test-cases?group=${encodeURIComponent(row.original.id)}`}
+          className="font-medium underline-offset-4 hover:underline"
+          aria-label={`查看 ${row.original.name} 分组的 ${row.original.testCaseCount} 个测试用例`}
         >
-          {count} 个
+          {row.original.testCaseCount} 个
         </Link>
       ),
     },
     {
-      title: "更新时间",
-      dataIndex: "updatedAt",
-      width: 180,
-      render: (value: string) => formatDateTime(value),
+      accessorKey: "updatedAt",
+      header: "更新时间",
+      size: 180,
+      meta: { cellClassName: "text-muted-foreground" },
+      cell: ({ row }) => formatDateTime(row.original.updatedAt),
     },
     {
-      title: "操作",
-      width: 170,
-      render: (_, group) => (
-        <Space size={2}>
+      id: "actions",
+      header: () => <span className="sr-only">操作</span>,
+      size: 108,
+      meta: { headerClassName: "text-right", cellClassName: "text-right" },
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-1">
           <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => openEdit(group)}
+            variant="ghost"
+            size="sm"
+            onClick={() => openEdit(row.original)}
           >
             编辑
           </Button>
-          <Popconfirm
-            title="删除分组"
-            description={
-              group.testCaseCount > 0
-                ? "该分组仍有测试用例，不能删除。"
-                : "删除后不能恢复，确认继续吗？"
-            }
-            okText="删除"
-            cancelText="取消"
-            okButtonProps={{ danger: true }}
-            disabled={group.testCaseCount > 0}
-            onConfirm={() => remove(group.id)}
-          >
-            <Button
-              type="link"
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              disabled={isPending || group.testCaseCount > 0}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="icon-sm" aria-label="更多操作" />
+              }
             >
-              删除
-            </Button>
-          </Popconfirm>
-        </Space>
+              <MoreHorizontalIcon />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={isPending || row.original.testCaseCount > 0}
+                  onClick={() => setDeleteTarget(row.original)}
+                >
+                  <Trash2Icon />
+                  删除
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       ),
     },
   ];
 
   return (
     <>
-      {messageContext}
-      <div className="content-panel table-page-panel">
-        <div className="table-toolbar">
-          <span className="table-toolbar__summary">
-            平级分组；包含未删除用例的分组不能删除。
-          </span>
-          <Button
-            className="ml-auto"
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={openCreate}
-          >
-            新建分组
-          </Button>
-        </div>
-        <Table<GroupItem>
-          rowKey="id"
-          columns={columns}
-          dataSource={groups}
-          loading={isPending}
-          tableLayout="fixed"
-          scroll={{ y: "100%" }}
-          pagination={{
-            pageSize: 20,
-            showSizeChanger: false,
-            showTotal: (count) => `共 ${count} 个分组`,
-          }}
-          locale={{ emptyText: "还没有用例分组" }}
-        />
-      </div>
-
-      <Modal
-        title={editingGroup ? "编辑分组" : "新建分组"}
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        footer={null}
-        destroyOnHidden
-        width={480}
-      >
-        <Form<GroupFormValues>
-          key={editingGroup?.id ?? "create"}
-          initialValues={{ name: editingGroup?.name ?? "" }}
-          preserve={false}
-          layout="vertical"
-          requiredMark={false}
-          className="pt-3"
-          onFinish={submit}
-        >
-          <Form.Item
-            name="name"
-            label="分组名称"
-            rules={[{ required: true, message: "请输入分组名称" }]}
-          >
-            <Input
-              maxLength={100}
-              showCount
-              autoFocus
-              placeholder="例如：订单退款"
-            />
-          </Form.Item>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button onClick={() => setModalOpen(false)}>取消</Button>
-            <Button type="primary" htmlType="submit" loading={isPending}>
-              保存
+      <DataTableShell
+        toolbar={
+          <>
+            <span className="text-muted-foreground text-sm">
+              平级分组；包含测试用例的分组不能删除。
+            </span>
+            <Button className="ml-auto" onClick={openCreate}>
+              <PlusIcon data-icon="inline-start" />
+              新建分组
             </Button>
-          </div>
-        </Form>
-      </Modal>
+          </>
+        }
+        footer={
+          <DataTablePagination
+            page={safePage}
+            pageSize={PAGE_SIZE}
+            total={groups.length}
+            itemName="个分组"
+            onChange={setPage}
+          />
+        }
+      >
+        <DataTable
+          columns={columns}
+          data={pageItems}
+          loading={isPending}
+          emptyText="还没有用例分组"
+          getRowId={(group) => group.id}
+        />
+      </DataTableShell>
+
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (!open) closeDialog();
+        }}
+      >
+        <DialogContent>
+          <form onSubmit={form.handleSubmit(submit)}>
+            <DialogHeader>
+              <DialogTitle>
+                {editingGroup ? "编辑分组" : "新建分组"}
+              </DialogTitle>
+              <DialogDescription>
+                分组名称用于在测试用例列表和表单中快速定位用例。
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-5">
+              <FieldGroup>
+                <Field data-invalid={Boolean(form.formState.errors.name)}>
+                  <FieldLabel htmlFor="test-case-group-name">
+                    分组名称
+                  </FieldLabel>
+                  <Input
+                    id="test-case-group-name"
+                    maxLength={100}
+                    autoFocus
+                    placeholder="例如：订单退款"
+                    aria-invalid={Boolean(form.formState.errors.name)}
+                    {...form.register("name")}
+                  />
+                  <FieldError errors={[form.formState.errors.name]} />
+                </Field>
+              </FieldGroup>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={closeDialog}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? <Spinner data-icon="inline-start" /> : null}
+                保存
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="删除分组"
+        description="删除后不能恢复，确认继续吗？"
+        confirmLabel="删除"
+        destructive
+        pending={isPending}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        onConfirm={remove}
+      />
     </>
   );
 }

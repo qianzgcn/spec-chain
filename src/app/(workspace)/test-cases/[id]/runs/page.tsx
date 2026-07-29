@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
 
-import ArrowLeftOutlined from "@ant-design/icons/ArrowLeftOutlined";
-import { Button, Tag } from "antd";
+import { ArrowLeftIcon } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   TestRunPanel,
   type TestRunSummary,
 } from "@/components/test-cases/test-run-panel";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
@@ -59,31 +62,32 @@ export default async function TestCaseRunsPage({
     durationMs: run.durationMs,
     requestedBy: run.requestedBy.username,
   }));
+  const priorityMeta = TEST_PRIORITY_META[testCase.priority];
 
   return (
-    <div className="page-shell">
+    <PageContainer className="flex flex-col gap-5">
       <PageHeader
         title="执行记录"
         description={testCase.name}
         meta={
           <>
-            <span className="page-code">{testCase.code}</span>
-            <Tag color={TEST_PRIORITY_META[testCase.priority].color}>
-              {testCase.priority}
-            </Tag>
-            <Tag color={testCase.enabled ? "success" : "default"}>
+            <span className="font-mono text-xs">{testCase.code}</span>
+            <Badge variant={priorityMeta.badgeVariant}>
+              {priorityMeta.label}
+            </Badge>
+            <Badge variant={testCase.enabled ? "secondary" : "outline"}>
               {testCase.enabled ? "已启用" : "已停用"}
-            </Tag>
-            <span className="text-xs text-slate-500">
-              {testCase.group.name}
-            </span>
+            </Badge>
+            <span>{testCase.group.name}</span>
           </>
         }
         actions={
           <Button
-            icon={<ArrowLeftOutlined />}
-            href={`/test-cases/${testCase.id}`}
+            variant="outline"
+            nativeButton={false}
+            render={<Link href={`/test-cases/${testCase.id}`} />}
           >
+            <ArrowLeftIcon data-icon="inline-start" />
             返回用例详情
           </Button>
         }
@@ -96,6 +100,6 @@ export default async function TestCaseRunsPage({
         hasBaseUrl={Boolean(project.baseUrl)}
         initialRuns={initialRuns}
       />
-    </div>
+    </PageContainer>
   );
 }

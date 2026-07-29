@@ -1,23 +1,35 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 
-import ArrowLeftOutlined from "@ant-design/icons/ArrowLeftOutlined";
-import ThunderboltOutlined from "@ant-design/icons/ThunderboltOutlined";
-import { Button, Form, Input, Space, message } from "antd";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowLeftIcon, SparklesIcon } from "lucide-react";
+import { useForm, useWatch } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
 import { createAiUserStoryExecutionAction } from "@/app/actions/ai-executions";
 import { FormPage } from "@/components/layout/form-page";
 import { PageSection } from "@/components/layout/page-section";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/toast";
 import {
   confirmLeaveIfDirty,
   useUnsavedChanges,
 } from "@/hooks/use-unsaved-changes";
-
-type GeneratorValues = {
-  requirementText: string;
-};
+import {
+  aiUserStoryGeneratorFormSchema,
+  type AiUserStoryGeneratorFormValues,
+} from "@/lib/ai/execution-schema";
 
 export function AiUserStoryGeneratorForm({
   feature,
@@ -25,24 +37,28 @@ export function AiUserStoryGeneratorForm({
   feature: { id: string; code: string; name: string } | null;
 }) {
   const router = useRouter();
-  const [messageApi, messageContext] = message.useMessage();
-  const [dirty, setDirty] = useState(false);
   const [isPending, startTransition] = useTransition();
-  useUnsavedChanges(dirty);
+  const form = useForm<AiUserStoryGeneratorFormValues>({
+    resolver: zodResolver(aiUserStoryGeneratorFormSchema),
+    defaultValues: { requirementText: "" },
+  });
+  const requirementText =
+    useWatch({ control: form.control, name: "requirementText" }) ?? "";
+  useUnsavedChanges(form.formState.isDirty);
 
-  function submit(values: GeneratorValues) {
+  function submit(values: AiUserStoryGeneratorFormValues) {
     startTransition(async () => {
       const result = await createAiUserStoryExecutionAction({
         requirementText: values.requirementText,
         featureId: feature?.id ?? null,
       });
       if (!result.ok || !result.data) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
 
-      setDirty(false);
-      messageApi.success(result.message);
+      form.reset(values);
+      toast.add({ type: "success", description: result.message });
       router.push(`/ai-executions/${result.data.id}`);
     });
   }
@@ -54,64 +70,72 @@ export function AiUserStoryGeneratorForm({
   }
 
   return (
-    <>
-      {messageContext}
-      <FormPage
-        title="AI辅助生成US"
-        description="输入需求后，系统会结合当前项目代码生成一份待评审的 US。"
-        meta={
-          feature ? (
-            <>
-              <span className="page-code">{feature.code}</span>
-              <span>{feature.name}</span>
-            </>
-          ) : null
-        }
-        actions={
-          <Space>
-            <Button icon={<ArrowLeftOutlined />} onClick={cancel}>
-              返回
-            </Button>
-            <Button
-              type="primary"
-              htmlType="submit"
-              form="ai-user-story-generator-form"
-              icon={<ThunderboltOutlined />}
-              loading={isPending}
-            >
-              开始生成
-            </Button>
-          </Space>
-        }
-      >
-        <Form<GeneratorValues>
-          id="ai-user-story-generator-form"
-          className="form-page__form"
-          layout="vertical"
-          requiredMark={false}
-          onValuesChange={() => setDirty(true)}
-          onFinish={submit}
-        >
-          <PageSection
-            title="需求内容"
-            description="描述要解决的问题、目标用户、期望结果和已知约束；信息不足时任务会明确失败。"
+    <FormPage
+      title="AI辅助生成US"
+      description="输入需求后，系统会结合当前项目代码生成一份待评审的 US。"
+      meta={
+        feature ? (
+          <>
+            <Badge variant="outline">{feature.code}</Badge>
+            <span>{feature.name}</span>
+          </>
+        ) : null
+      }
+      actions={
+        <>
+          <Button variant="outline" type="button" onClick={cancel}>
+            <ArrowLeftIcon data-icon="inline-start" />
+            返回
+          </Button>
+          <Button
+            type="submit"
+            form="ai-user-story-generator-form"
+            disabled={isPending}
           >
-            <Form.Item
-              name="requirementText"
-              rules={[{ required: true, message: "请输入需求内容" }]}
-              className="!mb-0"
+            {isPending ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <SparklesIcon data-icon="inline-start" />
+            )}
+            开始生成
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="ai-user-story-generator-form"
+        onSubmit={form.handleSubmit(submit)}
+      >
+        <PageSection
+          title="需求内容"
+          description="描述要解决的问题、目标用户、期望结果和已知约束；信息不足时任务会明确失败。"
+        >
+          <FieldGroup>
+            <Field
+              data-invalid={Boolean(form.formState.errors.requirementText)}
             >
-              <Input.TextArea
-                aria-label="需求内容"
-                rows={16}
+              <FieldLabel htmlFor="ai-requirement-text">需求内容</FieldLabel>
+              <Textarea
+                id="ai-requirement-text"
+                className="min-h-80 resize-y"
                 maxLength={10_000}
-                showCount
                 placeholder="请输入需要整理为 US 的需求内容"
+                aria-invalid={Boolean(form.formState.errors.requirementText)}
+                {...form.register("requirementText")}
               />
-            </Form.Item>
-          </PageSection>
-        </Form>
-      </FormPage>
-    </>
+              <div className="flex items-start justify-between gap-4">
+                <FieldDescription>
+                  尽量说明业务目标、使用场景、边界和约束。
+                </FieldDescription>
+                <span className="text-muted-foreground shrink-0 text-xs">
+                  {requirementText.length} / 10000
+                </span>
+              </div>
+              <FieldError errors={[form.formState.errors.requirementText]} />
+            </Field>
+          </FieldGroup>
+        </PageSection>
+      </form>
+    </FormPage>
   );
 }

@@ -1,39 +1,17 @@
 "use server";
 
-import { z } from "zod";
-
 import { revalidatePath } from "next/cache";
 
 import { UserRole } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
 import { hashPassword } from "@/lib/security/password";
+import {
+  createUserSchema,
+  resetPasswordSchema,
+  updateUserSchema,
+} from "@/lib/users/schema";
 import { requireAdmin, revokeUserSessions } from "@/server/auth/session";
 import { db } from "@/server/db";
-
-const createUserSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(1, "请输入用户名")
-    .max(50, "用户名不能超过 50 个字符"),
-  password: z.string().min(8, "密码至少需要 8 位"),
-  role: z.enum(UserRole),
-});
-
-const updateUserSchema = z.object({
-  id: z.string().min(1),
-  username: z
-    .string()
-    .trim()
-    .min(1, "请输入用户名")
-    .max(50, "用户名不能超过 50 个字符"),
-  role: z.enum(UserRole),
-});
-
-const resetPasswordSchema = z.object({
-  id: z.string().min(1),
-  password: z.string().min(8, "密码至少需要 8 位"),
-});
 
 export async function createUserAction(input: unknown): Promise<ActionResult> {
   await requireAdmin();

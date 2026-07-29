@@ -2,15 +2,32 @@
 
 import { useState, useTransition } from "react";
 
-import { Alert, Button, Form, Input, Modal } from "antd";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 
 import { changePasswordAction } from "@/app/actions/auth";
-
-type PasswordValues = {
-  currentPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-};
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  changePasswordSchema,
+  type ChangePasswordValues,
+} from "@/lib/auth/schemas";
 
 export function ChangePasswordModal({
   open,
@@ -19,18 +36,25 @@ export function ChangePasswordModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const [form] = Form.useForm<PasswordValues>();
   const [errorMessage, setErrorMessage] = useState<string>();
   const [isPending, startTransition] = useTransition();
+  const form = useForm<ChangePasswordValues>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    },
+  });
 
   function close() {
     if (isPending) return;
-    form.resetFields();
+    form.reset();
     setErrorMessage(undefined);
     onClose();
   }
 
-  function submit(values: PasswordValues) {
+  function submit(values: ChangePasswordValues) {
     setErrorMessage(undefined);
     startTransition(async () => {
       const result = await changePasswordAction(values);
@@ -41,70 +65,85 @@ export function ChangePasswordModal({
   }
 
   return (
-    <Modal
-      title="修改密码"
+    <Dialog
       open={open}
-      onCancel={close}
-      footer={null}
-      destroyOnHidden
-      width={460}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) close();
+      }}
     >
-      <p className="mb-5 text-sm text-slate-500">
-        修改成功后，所有已登录会话都会失效，需要使用新密码重新登录。
-      </p>
+      <DialogContent>
+        <form onSubmit={form.handleSubmit(submit)}>
+          <DialogHeader>
+            <DialogTitle>修改密码</DialogTitle>
+            <DialogDescription>
+              修改成功后，所有已登录会话都会失效，需要使用新密码重新登录。
+            </DialogDescription>
+          </DialogHeader>
 
-      {errorMessage ? (
-        <Alert className="mb-4" type="error" showIcon title={errorMessage} />
-      ) : null}
+          <div className="py-5">
+            {errorMessage ? (
+              <Alert variant="destructive" className="mb-4">
+                <AlertDescription>{errorMessage}</AlertDescription>
+              </Alert>
+            ) : null}
 
-      <Form<PasswordValues>
-        form={form}
-        layout="vertical"
-        requiredMark={false}
-        onFinish={submit}
-      >
-        <Form.Item
-          name="currentPassword"
-          label="当前密码"
-          rules={[{ required: true, message: "请输入当前密码" }]}
-        >
-          <Input.Password autoComplete="current-password" />
-        </Form.Item>
-        <Form.Item
-          name="newPassword"
-          label="新密码"
-          rules={[
-            { required: true, message: "请输入新密码" },
-            { min: 8, message: "新密码至少需要 8 位" },
-          ]}
-        >
-          <Input.Password autoComplete="new-password" />
-        </Form.Item>
-        <Form.Item
-          name="confirmPassword"
-          label="确认新密码"
-          dependencies={["newPassword"]}
-          rules={[
-            { required: true, message: "请再次输入新密码" },
-            ({ getFieldValue }) => ({
-              validator(_, value) {
-                if (!value || getFieldValue("newPassword") === value) {
-                  return Promise.resolve();
-                }
-                return Promise.reject(new Error("两次输入的新密码不一致"));
-              },
-            }),
-          ]}
-        >
-          <Input.Password autoComplete="new-password" />
-        </Form.Item>
-        <div className="flex justify-end gap-3 pt-2">
-          <Button onClick={close}>取消</Button>
-          <Button type="primary" htmlType="submit" loading={isPending}>
-            保存新密码
-          </Button>
-        </div>
-      </Form>
-    </Modal>
+            <FieldGroup>
+              <Field
+                data-invalid={Boolean(form.formState.errors.currentPassword)}
+              >
+                <FieldLabel htmlFor="current-password">当前密码</FieldLabel>
+                <Input
+                  id="current-password"
+                  type="password"
+                  autoComplete="current-password"
+                  aria-invalid={Boolean(form.formState.errors.currentPassword)}
+                  {...form.register("currentPassword")}
+                />
+                <FieldError errors={[form.formState.errors.currentPassword]} />
+              </Field>
+              <Field data-invalid={Boolean(form.formState.errors.newPassword)}>
+                <FieldLabel htmlFor="new-password">新密码</FieldLabel>
+                <Input
+                  id="new-password"
+                  type="password"
+                  autoComplete="new-password"
+                  aria-invalid={Boolean(form.formState.errors.newPassword)}
+                  {...form.register("newPassword")}
+                />
+                <FieldError errors={[form.formState.errors.newPassword]} />
+              </Field>
+              <Field
+                data-invalid={Boolean(form.formState.errors.confirmPassword)}
+              >
+                <FieldLabel htmlFor="confirm-password">确认新密码</FieldLabel>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  aria-invalid={Boolean(form.formState.errors.confirmPassword)}
+                  {...form.register("confirmPassword")}
+                />
+                <FieldError errors={[form.formState.errors.confirmPassword]} />
+              </Field>
+            </FieldGroup>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              type="button"
+              disabled={isPending}
+              onClick={close}
+            >
+              取消
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? <Spinner data-icon="inline-start" /> : null}
+              保存新密码
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

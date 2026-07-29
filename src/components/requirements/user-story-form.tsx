@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 
-import ThunderboltOutlined from "@ant-design/icons/ThunderboltOutlined";
-import { Button, Form, Space, message } from "antd";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { SparklesIcon } from "lucide-react";
+import Link from "next/link";
+import { FormProvider, useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
 import {
@@ -11,15 +13,19 @@ import {
   updateUserStoryAction,
 } from "@/app/actions/requirements";
 import { FormPage } from "@/components/layout/form-page";
-import {
-  UserStoryFields,
-  type UserStoryFormValues,
-} from "@/components/requirements/user-story-fields";
+import { UserStoryFields } from "@/components/requirements/user-story-fields";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/components/ui/toast";
 import { RequirementStatus } from "@/generated/prisma/enums";
 import {
   confirmLeaveIfDirty,
   useUnsavedChanges,
 } from "@/hooks/use-unsaved-changes";
+import {
+  userStoryFormSchema,
+  type UserStoryFormValues,
+} from "@/lib/requirements/user-story-schema";
 
 export type { UserStoryFormValues };
 
@@ -34,6 +40,17 @@ type UserStoryFormProps = {
   initialValues?: UserStoryFormValues;
 };
 
+const emptyUserStory: UserStoryFormValues = {
+  title: "",
+  asA: "",
+  iWant: "",
+  soThat: "",
+  status: RequirementStatus.DESIGN,
+  acceptanceCriteria: [{ given: "", when: "", then: "" }],
+  businessRules: "",
+  nonFunctionalRequirements: "",
+};
+
 export function UserStoryForm({
   userStoryId,
   code,
@@ -41,23 +58,16 @@ export function UserStoryForm({
   initialValues,
 }: UserStoryFormProps) {
   const router = useRouter();
-  const [messageApi, messageContext] = message.useMessage();
-  const [dirty, setDirty] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const form = useForm<UserStoryFormValues>({
+    resolver: zodResolver(userStoryFormSchema),
+    defaultValues: initialValues ?? emptyUserStory,
+  });
+  const dirty = form.formState.isDirty;
   useUnsavedChanges(dirty);
 
   const editing = Boolean(userStoryId);
   const formId = editing ? "edit-user-story-form" : "new-user-story-form";
-  const defaults: UserStoryFormValues = initialValues ?? {
-    title: "",
-    asA: "",
-    iWant: "",
-    soThat: "",
-    status: RequirementStatus.DESIGN,
-    acceptanceCriteria: [{ given: "", when: "", then: "" }],
-    businessRules: "",
-    nonFunctionalRequirements: "",
-  };
 
   function submit(values: UserStoryFormValues) {
     startTransition(async () => {
@@ -68,12 +78,12 @@ export function UserStoryForm({
             featureId: feature?.id ?? null,
           });
       if (!result.ok) {
-        messageApi.error(result.message);
+        toast.add({ type: "error", description: result.message });
         return;
       }
 
-      setDirty(false);
-      messageApi.success(result.message);
+      form.reset(values);
+      toast.add({ type: "success", description: result.message });
       const targetId = userStoryId ?? result.data?.id;
       router.push(targetId ? `/user-stories/${targetId}` : "/requirements");
       router.refresh();
@@ -87,64 +97,66 @@ export function UserStoryForm({
   }
 
   return (
-    <>
-      {messageContext}
-      <FormPage
-        title={editing ? "编辑 US" : "新建US"}
-        description={
-          editing
-            ? "调整用户故事、验收标准和实现约束。"
-            : "编写边界清楚、可开发、可验证的用户故事。"
-        }
-        meta={
-          editing && code ? (
-            <span className="page-code">{code}</span>
-          ) : feature ? (
-            <>
-              <span className="page-code">{feature.code}</span>
-              <span>{feature.name}</span>
-            </>
-          ) : null
-        }
-        actions={
-          <Space>
-            {!editing ? (
-              <Button
-                icon={<ThunderboltOutlined />}
-                href={
-                  feature
-                    ? `/user-stories/ai-generate?featureId=${feature.id}`
-                    : "/user-stories/ai-generate"
-                }
-              >
-                AI辅助生成US
-              </Button>
-            ) : null}
-            <Button onClick={cancel}>取消</Button>
+    <FormPage
+      title={editing ? "编辑 US" : "新建US"}
+      description={
+        editing
+          ? "调整用户故事、验收标准和实现约束。"
+          : "编写边界清楚、可开发、可验证的用户故事。"
+      }
+      meta={
+        editing && code ? (
+          <span className="font-mono text-xs">{code}</span>
+        ) : feature ? (
+          <>
+            <span className="font-mono text-xs">{feature.code}</span>
+            <span>{feature.name}</span>
+          </>
+        ) : null
+      }
+      actions={
+        <>
+          {!editing ? (
             <Button
-              type="primary"
-              htmlType="submit"
-              form={formId}
-              loading={isPending}
-              disabled={editing && !dirty}
+              variant="outline"
+              nativeButton={false}
+              render={
+                <Link
+                  href={
+                    feature
+                      ? `/user-stories/ai-generate?featureId=${feature.id}`
+                      : "/user-stories/ai-generate"
+                  }
+                />
+              }
             >
-              保存
+              <SparklesIcon data-icon="inline-start" />
+              AI辅助生成US
             </Button>
-          </Space>
-        }
-      >
-        <Form<UserStoryFormValues>
+          ) : null}
+          <Button variant="outline" onClick={cancel}>
+            取消
+          </Button>
+          <Button
+            type="submit"
+            form={formId}
+            disabled={isPending || (editing && !dirty)}
+          >
+            {isPending ? <Spinner data-icon="inline-start" /> : null}
+            保存
+          </Button>
+        </>
+      }
+    >
+      <FormProvider {...form}>
+        <form
           id={formId}
-          className="form-page__form"
-          layout="vertical"
-          requiredMark={false}
-          initialValues={defaults}
-          onValuesChange={() => setDirty(true)}
-          onFinish={submit}
+          className="flex w-full flex-col gap-4"
+          onSubmit={form.handleSubmit(submit)}
         >
           <UserStoryFields showStatus />
-        </Form>
-      </FormPage>
-    </>
+        </form>
+      </FormProvider>
+    </FormPage>
   );
 }
