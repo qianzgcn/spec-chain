@@ -107,7 +107,15 @@ const workflowInput = {
 describe("AI 生成 US 工作流", () => {
   it("基于真实文件生成结构化草稿并只保存代码引用", async () => {
     const logs: WorkflowLogEvent[] = [];
-    const result = await createWorkflow(createFakeProvider()).run({
+    const calls: Array<Record<string, unknown>> = [];
+    const provider = createFakeProvider();
+    const recordingProvider: ModelProvider = {
+      async generateStructured(options) {
+        calls.push(options as unknown as Record<string, unknown>);
+        return provider.generateStructured(options);
+      },
+    };
+    const result = await createWorkflow(recordingProvider).run({
       ...workflowInput,
       onLog: async (event) => {
         logs.push(event);
@@ -126,6 +134,10 @@ describe("AI 生成 US 工作流", () => {
     expect(JSON.stringify(result)).not.toContain("must-not-leak");
     expect(JSON.stringify(result)).not.toContain("createRefund");
     expect(result.usage.totalTokens).toBe(30);
+    expect(calls).toHaveLength(2);
+    expect(calls.every((options) => !("maxOutputTokens" in options))).toBe(
+      true,
+    );
     expect(logs.map((log) => log.message)).toEqual(
       expect.arrayContaining([
         "已读取 1 个仓库的文件树，共 1 个文件。",

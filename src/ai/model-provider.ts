@@ -2,9 +2,11 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
   extractJsonMiddleware,
   generateText,
+  JSONParseError,
   NoObjectGeneratedError,
   NoOutputGeneratedError,
   Output,
+  TypeValidationError,
   wrapLanguageModel,
 } from "ai";
 import type { FinishReason, LanguageModelUsage } from "ai";
@@ -32,7 +34,6 @@ export type StructuredGenerationOptions<OUTPUT> = {
   system: string;
   prompt: string;
   abortSignal?: AbortSignal;
-  maxOutputTokens?: number;
   timeoutMs?: number;
 };
 
@@ -61,7 +62,10 @@ export type ModelProviderErrorCode =
   | "RATE_LIMIT"
   | "TIMEOUT"
   | "OUTPUT_LIMIT"
-  | "STRUCTURED_OUTPUT"
+  | "JSON_PARSE"
+  | "SCHEMA_VALIDATION"
+  | "EMPTY_OUTPUT"
+  | "REQUEST"
   | "SERVICE";
 
 export class ModelProviderError extends Error {
@@ -156,6 +160,29 @@ function findNoObjectGeneratedError(
   return undefined;
 }
 
+function findZodError(error: unknown): z.ZodError | undefined {
+  if (error instanceof z.ZodError) return error;
+  if (!error || typeof error !== "object" || !("cause" in error)) {
+    return undefined;
+  }
+  return findZodError(error.cause);
+}
+
+function formatValidationFields(error: unknown) {
+  const zodError = findZodError(error);
+  if (!zodError) return "";
+
+  const fields = [
+    ...new Set(
+      zodError.issues.map((issue) =>
+        issue.path.length > 0 ? issue.path.join(".") : "根对象",
+      ),
+    ),
+  ].slice(0, 5);
+
+  return fields.length > 0 ? `（字段：${fields.join("、")}）` : "";
+}
+
 export function toModelProviderError(error: unknown): ModelProviderError {
   if (error instanceof ModelProviderError) return error;
 
@@ -180,18 +207,30 @@ export function toModelProviderError(error: unknown): ModelProviderError {
       "模型服务请求过于频繁，请稍后重试",
     );
   }
+  if (statusCode === 400) {
+    return new ModelProviderError(
+      "REQUEST",
+      "模型服务拒绝了请求，请检查模型 ID、接口地址及接口兼容性",
+    );
+  }
   if (isTimeoutError(error)) {
     return new ModelProviderError("TIMEOUT", "模型服务响应超时");
   }
-  if (
-    objectError ||
-    NoOutputGeneratedError.isInstance(error) ||
-    statusCode === 400
-  ) {
+
+  if (objectError && JSONParseError.isInstance(objectError.cause)) {
     return new ModelProviderError(
-      "STRUCTURED_OUTPUT",
-      "模型返回内容不符合任务所需的数据结构，请稍后重试",
+      "JSON_PARSE",
+      "模型返回的内容不是完整 JSON，可能被截断或包含额外文本",
     );
+  }
+  if (objectError && TypeValidationError.isInstance(objectError.cause)) {
+    return new ModelProviderError(
+      "SCHEMA_VALIDATION",
+      `模型返回的 JSON 字段不符合任务要求${formatValidationFields(objectError.cause)}`,
+    );
+  }
+  if (objectError || NoOutputGeneratedError.isInstance(error)) {
+    return new ModelProviderError("EMPTY_OUTPUT", "模型未返回可用内容");
   }
 
   return new ModelProviderError("SERVICE", "模型服务暂时不可用，请稍后重试");
@@ -217,7 +256,6 @@ export function createModelProvider(
       system,
       prompt,
       abortSignal,
-      maxOutputTokens,
       timeoutMs,
     }: StructuredGenerationOptions<OUTPUT>) {
       try {
@@ -225,24 +263,16 @@ export function createModelProvider(
           model,
           system: buildStructuredSystemPrompt(system, schema),
           prompt,
-          output: Output.json(),
-          temperature: 0.1,
-          maxOutputTokens,
+          output: Output.object({ schema }),
+          temperature: 0,
           maxRetries: 2,
           timeout: timeoutMs,
           abortSignal,
         });
         assertStructuredOutputComplete(result.finishReason);
-        const parsedOutput = schema.safeParse(result.output);
-        if (!parsedOutput.success) {
-          throw new ModelProviderError(
-            "STRUCTURED_OUTPUT",
-            "模型返回内容不符合任务所需的数据结构，请稍后重试",
-          );
-        }
 
         return {
-          output: parsedOutput.data,
+          output: result.output,
           usage: normalizeUsage(result.usage),
         };
       } catch (error) {

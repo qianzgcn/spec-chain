@@ -20,9 +20,6 @@ const PATH_BATCH_SIZE = 1_000;
 const MAX_SELECTED_FILES = 20;
 const MAX_TOTAL_CODE_CHARACTERS = 240_000;
 const FILE_READ_CONCURRENCY = 4;
-// 最终输出同时包含模型推理和完整 US JSON；8192 是该任务的独立预算，
-// 避免被兼容网关常见的 4096 默认值截断，不影响模型检查和代码定位。
-const USER_STORY_GENERATION_OUTPUT_TOKENS = 8_192;
 
 const codeSelectionSchema = z.object({
   hasPotentialMatch: z.boolean(),
@@ -353,7 +350,6 @@ export function createGenerateUserStoryWorkflow({
           ),
         }),
         abortSignal,
-        maxOutputTokens: USER_STORY_GENERATION_OUTPUT_TOKENS,
       });
       addUsage(usage, generation.usage);
 
