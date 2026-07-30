@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontalIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
@@ -17,6 +17,7 @@ import {
 } from "@/app/actions/ai-settings";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -29,13 +30,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Field,
   FieldDescription,
@@ -54,6 +48,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
+import { AiModelCheckStatus } from "@/generated/prisma/enums";
 import {
   aiModelProfileFormSchema,
   type AiModelProfileFormValues,
@@ -65,10 +60,32 @@ type ModelProfileItem = {
   name: string;
   baseUrl: string;
   modelId: string;
+  lastCheckStatus: AiModelCheckStatus;
+  lastCheckedAt: string | null;
   updatedAt: string;
 };
 
 const PAGE_SIZE = 20;
+const MODEL_CHECK_STATUS_META: Record<
+  AiModelCheckStatus,
+  {
+    label: string;
+    badgeVariant: "outline" | "success" | "destructive";
+  }
+> = {
+  [AiModelCheckStatus.UNCHECKED]: {
+    label: "未检查",
+    badgeVariant: "outline",
+  },
+  [AiModelCheckStatus.SUCCEEDED]: {
+    label: "检查通过",
+    badgeVariant: "success",
+  },
+  [AiModelCheckStatus.FAILED]: {
+    label: "检查失败",
+    badgeVariant: "destructive",
+  },
+};
 
 export function AiSettingsManagement({
   profiles,
@@ -247,6 +264,25 @@ export function AiSettingsManagement({
       meta: { cellClassName: "truncate font-mono text-xs" },
     },
     {
+      accessorKey: "lastCheckStatus",
+      header: "最近检查状态",
+      size: 144,
+      cell: ({ row }) => {
+        const profile = row.original;
+        const meta = MODEL_CHECK_STATUS_META[profile.lastCheckStatus];
+        return (
+          <div className="flex flex-col items-start gap-0.5">
+            <Badge variant={meta.badgeVariant}>{meta.label}</Badge>
+            {profile.lastCheckedAt ? (
+              <span className="text-muted-foreground text-xs">
+                {formatCompactDateTime(profile.lastCheckedAt)}
+              </span>
+            ) : null}
+          </div>
+        );
+      },
+    },
+    {
       id: "apiKey",
       header: "API Key",
       size: 96,
@@ -270,54 +306,30 @@ export function AiSettingsManagement({
     {
       id: "actions",
       header: () => <span className="sr-only">操作</span>,
-      size: 148,
-      meta: { headerClassName: "text-right", cellClassName: "text-right" },
+      size: 136,
+      meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={
-              isPending &&
-              checkingProfileId !== null &&
-              checkingProfileId !== row.original.id
-            }
-            onClick={() => checkProfile(row.original.id)}
-          >
-            {checkingProfileId === row.original.id ? (
-              <Spinner data-icon="inline-start" />
-            ) : null}
-            检查
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => openEdit(row.original)}
-          >
-            编辑
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button variant="ghost" size="icon-sm" aria-label="更多操作" />
-              }
-            >
-              <MoreHorizontalIcon />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  variant="destructive"
-                  disabled={isPending || row.original.id === defaultProfileId}
-                  onClick={() => setDeleteTarget(row.original)}
-                >
-                  <Trash2Icon />
-                  删除
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <DataTableRowActions
+          actions={[
+            {
+              label: "检查",
+              disabled: isPending,
+              loading: checkingProfileId === row.original.id,
+              onClick: () => checkProfile(row.original.id),
+            },
+            {
+              label: "编辑",
+              disabled: isPending,
+              onClick: () => openEdit(row.original),
+            },
+            {
+              label: "删除",
+              disabled: isPending || row.original.id === defaultProfileId,
+              destructive: true,
+              onClick: () => setDeleteTarget(row.original),
+            },
+          ]}
+        />
       ),
     },
   ];
@@ -441,15 +453,12 @@ export function AiSettingsManagement({
                     type="password"
                     maxLength={4_000}
                     autoComplete="new-password"
-                    placeholder={
-                      editingProfile ? "留空保留原 API Key" : undefined
-                    }
                     aria-invalid={Boolean(form.formState.errors.apiKey)}
                     {...form.register("apiKey")}
                   />
                   <FieldDescription>
                     {editingProfile
-                      ? "已配置的密钥不会回显；留空表示保留原值。"
+                      ? "已配置密钥不会回显；不填写则保留原值。"
                       : "密钥使用 AES-256-GCM 加密保存，之后不会回显。"}
                   </FieldDescription>
                   <FieldError errors={[form.formState.errors.apiKey]} />

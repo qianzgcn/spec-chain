@@ -1,14 +1,13 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import Link from "next/link";
 
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { formatCompactDateTime, formatDetailedDateTime } from "@/lib/date-time";
 
 export type PendingRequirementListItem = {
@@ -69,19 +68,17 @@ const columns: ColumnDef<PendingRequirementListItem>[] = [
   {
     id: "actions",
     header: () => <span className="sr-only">操作</span>,
-    size: 88,
-    meta: { headerClassName: "text-right", cellClassName: "text-right" },
+    size: 56,
+    meta: { headerClassName: "text-left", cellClassName: "text-left" },
     cell: ({ row }) => (
-      <Button
-        variant="ghost"
-        size="sm"
-        nativeButton={false}
-        render={
-          <Link href={`/requirements/pending-review/${row.original.id}`} />
-        }
-      >
-        评审
-      </Button>
+      <DataTableRowActions
+        actions={[
+          {
+            label: "评审",
+            href: `/requirements/pending-review/${row.original.id}`,
+          },
+        ]}
+      />
     ),
   },
 ];

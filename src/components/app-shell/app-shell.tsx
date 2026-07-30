@@ -21,6 +21,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { logoutAction } from "@/app/actions/auth";
 import { switchProjectAction } from "@/app/actions/projects";
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
+import { WorkspaceBreadcrumbs } from "@/components/app-shell/workspace-breadcrumbs";
 import { ChangePasswordModal } from "@/components/auth/change-password-modal";
 import { SpecChainMark } from "@/components/brand/specchain-mark";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -113,6 +114,13 @@ function NavigationGroup({
   pathname: string;
 }) {
   const Icon = group.icon;
+  const active =
+    group.children?.some((item) => isPathActive(pathname, item.href)) ?? false;
+  const [openState, setOpenState] = useState<{
+    pathname: string;
+    open: boolean;
+  } | null>(null);
+  const open = openState?.pathname === pathname ? openState.open : active;
 
   if (group.href) {
     return (
@@ -129,12 +137,11 @@ function NavigationGroup({
     );
   }
 
-  const active = group.children?.some((item) =>
-    isPathActive(pathname, item.href),
-  );
-
   return (
-    <Collapsible defaultOpen={active ?? true}>
+    <Collapsible
+      open={open}
+      onOpenChange={(nextOpen) => setOpenState({ pathname, open: nextOpen })}
+    >
       <SidebarMenuItem>
         <CollapsibleTrigger
           render={<SidebarMenuButton tooltip={group.label} />}
@@ -264,16 +271,52 @@ export function AppShell({
         style={{ "--sidebar-width": "14rem" } as React.CSSProperties}
       >
         <Sidebar collapsible="icon">
-          <SidebarHeader className="h-14 justify-center border-b">
-            <Link
-              href="/requirements"
-              className="flex min-w-0 items-center gap-2 px-2"
-            >
-              <SpecChainMark size={28} />
-              <span className="truncate text-base font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
-                SpecChain
-              </span>
-            </Link>
+          <SidebarHeader className="gap-2 border-b p-2">
+            <div className="flex h-9 items-center">
+              <Link
+                href="/requirements"
+                className="flex min-w-0 items-center gap-2 px-2"
+              >
+                <SpecChainMark size={28} />
+                <span className="truncate text-base font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
+                  SpecChain
+                </span>
+              </Link>
+            </div>
+            <div className="flex flex-col gap-1 px-1 group-data-[collapsible=icon]:hidden">
+              {projects.length ? (
+                <Select
+                  items={projectOptions}
+                  value={currentProject?.id ?? null}
+                  disabled={isSwitching}
+                  onValueChange={switchProject}
+                >
+                  <SelectTrigger className="w-full" aria-label="当前项目">
+                    <SelectValue>
+                      {() => currentProject?.name ?? "请选择项目"}
+                    </SelectValue>
+                    {isSwitching ? <Spinner /> : null}
+                  </SelectTrigger>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {projects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/projects")}
+                >
+                  创建项目
+                </Button>
+              )}
+            </div>
           </SidebarHeader>
           <SidebarContent>
             <SidebarGroup>
@@ -350,47 +393,9 @@ export function AppShell({
         </Sidebar>
 
         <SidebarInset className="h-dvh min-h-0 overflow-hidden">
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
+          <header className="flex h-11 shrink-0 items-center gap-3 border-b px-5">
             <SidebarTrigger />
-            <div className="bg-border h-5 w-px" aria-hidden />
-            <span className="text-muted-foreground text-xs">当前项目</span>
-            {projects.length ? (
-              <Select
-                items={projectOptions}
-                value={currentProject?.id ?? null}
-                onValueChange={switchProject}
-              >
-                <SelectTrigger
-                  className="w-64 border-0 bg-transparent shadow-none"
-                  aria-label="当前项目"
-                >
-                  <SelectValue>
-                    {(value: string | null) =>
-                      projects.find((project) => project.id === value)?.name ??
-                      "请选择项目"
-                    }
-                  </SelectValue>
-                  {isSwitching ? <Spinner /> : null}
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate("/projects")}
-              >
-                暂无项目，立即创建
-              </Button>
-            )}
+            <WorkspaceBreadcrumbs pathname={pathname} />
           </header>
           <div
             className={cn(

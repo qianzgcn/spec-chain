@@ -94,11 +94,8 @@ export function UserStoryFields({ showStatus }: { showStatus: boolean }) {
         </FieldGroup>
       </PageSection>
 
-      <PageSection
-        title="用户故事"
-        description="明确使用者、期望能力以及要实现的业务价值。"
-      >
-        <FieldGroup className="grid grid-cols-[3fr_5fr_4fr] gap-4">
+      <PageSection title="用户故事">
+        <FieldGroup>
           <Field data-invalid={Boolean(errors.asA)}>
             <FieldLabel htmlFor="user-story-as">As</FieldLabel>
             <Textarea
@@ -139,9 +136,9 @@ export function UserStoryFields({ showStatus }: { showStatus: boolean }) {
 
       <PageSection
         title="补充约束"
-        description="仅填写会影响实现或验收的规则；两项均支持 Markdown。"
+        description="仅填写会影响实现或验收的规则。"
       >
-        <FieldGroup className="grid grid-cols-2 gap-5">
+        <FieldGroup>
           <Controller
             control={form.control}
             name="businessRules"
@@ -156,7 +153,6 @@ export function UserStoryFields({ showStatus }: { showStatus: boolean }) {
                   onChange={field.onChange}
                   aria-invalid={fieldState.invalid}
                   rows={8}
-                  placeholder="没有业务规则时可以留空"
                 />
                 <FieldError errors={[fieldState.error]} />
               </Field>
@@ -176,7 +172,6 @@ export function UserStoryFields({ showStatus }: { showStatus: boolean }) {
                   onChange={field.onChange}
                   aria-invalid={fieldState.invalid}
                   rows={8}
-                  placeholder="没有非功能需求时可以留空"
                 />
                 <FieldError errors={[fieldState.error]} />
               </Field>

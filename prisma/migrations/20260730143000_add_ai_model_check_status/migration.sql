@@ -1,0 +1,5 @@
+ALTER TABLE "AiModelProfile"
+ADD COLUMN "lastCheckStatus" TEXT NOT NULL DEFAULT 'UNCHECKED';
+
+ALTER TABLE "AiModelProfile"
+ADD COLUMN "lastCheckedAt" DATETIME;

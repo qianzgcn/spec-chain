@@ -75,7 +75,7 @@ export default async function TestCaseRunsPage({
             <Badge variant={priorityMeta.badgeVariant}>
               {priorityMeta.label}
             </Badge>
-            <Badge variant={testCase.enabled ? "secondary" : "outline"}>
+            <Badge variant={testCase.enabled ? "success" : "outline"}>
               {testCase.enabled ? "已启用" : "已停用"}
             </Badge>
             <span>{testCase.group.name}</span>

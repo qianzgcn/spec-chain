@@ -1,6 +1,10 @@
 "use client";
 
-import { RequirementStatusBadge } from "@/components/requirements/requirement-status-badge";
+import {
+  getRequirementStatusVariant,
+  RequirementStatusValue,
+} from "@/components/requirements/requirement-status-badge";
+import { badgeVariants } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -12,6 +16,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { RequirementStatus } from "@/generated/prisma/enums";
 import { REQUIREMENT_STATUS_META } from "@/lib/requirements/status";
+import { cn } from "@/lib/utils";
 
 const STATUS_OPTIONS = Object.values(RequirementStatus).map((status) => ({
   value: status,
@@ -41,11 +46,16 @@ export function RequirementStatusSelectControl({
       <SelectTrigger
         aria-label="需求状态"
         size={size === "small" ? "sm" : "default"}
-        className="w-24"
+        className={cn(
+          badgeVariants({
+            variant: getRequirementStatusVariant(value),
+          }),
+          "w-24 justify-between px-2.5 text-[0.8rem]",
+        )}
       >
         <SelectValue>
           {(selectedValue: RequirementStatus) => (
-            <RequirementStatusBadge status={selectedValue} />
+            <RequirementStatusValue status={selectedValue} />
           )}
         </SelectValue>
         {loading ? <Spinner /> : null}
@@ -54,7 +64,7 @@ export function RequirementStatusSelectControl({
         <SelectGroup>
           {STATUS_OPTIONS.map((option) => (
             <SelectItem key={option.value} value={option.value}>
-              <RequirementStatusBadge status={option.value} />
+              <RequirementStatusValue status={option.value} />
             </SelectItem>
           ))}
         </SelectGroup>

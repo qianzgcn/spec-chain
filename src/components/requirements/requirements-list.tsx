@@ -3,13 +3,7 @@
 import { useState, useTransition } from "react";
 
 import type { ColumnDef, ExpandedState, Updater } from "@tanstack/react-table";
-import {
-  ChevronRightIcon,
-  CopyIcon,
-  MoreHorizontalIcon,
-  PlusIcon,
-  Trash2Icon,
-} from "lucide-react";
+import { ChevronRightIcon, CopyIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -22,6 +16,7 @@ import {
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { SearchInput } from "@/components/data-table/search-input";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
@@ -29,13 +24,6 @@ import { RequirementStatusBadge } from "@/components/requirements/requirement-st
 import { RequirementStatusSelectControl } from "@/components/requirements/requirement-status-select-control";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -222,7 +210,7 @@ export function RequirementsList({
             )}
             <Link
               href={href}
-              className="min-w-0 truncate font-medium underline-offset-4 hover:underline"
+              className="text-link min-w-0 truncate font-medium underline-offset-4 hover:underline"
               title={item.title}
             >
               {item.title}
@@ -281,8 +269,8 @@ export function RequirementsList({
     {
       id: "actions",
       header: () => <span className="sr-only">操作</span>,
-      size: 170,
-      meta: { headerClassName: "text-right", cellClassName: "text-right" },
+      size: 204,
+      meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => {
         const item = row.original;
         const basePath =
@@ -290,61 +278,36 @@ export function RequirementsList({
             ? `/features/${item.id}`
             : `/user-stories/${item.id}`;
 
-        return (
-          <div className="flex items-center justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              nativeButton={false}
-              render={<Link href={`${basePath}/edit`} />}
-            >
-              编辑
-            </Button>
-            {item.type === "FEATURE" ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  navigate(`/features/${item.id}/user-stories/new`)
-                }
-              >
-                新建US
-              </Button>
-            ) : null}
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="更多操作"
-                  />
-                }
-              >
-                <MoreHorizontalIcon />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuGroup>
-                  <DropdownMenuItem
-                    disabled={isPending}
-                    onClick={() => copyRequirement(item)}
-                  >
-                    <CopyIcon />
-                    复制内容
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    disabled={isPending}
-                    onClick={() => setDeleteTarget(item)}
-                  >
-                    <Trash2Icon />
-                    删除
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        );
+        const actions = [
+          {
+            label: "编辑",
+            href: `${basePath}/edit`,
+          },
+          ...(item.type === "FEATURE"
+            ? [
+                {
+                  label: "新建US",
+                  onClick: () =>
+                    navigate(`/features/${item.id}/user-stories/new`),
+                },
+              ]
+            : []),
+          {
+            label: "复制内容",
+            icon: <CopyIcon />,
+            disabled: isPending,
+            onClick: () => copyRequirement(item),
+          },
+          {
+            label: "删除",
+            icon: <Trash2Icon />,
+            disabled: isPending,
+            destructive: true,
+            onClick: () => setDeleteTarget(item),
+          },
+        ];
+
+        return <DataTableRowActions actions={actions} />;
       },
     },
   ];

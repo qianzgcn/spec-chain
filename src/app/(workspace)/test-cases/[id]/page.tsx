@@ -6,7 +6,6 @@ import { notFound } from "next/navigation";
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageSection } from "@/components/layout/page-section";
-import { MarkdownView } from "@/components/markdown/markdown-view";
 import { TestCaseDetailActions } from "@/components/test-cases/test-case-detail-actions";
 import { Badge } from "@/components/ui/badge";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
@@ -60,7 +59,7 @@ export default async function TestCaseDetailPage({
             <Badge variant={priorityMeta.badgeVariant}>
               {priorityMeta.label}
             </Badge>
-            <Badge variant={testCase.enabled ? "secondary" : "outline"}>
+            <Badge variant={testCase.enabled ? "success" : "outline"}>
               {testCase.enabled ? "已启用" : "已停用"}
             </Badge>
             <span>{testCase.group.name}</span>
@@ -70,14 +69,18 @@ export default async function TestCaseDetailPage({
       />
 
       <PageSection title="用例内容">
-        <div className="grid grid-cols-[4fr_8fr] gap-8">
-          <div className="flex min-w-0 flex-col gap-2">
+        <div className="flex flex-col gap-5">
+          <div className="bg-muted/50 flex min-w-0 flex-col gap-2 rounded-lg p-4">
             <h3 className="text-sm font-medium">前置条件</h3>
-            <MarkdownView content={testCase.preconditions} />
+            <p className="text-sm leading-6 break-words whitespace-pre-wrap">
+              {testCase.preconditions?.trim() || "无"}
+            </p>
           </div>
-          <div className="flex min-w-0 flex-col gap-2">
+          <div className="bg-muted/50 flex min-w-0 flex-col gap-2 rounded-lg p-4">
             <h3 className="text-sm font-medium">测试步骤</h3>
-            <MarkdownView content={testCase.steps} />
+            <p className="text-sm leading-6 break-words whitespace-pre-wrap">
+              {testCase.steps}
+            </p>
           </div>
         </div>
       </PageSection>

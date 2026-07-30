@@ -271,7 +271,7 @@ export function ProjectTestingSettingsForm({
                         }
                         placeholder={
                           kind === VariableKind.SECRET && existing
-                            ? "••••••••（留空保留）"
+                            ? "••••••••"
                             : "请输入变量值"
                         }
                         aria-invalid={Boolean(

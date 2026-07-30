@@ -8,13 +8,12 @@ import {
   QueryClientProvider,
   useQuery,
 } from "@tanstack/react-query";
-import Link from "next/link";
 
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
   ACTIVE_AI_EXECUTION_STATUSES,
@@ -157,17 +156,17 @@ function AiExecutionsTable({
     {
       id: "actions",
       header: () => <span className="sr-only">操作</span>,
-      size: 76,
-      meta: { headerClassName: "text-right", cellClassName: "text-right" },
+      size: 56,
+      meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          nativeButton={false}
-          render={<Link href={`/ai-executions/${row.original.id}`} />}
-        >
-          查看
-        </Button>
+        <DataTableRowActions
+          actions={[
+            {
+              label: "查看",
+              href: `/ai-executions/${row.original.id}`,
+            },
+          ]}
+        />
       ),
     },
   ];

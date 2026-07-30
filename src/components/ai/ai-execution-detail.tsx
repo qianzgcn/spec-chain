@@ -90,7 +90,7 @@ const LOG_LEVEL_META = {
   },
   [AiExecutionLogLevel.WARN]: {
     label: "WARN",
-    className: "text-background",
+    className: "text-warning",
   },
   [AiExecutionLogLevel.ERROR]: {
     label: "ERROR",
@@ -136,7 +136,7 @@ function ExecutionLogPanel({
       }
       actions={
         active ? (
-          <Badge variant="secondary">
+          <Badge variant="info">
             <Spinner data-icon="inline-start" />
             实时
           </Badge>
@@ -303,7 +303,7 @@ function AiExecutionDetailContent({
       />
 
       {executionActive ? (
-        <Alert>
+        <Alert variant="info">
           <Spinner />
           <AlertTitle>任务正在后台执行</AlertTitle>
           <AlertDescription>
@@ -337,6 +337,12 @@ function AiExecutionDetailContent({
         </Alert>
       ) : null}
 
+      <PageSection title="输入的需求内容">
+        <p className="text-sm leading-6 break-words whitespace-pre-wrap">
+          {execution.requirementText}
+        </p>
+      </PageSection>
+
       <PageSection title="执行信息">
         <dl className="grid grid-cols-2 gap-x-8 gap-y-5 min-[1440px]:grid-cols-4">
           {information.map((item) => (
@@ -351,12 +357,6 @@ function AiExecutionDetailContent({
       </PageSection>
 
       <ExecutionLogPanel logs={execution.logs} active={executionActive} />
-
-      <PageSection title="输入的需求内容">
-        <p className="text-sm leading-6 break-words whitespace-pre-wrap">
-          {execution.requirementText}
-        </p>
-      </PageSection>
     </div>
   );
 }

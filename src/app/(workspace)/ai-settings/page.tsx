@@ -21,6 +21,8 @@ export default async function AiSettingsPage() {
         name: true,
         baseUrl: true,
         modelId: true,
+        lastCheckStatus: true,
+        lastCheckedAt: true,
         updatedAt: true,
       },
       orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
@@ -41,6 +43,7 @@ export default async function AiSettingsPage() {
       <AiSettingsManagement
         profiles={profiles.map((profile) => ({
           ...profile,
+          lastCheckedAt: profile.lastCheckedAt?.toISOString() ?? null,
           updatedAt: profile.updatedAt.toISOString(),
         }))}
         defaultProfileId={binding?.modelProfileId ?? null}

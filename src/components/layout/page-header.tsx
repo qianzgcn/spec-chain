@@ -6,12 +6,14 @@ export function PageHeader({
   title,
   description,
   meta,
+  titleAccessory,
   actions,
   className,
 }: {
   title: ReactNode;
   description?: ReactNode;
   meta?: ReactNode;
+  titleAccessory?: ReactNode;
   actions?: ReactNode;
   className?: string;
 }) {
@@ -28,9 +30,12 @@ export function PageHeader({
             {meta}
           </div>
         ) : null}
-        <h1 className="text-foreground text-2xl font-semibold tracking-tight">
-          {title}
-        </h1>
+        <div className="flex min-w-0 items-center gap-3">
+          <h1 className="text-foreground min-w-0 text-2xl font-semibold tracking-tight">
+            {title}
+          </h1>
+          {titleAccessory}
+        </div>
         {description ? (
           <p className="text-muted-foreground mt-1 max-w-4xl text-sm leading-6">
             {description}

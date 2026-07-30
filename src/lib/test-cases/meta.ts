@@ -1,6 +1,6 @@
 import { RunStatus, TestPriority } from "@/generated/prisma/enums";
 
-type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
+type BadgeVariant = "info" | "success" | "warning" | "destructive" | "outline";
 
 export const TEST_PRIORITY_META: Record<
   TestPriority,
@@ -14,7 +14,7 @@ export const TEST_PRIORITY_META: Record<
   [TestPriority.P1]: {
     label: "P1",
     description: "重要用例",
-    badgeVariant: "secondary",
+    badgeVariant: "warning",
   },
   [TestPriority.P2]: {
     label: "P2",
@@ -28,9 +28,9 @@ export const RUN_STATUS_META: Record<
   { label: string; badgeVariant: BadgeVariant }
 > = {
   [RunStatus.QUEUED]: { label: "排队中", badgeVariant: "outline" },
-  [RunStatus.RUNNING]: { label: "运行中", badgeVariant: "default" },
-  [RunStatus.PASSED]: { label: "成功", badgeVariant: "secondary" },
+  [RunStatus.RUNNING]: { label: "运行中", badgeVariant: "info" },
+  [RunStatus.PASSED]: { label: "成功", badgeVariant: "success" },
   [RunStatus.FAILED]: { label: "失败", badgeVariant: "destructive" },
-  [RunStatus.TIMED_OUT]: { label: "超时", badgeVariant: "secondary" },
+  [RunStatus.TIMED_OUT]: { label: "超时", badgeVariant: "warning" },
   [RunStatus.STOPPED]: { label: "已停止", badgeVariant: "outline" },
 };

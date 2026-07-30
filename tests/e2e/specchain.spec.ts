@@ -84,14 +84,17 @@ async function expectTestCaseActionsAligned(page: Page) {
 
         const headerRect = header.getBoundingClientRect();
         const actionsRect = actions.getBoundingClientRect();
-        return Math.abs(headerRect.right - actionsRect.right);
+        return Math.abs(headerRect.left - actionsRect.left);
       }),
     )
     .toBeLessThanOrEqual(12);
 
-  const moreButton = page.getByRole("button", { name: "更多操作" }).first();
-  await expect(moreButton).toBeVisible();
-  await expect(moreButton).toHaveText("");
+  const actions = page.getByTestId("test-case-actions").first();
+  await expect(actions.getByRole("link", { name: "编辑" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "删除" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "更多操作" })).toHaveCount(
+    0,
+  );
 }
 
 test("从登录到需求和测试用例的核心流程", async ({ page }) => {
@@ -320,6 +323,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await page.getByLabel("API Key").fill("e2e-model-api-key");
   await page.getByRole("button", { name: "保存" }).click();
   await expect(page.getByText("E2E OpenAI 兼容模型")).toBeVisible();
+  await expect(page.getByText("未检查", { exact: true })).toBeVisible();
 
   await page.getByRole("combobox", { name: "生成 US 默认模型" }).click();
   await page.getByRole("option", { name: /E2E OpenAI 兼容模型/ }).click();

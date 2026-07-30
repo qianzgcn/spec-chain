@@ -6,12 +6,14 @@ export function FormPage({
   title,
   description,
   meta,
+  titleAccessory,
   actions,
   children,
 }: {
   title: ReactNode;
   description?: ReactNode;
   meta?: ReactNode;
+  titleAccessory?: ReactNode;
   actions: ReactNode;
   children: ReactNode;
 }) {
@@ -21,6 +23,7 @@ export function FormPage({
         title={title}
         description={description}
         meta={meta}
+        titleAccessory={titleAccessory}
         actions={actions}
       />
       {children}

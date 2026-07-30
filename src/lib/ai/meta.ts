@@ -4,7 +4,7 @@ export const AI_EXECUTION_STATUS_META: Record<
   AiExecutionStatus,
   {
     label: string;
-    badgeVariant: "default" | "secondary" | "destructive" | "outline";
+    badgeVariant: "info" | "success" | "destructive" | "outline";
   }
 > = {
   [AiExecutionStatus.QUEUED]: {
@@ -13,11 +13,11 @@ export const AI_EXECUTION_STATUS_META: Record<
   },
   [AiExecutionStatus.RUNNING]: {
     label: "运行中",
-    badgeVariant: "default",
+    badgeVariant: "info",
   },
   [AiExecutionStatus.SUCCEEDED]: {
     label: "已成功",
-    badgeVariant: "secondary",
+    badgeVariant: "success",
   },
   [AiExecutionStatus.FAILED]: {
     label: "已失败",

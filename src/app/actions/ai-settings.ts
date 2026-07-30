@@ -5,7 +5,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 
 import { ModelProviderError, checkModelProvider } from "@/ai/model-provider";
-import { AiCapability } from "@/generated/prisma/enums";
+import { AiCapability, AiModelCheckStatus } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
 import { aiModelProfileInputSchema } from "@/lib/ai/model-profile";
 import { decryptAesGcm, encryptAesGcm } from "@/lib/security/aes-gcm";
@@ -35,6 +35,17 @@ async function hasDuplicateName(name: string, excludedId?: string) {
   return profiles.some(
     (profile) => profile.name.toLocaleLowerCase() === normalizedName,
   );
+}
+
+async function recordModelCheck(profileId: string, status: AiModelCheckStatus) {
+  await db.aiModelProfile.update({
+    where: { id: profileId },
+    data: {
+      lastCheckStatus: status,
+      lastCheckedAt: new Date(),
+    },
+  });
+  revalidatePath("/ai-settings");
 }
 
 export async function createAiModelProfileAction(
@@ -101,6 +112,8 @@ export async function updateAiModelProfileAction(
       apiKeyEncrypted: parsed.data.apiKey
         ? encryptAesGcm(parsed.data.apiKey, env.ENCRYPTION_KEY)
         : profile.apiKeyEncrypted,
+      lastCheckStatus: AiModelCheckStatus.UNCHECKED,
+      lastCheckedAt: null,
     },
   });
 
@@ -185,6 +198,7 @@ export async function checkAiModelProfileAction(
   const profile = await db.aiModelProfile.findFirst({
     where: { id: parsedId.data, deletedAt: null },
     select: {
+      id: true,
       name: true,
       baseUrl: true,
       modelId: true,
@@ -199,6 +213,7 @@ export async function checkAiModelProfileAction(
   try {
     apiKey = decryptAesGcm(profile.apiKeyEncrypted, env.ENCRYPTION_KEY);
   } catch {
+    await recordModelCheck(profile.id, AiModelCheckStatus.FAILED);
     return {
       ok: false,
       message: "模型 API Key 无法读取，请重新配置",
@@ -206,12 +221,19 @@ export async function checkAiModelProfileAction(
   }
 
   try {
-    await checkModelProvider({ ...profile, apiKey });
+    await checkModelProvider({
+      name: profile.name,
+      baseUrl: profile.baseUrl,
+      modelId: profile.modelId,
+      apiKey,
+    });
+    await recordModelCheck(profile.id, AiModelCheckStatus.SUCCEEDED);
     return {
       ok: true,
       message: "模型连接正常，并支持生成所需的结构化结果",
     };
   } catch (error) {
+    await recordModelCheck(profile.id, AiModelCheckStatus.FAILED);
     if (error instanceof ModelProviderError) {
       return { ok: false, message: error.message };
     }

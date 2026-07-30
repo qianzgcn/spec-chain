@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontalIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
@@ -16,6 +16,7 @@ import {
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -28,13 +29,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Field,
   FieldError,
@@ -194,51 +188,38 @@ export function ProjectManagement({
     {
       id: "actions",
       header: () => <span className="sr-only">操作</span>,
-      size: 164,
-      meta: { headerClassName: "text-right", cellClassName: "text-right" },
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1">
-          {row.original.id !== currentProjectId ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={isPending}
-              onClick={() => switchProject(row.original.id)}
-            >
-              切换
-            </Button>
-          ) : null}
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={isPending}
-            onClick={() => switchProject(row.original.id, "/project-settings")}
-          >
-            设置
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button variant="ghost" size="icon-sm" aria-label="更多操作" />
-              }
-            >
-              <MoreHorizontalIcon />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  variant="destructive"
-                  disabled={isPending}
-                  onClick={() => setDeleteTarget(row.original)}
-                >
-                  <Trash2Icon />
-                  删除
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      ),
+      size: 136,
+      meta: { headerClassName: "text-left", cellClassName: "text-left" },
+      cell: ({ row }) => {
+        const project = row.original;
+        return (
+          <DataTableRowActions
+            actions={[
+              ...(project.id !== currentProjectId
+                ? [
+                    {
+                      label: "切换",
+                      disabled: isPending,
+                      onClick: () => switchProject(project.id),
+                    },
+                  ]
+                : []),
+              {
+                label: "设置",
+                disabled: isPending,
+                onClick: () => switchProject(project.id, "/project-settings"),
+              },
+              {
+                label: "删除",
+                icon: <Trash2Icon />,
+                disabled: isPending,
+                destructive: true,
+                onClick: () => setDeleteTarget(project),
+              },
+            ]}
+          />
+        );
+      },
     },
   ];
 

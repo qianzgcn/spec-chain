@@ -43,6 +43,12 @@ enum AiCapability {
   GENERATE_USER_STORY
 }
 
+enum AiModelCheckStatus {
+  UNCHECKED
+  SUCCEEDED
+  FAILED
+}
+
 enum AiExecutionStatus {
   QUEUED
   RUNNING
@@ -316,14 +322,16 @@ model BusinessCodeSequence {
 }
 
 model AiModelProfile {
-  id              String    @id @default(cuid())
-  name            String
-  baseUrl         String
-  modelId         String
-  apiKeyEncrypted String
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
+  id                 String             @id @default(cuid())
+  name               String
+  baseUrl            String
+  modelId            String
+  apiKeyEncrypted    String
+  lastCheckStatus    AiModelCheckStatus @default(UNCHECKED)
+  lastCheckedAt      DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  deletedAt          DateTime?
 
   capabilityBindings AiCapabilityBinding[]
 

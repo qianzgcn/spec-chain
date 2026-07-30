@@ -295,7 +295,7 @@ function TestRunPanelContent({
                     <RunStatusBadge status={detail.status} />
                     {detail.cancelRequested &&
                     detail.status === RunStatus.RUNNING ? (
-                      <Badge variant="secondary">正在停止</Badge>
+                      <Badge variant="warning">正在停止</Badge>
                     ) : null}
                   </div>
                   <dl className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
@@ -337,7 +337,7 @@ function TestRunPanelContent({
               <div className="flex flex-col gap-2">
                 <h3 className="text-sm font-medium">运行日志</h3>
                 {detail.artifactsExpired ? (
-                  <Alert>
+                  <Alert variant="warning">
                     <AlertTitle>运行产物已过期</AlertTitle>
                     <AlertDescription>
                       原始日志和失败截图已清理，运行摘要仍会长期保留。

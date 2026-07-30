@@ -4,12 +4,7 @@ import { useState, useTransition } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import {
-  KeyRoundIcon,
-  MoreHorizontalIcon,
-  PlusIcon,
-  Trash2Icon,
-} from "lucide-react";
+import { KeyRoundIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
@@ -21,6 +16,7 @@ import {
 } from "@/app/actions/users";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -33,14 +29,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Field,
   FieldError,
@@ -248,48 +236,29 @@ export function UserManagement({
     {
       id: "actions",
       header: () => <span className="sr-only">操作</span>,
-      size: 116,
-      meta: { headerClassName: "text-right", cellClassName: "text-right" },
+      size: 160,
+      meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => openEdit(row.original)}
-          >
-            编辑
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button variant="ghost" size="icon-sm" aria-label="更多操作" />
-              }
-            >
-              <MoreHorizontalIcon />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  onClick={() => openPasswordDialog(row.original)}
-                >
-                  <KeyRoundIcon />
-                  重置密码
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  variant="destructive"
-                  disabled={isPending || row.original.id === currentUserId}
-                  onClick={() => setDeleteTarget(row.original)}
-                >
-                  <Trash2Icon />
-                  删除
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <DataTableRowActions
+          actions={[
+            {
+              label: "编辑",
+              onClick: () => openEdit(row.original),
+            },
+            {
+              label: "重置密码",
+              icon: <KeyRoundIcon />,
+              onClick: () => openPasswordDialog(row.original),
+            },
+            {
+              label: "删除",
+              icon: <Trash2Icon />,
+              disabled: isPending || row.original.id === currentUserId,
+              destructive: true,
+              onClick: () => setDeleteTarget(row.original),
+            },
+          ]}
+        />
       ),
     },
   ];

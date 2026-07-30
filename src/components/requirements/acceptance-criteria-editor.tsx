@@ -19,10 +19,7 @@ export function AcceptanceCriteriaEditor() {
   const criteriaErrors = form.formState.errors.acceptanceCriteria;
 
   return (
-    <PageSection
-      title="验收标准"
-      description="使用 Given / When / Then 描述可以直接验证的业务结果。"
-    >
+    <PageSection title="验收标准">
       <div className="flex min-w-0 flex-col gap-3">
         <div
           className="text-muted-foreground grid grid-cols-[2rem_repeat(3,minmax(0,1fr))_2rem] gap-3 px-2 text-xs font-medium"

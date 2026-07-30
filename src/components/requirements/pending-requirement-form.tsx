@@ -126,7 +126,7 @@ export function PendingRequirementForm({
         meta={
           <>
             <Badge variant="secondary">AI 生成</Badge>
-            <Badge variant="outline">待评审</Badge>
+            <Badge variant="warning">待评审</Badge>
             {feature ? (
               <span>
                 {feature.code} · {feature.name}

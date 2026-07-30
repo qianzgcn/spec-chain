@@ -122,7 +122,7 @@ function RepositoryCredentialCard({
               </CardDescription>
             </div>
           </div>
-          <Badge variant={configured ? "secondary" : "outline"}>
+          <Badge variant={configured ? "success" : "outline"}>
             {configured ? "已配置" : "未配置"}
           </Badge>
         </div>
@@ -627,7 +627,7 @@ export function ProjectRepositoriesForm({
                         <Alert
                           className="col-span-5"
                           variant={
-                            connectionResult.ok ? "default" : "destructive"
+                            connectionResult.ok ? "success" : "destructive"
                           }
                         >
                           {connectionResult.ok ? (

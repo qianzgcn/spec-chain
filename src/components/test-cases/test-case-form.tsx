@@ -3,7 +3,6 @@
 import { Fragment, useTransition } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { TriangleAlertIcon } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Controller, useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
@@ -14,9 +13,7 @@ import {
 } from "@/app/actions/test-cases";
 import { FormPage } from "@/components/layout/form-page";
 import { PageSection } from "@/components/layout/page-section";
-import { MarkdownField } from "@/components/markdown/markdown-field";
 import type { ScriptEditorProps } from "@/components/test-cases/script-editor";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -33,11 +30,9 @@ import {
 } from "@/components/ui/combobox";
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
-  FieldTitle,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -166,6 +161,28 @@ export function TestCaseForm({
           : "使用自然语言描述验证过程，需要时再补充自动化脚本。"
       }
       meta={code ? <span className="font-mono text-xs">{code}</span> : null}
+      titleAccessory={
+        <Controller
+          control={form.control}
+          name="enabled"
+          render={({ field }) => (
+            <Field className="w-auto gap-2" orientation="horizontal">
+              <FieldLabel
+                className="text-muted-foreground font-normal"
+                htmlFor="test-case-enabled"
+              >
+                启用
+              </FieldLabel>
+              <Switch
+                id="test-case-enabled"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+                aria-label="启用测试用例"
+              />
+            </Field>
+          )}
+        />
+      }
       actions={
         <>
           <Button variant="outline" onClick={cancel}>
@@ -190,7 +207,7 @@ export function TestCaseForm({
         <PageSection title="基本信息">
           <FieldGroup className="grid grid-cols-12 gap-5">
             <Field
-              className="col-span-5"
+              className="col-span-6"
               data-invalid={Boolean(form.formState.errors.name)}
             >
               <FieldLabel htmlFor="test-case-name">用例名称</FieldLabel>
@@ -243,7 +260,7 @@ export function TestCaseForm({
               control={form.control}
               name="priority"
               render={({ field, fieldState }) => (
-                <Field className="col-span-2" data-invalid={fieldState.invalid}>
+                <Field className="col-span-3" data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor="test-case-priority">优先级</FieldLabel>
                   <Select
                     items={PRIORITY_OPTIONS}
@@ -267,24 +284,6 @@ export function TestCaseForm({
                     </SelectContent>
                   </Select>
                   <FieldError errors={[fieldState.error]} />
-                </Field>
-              )}
-            />
-
-            <Controller
-              control={form.control}
-              name="enabled"
-              render={({ field }) => (
-                <Field
-                  className="col-span-2 justify-end"
-                  orientation="horizontal"
-                >
-                  <FieldTitle>启用</FieldTitle>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    aria-label="启用测试用例"
-                  />
                 </Field>
               )}
             />
@@ -341,9 +340,6 @@ export function TestCaseForm({
                       </ComboboxList>
                     </ComboboxContent>
                   </Combobox>
-                  <FieldDescription>
-                    只展示当前项目中未删除的 US。
-                  </FieldDescription>
                   <FieldError errors={[fieldState.error]} />
                 </Field>
               )}
@@ -351,77 +347,46 @@ export function TestCaseForm({
           </FieldGroup>
         </PageSection>
 
-        <PageSection
-          title="用例内容"
-          description="所有步骤写在一个输入框中，需要验证的结果直接写在对应步骤里。"
-        >
-          <FieldGroup className="grid grid-cols-[4fr_8fr] gap-5">
-            <Controller
-              control={form.control}
-              name="preconditions"
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="test-case-preconditions">
-                    前置条件（可选）
-                  </FieldLabel>
-                  <MarkdownField
-                    id="test-case-preconditions"
-                    value={field.value}
-                    onChange={field.onChange}
-                    rows={10}
-                    placeholder="没有前置条件时可以留空"
-                    aria-invalid={fieldState.invalid}
-                  />
-                  <FieldDescription>
-                    记录执行前必须满足的数据、权限或环境条件。
-                  </FieldDescription>
-                  <FieldError errors={[fieldState.error]} />
-                </Field>
-              )}
-            />
+        <PageSection title="用例内容">
+          <FieldGroup>
+            <Field data-invalid={Boolean(form.formState.errors.preconditions)}>
+              <FieldLabel htmlFor="test-case-preconditions">
+                前置条件（可选）
+              </FieldLabel>
+              <Textarea
+                id="test-case-preconditions"
+                rows={5}
+                maxLength={100_000}
+                aria-invalid={Boolean(form.formState.errors.preconditions)}
+                {...form.register("preconditions")}
+              />
+              <FieldError errors={[form.formState.errors.preconditions]} />
+            </Field>
             <Field data-invalid={Boolean(form.formState.errors.steps)}>
               <FieldLabel htmlFor="test-case-steps">测试步骤</FieldLabel>
               <Textarea
                 id="test-case-steps"
-                rows={14}
+                rows={10}
                 maxLength={100_000}
                 placeholder={
-                  "1. 打开 SpecChain 登录页\n2. 输入用户名 `admin` 和错误密码 `wrong-password`\n3. 点击登录，显示“用户名或密码错误”，并停留在登录页。"
+                  "1. 打开 SpecChain 登录页\n2. 输入用户名 admin 和错误密码 wrong-password\n3. 点击登录，显示“用户名或密码错误”，并停留在登录页。"
                 }
                 aria-invalid={Boolean(form.formState.errors.steps)}
                 {...form.register("steps")}
               />
-              <FieldDescription>
-                建议每行一个编号步骤，支持 Markdown。
-              </FieldDescription>
               <FieldError errors={[form.formState.errors.steps]} />
             </Field>
           </FieldGroup>
         </PageSection>
 
-        <PageSection
-          title="自动化脚本（可选）"
-          description="未填写脚本时仍可保存自然语言测试用例，但不能发起自动化运行。"
-        >
-          <div className="flex flex-col gap-4">
-            <Alert>
-              <TriangleAlertIcon />
-              <AlertTitle>
-                脚本是完整的 Playwright Test TypeScript 文件
-              </AlertTitle>
-              <AlertDescription>
-                请自行编写 import、test 和 expect。脚本可执行 Node.js
-                代码，首版仅适用于内部可信用户。
-              </AlertDescription>
-            </Alert>
-            <Controller
-              control={form.control}
-              name="script"
-              render={({ field }) => (
-                <ScriptEditor value={field.value} onChange={field.onChange} />
-              )}
-            />
-          </div>
+        <PageSection title="自动化脚本（可选）">
+          <Controller
+            control={form.control}
+            name="script"
+            render={({ field }) => (
+              <ScriptEditor value={field.value} onChange={field.onChange} />
+            )}
+          />
         </PageSection>
       </form>
     </FormPage>

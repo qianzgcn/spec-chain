@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontalIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
@@ -16,6 +16,7 @@ import {
 } from "@/app/actions/test-cases";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -27,13 +28,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Field,
   FieldError,
@@ -162,39 +156,24 @@ export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
     {
       id: "actions",
       header: () => <span className="sr-only">操作</span>,
-      size: 108,
-      meta: { headerClassName: "text-right", cellClassName: "text-right" },
+      size: 96,
+      meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => openEdit(row.original)}
-          >
-            编辑
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button variant="ghost" size="icon-sm" aria-label="更多操作" />
-              }
-            >
-              <MoreHorizontalIcon />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  variant="destructive"
-                  disabled={isPending || row.original.testCaseCount > 0}
-                  onClick={() => setDeleteTarget(row.original)}
-                >
-                  <Trash2Icon />
-                  删除
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <DataTableRowActions
+          actions={[
+            {
+              label: "编辑",
+              onClick: () => openEdit(row.original),
+            },
+            {
+              label: "删除",
+              icon: <Trash2Icon />,
+              disabled: isPending || row.original.testCaseCount > 0,
+              destructive: true,
+              onClick: () => setDeleteTarget(row.original),
+            },
+          ]}
+        />
       ),
     },
   ];

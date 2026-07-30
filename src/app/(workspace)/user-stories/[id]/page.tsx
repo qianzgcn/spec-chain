@@ -71,7 +71,7 @@ export default async function UserStoryDetailPage({
 
       <div className="flex min-w-0 flex-col gap-4">
         <PageSection title="用户故事">
-          <dl className="grid grid-cols-[3fr_5fr_4fr] gap-4">
+          <dl className="flex flex-col gap-3">
             <div className="bg-muted/50 min-w-0 rounded-lg p-4">
               <dt className="text-muted-foreground mb-2 text-xs font-medium">
                 As
@@ -120,17 +120,12 @@ export default async function UserStoryDetailPage({
           </div>
         </PageSection>
 
-        <PageSection title="补充约束">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-muted/50 min-w-0 rounded-lg p-4">
-              <h3 className="mb-3 text-sm font-medium">业务规则</h3>
-              <MarkdownView content={story.businessRules} />
-            </div>
-            <div className="bg-muted/50 min-w-0 rounded-lg p-4">
-              <h3 className="mb-3 text-sm font-medium">非功能需求</h3>
-              <MarkdownView content={story.nonFunctionalRequirements} />
-            </div>
-          </div>
+        <PageSection title="业务规则">
+          <MarkdownView content={story.businessRules} />
+        </PageSection>
+
+        <PageSection title="非功能需求">
+          <MarkdownView content={story.nonFunctionalRequirements} />
         </PageSection>
       </div>
     </PageContainer>
