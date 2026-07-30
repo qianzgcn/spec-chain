@@ -135,9 +135,6 @@ describe("AI 生成 US 工作流", () => {
     expect(JSON.stringify(result)).not.toContain("createRefund");
     expect(result.usage.totalTokens).toBe(30);
     expect(calls).toHaveLength(2);
-    expect(calls.every((options) => !("maxOutputTokens" in options))).toBe(
-      true,
-    );
     expect(logs.map((log) => log.message)).toEqual(
       expect.arrayContaining([
         "已读取 1 个仓库的文件树，共 1 个文件。",

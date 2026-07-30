@@ -56,7 +56,7 @@ describe("AI 模型配置", () => {
     }
   });
 
-  it("使用 Schema 校验结构化结果且不设置输出 Token 上限", async () => {
+  it("使用 Schema 校验结构化结果并配置充足的输出预算", async () => {
     let requestBody: Record<string, unknown> | undefined;
     vi.stubGlobal(
       "fetch",
@@ -107,9 +107,9 @@ describe("AI 模型配置", () => {
     expect(result.output).toEqual({ ok: true, message: "连接正常" });
     expect(requestBody).toMatchObject({
       temperature: 0,
+      max_tokens: 32_768,
       response_format: { type: "json_object" },
     });
-    expect(requestBody).not.toHaveProperty("max_tokens");
   });
 
   it("规范化合法的 OpenAI 兼容 Base URL", () => {

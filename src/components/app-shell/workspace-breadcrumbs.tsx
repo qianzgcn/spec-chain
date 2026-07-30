@@ -85,8 +85,8 @@ function buildBreadcrumbs(pathname: string): BreadcrumbEntry[] {
 
   if (segments[0] === "ai-executions" && segments[1]) {
     return [
-      { label: "AI 执行记录", href: "/ai-executions" },
-      { label: "执行详情" },
+      { label: "执行任务", href: "/ai-executions" },
+      { label: "任务详情" },
     ];
   }
 

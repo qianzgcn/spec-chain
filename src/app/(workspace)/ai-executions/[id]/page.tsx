@@ -8,7 +8,7 @@ import { getAiExecutionDetail } from "@/server/ai/execution-dto";
 import { getCurrentProject } from "@/server/projects/current-project";
 
 export const metadata: Metadata = {
-  title: "AI 执行详情",
+  title: "任务详情",
 };
 
 export default async function AiExecutionDetailPage({

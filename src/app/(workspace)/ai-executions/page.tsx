@@ -8,7 +8,7 @@ import { getAiExecutionSummaries } from "@/server/ai/execution-dto";
 import { getCurrentProject } from "@/server/projects/current-project";
 
 export const metadata: Metadata = {
-  title: "AI 执行记录",
+  title: "执行任务",
 };
 
 export default async function AiExecutionsPage() {
@@ -16,7 +16,7 @@ export default async function AiExecutionsPage() {
   if (!project) {
     return (
       <PageContainer className="flex flex-col gap-5">
-        <PageHeader title="AI 执行记录" description="请先创建项目。" />
+        <PageHeader title="执行任务" description="请先创建项目。" />
         <ProjectRequiredState />
       </PageContainer>
     );
@@ -26,8 +26,8 @@ export default async function AiExecutionsPage() {
   return (
     <PageContainer table className="gap-5">
       <PageHeader
-        title="AI 执行记录"
-        description="查看当前项目的 AI 任务进度、执行日志和生成结果。"
+        title="执行任务"
+        description="查看当前项目的 AI 任务、最新执行状态和生成结果。"
       />
 
       <AiExecutionsList initialExecutions={executions} />

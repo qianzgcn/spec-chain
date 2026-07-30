@@ -1,4 +1,12 @@
-import { AiExecutionStage, AiExecutionStatus } from "@/generated/prisma/enums";
+import {
+  AiCapability,
+  AiExecutionStage,
+  AiExecutionStatus,
+} from "@/generated/prisma/enums";
+
+export const AI_TASK_TYPE_LABELS: Record<AiCapability, string> = {
+  [AiCapability.GENERATE_USER_STORY]: "AI辅助生成US",
+};
 
 export const AI_EXECUTION_STATUS_META: Record<
   AiExecutionStatus,

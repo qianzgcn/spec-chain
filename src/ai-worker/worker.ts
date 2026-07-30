@@ -195,8 +195,8 @@ async function executeTask(
   ownerId: string,
   leaseSignal: AbortSignal,
 ) {
-  const execution = await aiWorkerDb.aiExecution.findUnique({
-    where: { id: executionId },
+  const execution = await aiWorkerDb.aiExecution.findFirst({
+    where: { id: executionId, deletedAt: null },
     include: {
       project: {
         select: {
@@ -473,14 +473,21 @@ async function executeTask(
 
 async function claimNextTask(ownerId: string) {
   const queued = await aiWorkerDb.aiExecution.findFirst({
-    where: { status: AiExecutionStatus.QUEUED },
+    where: {
+      status: AiExecutionStatus.QUEUED,
+      deletedAt: null,
+    },
     orderBy: { queuedAt: "asc" },
     select: { id: true },
   });
   if (!queued) return null;
 
   const claimed = await aiWorkerDb.aiExecution.updateMany({
-    where: { id: queued.id, status: AiExecutionStatus.QUEUED },
+    where: {
+      id: queued.id,
+      status: AiExecutionStatus.QUEUED,
+      deletedAt: null,
+    },
     data: {
       status: AiExecutionStatus.RUNNING,
       startedAt: new Date(),

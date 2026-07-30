@@ -18,7 +18,7 @@ export async function GET(
   const { id } = await params;
   const execution = await getAiExecutionDetail(context.project.id, id);
   if (!execution) {
-    return NextResponse.json({ message: "AI 执行记录不存在" }, { status: 404 });
+    return NextResponse.json({ message: "执行任务不存在" }, { status: 404 });
   }
 
   return NextResponse.json({ execution });

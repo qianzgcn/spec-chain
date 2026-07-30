@@ -34,7 +34,10 @@ export async function recoverAiQueueState() {
 
   await Promise.all([
     db.aiExecution.updateMany({
-      where: { status: AiExecutionStatus.RUNNING },
+      where: {
+        status: AiExecutionStatus.RUNNING,
+        deletedAt: null,
+      },
       data: {
         status: AiExecutionStatus.FAILED,
         finishedAt: now,
@@ -46,7 +49,10 @@ export async function recoverAiQueueState() {
   ]);
 
   const queuedCount = await db.aiExecution.count({
-    where: { status: AiExecutionStatus.QUEUED },
+    where: {
+      status: AiExecutionStatus.QUEUED,
+      deletedAt: null,
+    },
   });
   if (queuedCount > 0) {
     startAiQueueWorker();

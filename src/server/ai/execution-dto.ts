@@ -4,11 +4,12 @@ import { db } from "@/server/db";
 
 export async function getAiExecutionSummaries(projectId: string) {
   const executions = await db.aiExecution.findMany({
-    where: { projectId },
+    where: { projectId, deletedAt: null },
     orderBy: { queuedAt: "desc" },
     take: 100,
     select: {
       id: true,
+      capability: true,
       status: true,
       stage: true,
       requirementText: true,
@@ -23,6 +24,7 @@ export async function getAiExecutionSummaries(projectId: string) {
 
   return executions.map((execution) => ({
     id: execution.id,
+    capability: execution.capability,
     status: execution.status,
     stage: execution.stage,
     requirementText: execution.requirementText,
@@ -40,9 +42,10 @@ export async function getAiExecutionDetail(
   executionId: string,
 ) {
   const execution = await db.aiExecution.findFirst({
-    where: { id: executionId, projectId },
+    where: { id: executionId, projectId, deletedAt: null },
     select: {
       id: true,
+      capability: true,
       status: true,
       stage: true,
       requirementText: true,
@@ -83,13 +86,16 @@ export async function getAiExecutionDetail(
   if (!execution) return null;
 
   const { draft, logs, requestedBy, ...detail } = execution;
+  const latestLogs = logs.filter(
+    (log) => log.createdAt.getTime() >= execution.queuedAt.getTime(),
+  );
   return {
     ...detail,
     queuedAt: execution.queuedAt.toISOString(),
     startedAt: execution.startedAt?.toISOString() ?? null,
     finishedAt: execution.finishedAt?.toISOString() ?? null,
     requestedBy: requestedBy.username,
-    logs: logs.map((log) => ({
+    logs: latestLogs.map((log) => ({
       ...log,
       createdAt: log.createdAt.toISOString(),
     })),

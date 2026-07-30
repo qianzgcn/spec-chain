@@ -13,6 +13,7 @@ import type { FinishReason, LanguageModelUsage } from "ai";
 import { z } from "zod";
 
 const MODEL_CHECK_TIMEOUT_MS = 30_000;
+const STRUCTURED_OUTPUT_MAX_TOKENS = 32_768;
 const STRUCTURED_OUTPUT_INSTRUCTION =
   "请仅返回符合下方 JSON Schema 的 JSON，不要添加 Markdown 代码块或其他说明。";
 
@@ -265,6 +266,7 @@ export function createModelProvider(
           prompt,
           output: Output.object({ schema }),
           temperature: 0,
+          maxOutputTokens: STRUCTURED_OUTPUT_MAX_TOKENS,
           maxRetries: 2,
           timeout: timeoutMs,
           abortSignal,

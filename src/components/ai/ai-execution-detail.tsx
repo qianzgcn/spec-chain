@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import {
   AlertCircleIcon,
   ArrowLeftIcon,
   FileSearchIcon,
+  RotateCcwIcon,
   Trash2Icon,
 } from "lucide-react";
 import {
@@ -14,7 +15,13 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
+import {
+  deleteAiExecutionAction,
+  retryAiExecutionAction,
+} from "@/app/actions/ai-executions";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageSection } from "@/components/layout/page-section";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -28,11 +35,16 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
-import { AiExecutionLogLevel } from "@/generated/prisma/enums";
+import { toast } from "@/components/ui/toast";
+import {
+  AiExecutionLogLevel,
+  AiExecutionStatus,
+} from "@/generated/prisma/enums";
 import {
   ACTIVE_AI_EXECUTION_STATUSES,
   AI_EXECUTION_STAGE_LABELS,
   AI_EXECUTION_STATUS_META,
+  AI_TASK_TYPE_LABELS,
 } from "@/lib/ai/meta";
 import type {
   AiExecutionDetail,
@@ -50,7 +62,7 @@ async function readExecution(executionId: string) {
     message?: string;
   };
   if (!response.ok || !payload.execution) {
-    throw new Error(payload.message ?? "读取 AI 执行记录失败");
+    throw new Error(payload.message ?? "读取执行任务失败");
   }
   return payload.execution;
 }
@@ -221,6 +233,10 @@ function AiExecutionDetailContent({
 }: {
   initialExecution: AiExecutionDetail;
 }) {
+  const router = useRouter();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isRetryPending, startRetryTransition] = useTransition();
+  const [isDeletePending, startDeleteTransition] = useTransition();
   const executionQuery = useQuery({
     queryKey: ["ai-execution", initialExecution.id],
     queryFn: () => readExecution(initialExecution.id),
@@ -234,6 +250,9 @@ function AiExecutionDetailContent({
   const execution = executionQuery.data;
   const statusMeta = AI_EXECUTION_STATUS_META[execution.status];
   const executionActive = ACTIVE_AI_EXECUTION_STATUSES.has(execution.status);
+  const executionTerminal =
+    execution.status === AiExecutionStatus.SUCCEEDED ||
+    execution.status === AiExecutionStatus.FAILED;
   const resultHref =
     execution.result && !execution.result.deleted
       ? execution.result.confirmedUserStoryId
@@ -241,6 +260,11 @@ function AiExecutionDetailContent({
         : `/requirements/pending-review/${execution.result.id}`
       : null;
   const information = [
+    { label: "任务 ID", value: execution.id },
+    {
+      label: "任务类型",
+      value: AI_TASK_TYPE_LABELS[execution.capability],
+    },
     { label: "发起用户", value: execution.requestedBy },
     {
       label: "发起时间",
@@ -267,10 +291,54 @@ function AiExecutionDetailContent({
     },
   ];
 
+  function retryExecution() {
+    startRetryTransition(async () => {
+      try {
+        const result = await retryAiExecutionAction({
+          executionId: execution.id,
+        });
+        toast.add({
+          type: result.ok ? "success" : "error",
+          description: result.ok
+            ? (result.message ?? "任务已重新进入队列")
+            : result.message,
+        });
+        await executionQuery.refetch();
+      } catch {
+        toast.add({ type: "error", description: "重新运行任务失败" });
+      }
+    });
+  }
+
+  function deleteExecution() {
+    startDeleteTransition(async () => {
+      try {
+        const result = await deleteAiExecutionAction({
+          executionId: execution.id,
+        });
+        if (!result.ok) {
+          setDeleteDialogOpen(false);
+          toast.add({ type: "error", description: result.message });
+          await executionQuery.refetch();
+          return;
+        }
+
+        toast.add({
+          type: "success",
+          description: result.message ?? "执行任务已删除",
+        });
+        router.replace("/ai-executions");
+        router.refresh();
+      } catch {
+        toast.add({ type: "error", description: "删除执行任务失败" });
+      }
+    });
+  }
+
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <PageHeader
-        title="AI辅助生成US"
+        title="任务详情"
         description={
           execution.feature
             ? `${execution.feature.code} · ${execution.feature.name}`
@@ -290,8 +358,31 @@ function AiExecutionDetailContent({
               render={<Link href="/ai-executions" />}
             >
               <ArrowLeftIcon data-icon="inline-start" />
-              返回执行记录
+              返回执行任务
             </Button>
+            {executionTerminal ? (
+              <Button
+                variant="destructive"
+                disabled={isRetryPending || isDeletePending}
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2Icon data-icon="inline-start" />
+                删除
+              </Button>
+            ) : null}
+            {execution.status === AiExecutionStatus.FAILED ? (
+              <Button
+                disabled={isRetryPending || isDeletePending}
+                onClick={retryExecution}
+              >
+                {isRetryPending ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <RotateCcwIcon data-icon="inline-start" />
+                )}
+                重新运行
+              </Button>
+            ) : null}
             {resultHref ? (
               <Button nativeButton={false} render={<Link href={resultHref} />}>
                 <FileSearchIcon data-icon="inline-start" />
@@ -307,7 +398,7 @@ function AiExecutionDetailContent({
           <Spinner />
           <AlertTitle>任务正在后台执行</AlertTitle>
           <AlertDescription>
-            可以离开此页面，任务完成后仍可从 AI 执行记录中查看。
+            可以离开此页面，任务完成后仍可从执行任务中查看。
           </AlertDescription>
         </Alert>
       ) : null}
@@ -325,7 +416,7 @@ function AiExecutionDetailContent({
       {execution.errorMessage ? (
         <Alert variant="destructive">
           <AlertCircleIcon />
-          <AlertTitle>生成失败</AlertTitle>
+          <AlertTitle>任务失败</AlertTitle>
           <AlertDescription>{execution.errorMessage}</AlertDescription>
         </Alert>
       ) : null}
@@ -333,7 +424,7 @@ function AiExecutionDetailContent({
         <Alert>
           <Trash2Icon />
           <AlertTitle>本次生成结果已删除</AlertTitle>
-          <AlertDescription>执行记录与日志仍然保留。</AlertDescription>
+          <AlertDescription>任务与日志仍然保留。</AlertDescription>
         </Alert>
       ) : null}
 
@@ -357,6 +448,17 @@ function AiExecutionDetailContent({
       </PageSection>
 
       <ExecutionLogPanel logs={execution.logs} active={executionActive} />
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="删除执行任务"
+        description="删除后不能恢复，已生成的需求及执行日志不会受到影响。"
+        confirmLabel="删除"
+        destructive
+        pending={isDeletePending}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={deleteExecution}
+      />
     </div>
   );
 }

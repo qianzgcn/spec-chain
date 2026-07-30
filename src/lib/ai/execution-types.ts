@@ -1,4 +1,5 @@
 import {
+  AiCapability,
   AiDraftStatus,
   AiExecutionLogLevel,
   AiExecutionStage,
@@ -14,6 +15,7 @@ export type AiExecutionDraftSummary = {
 
 export type AiExecutionSummary = {
   id: string;
+  capability: AiCapability;
   status: AiExecutionStatus;
   stage: AiExecutionStage;
   requirementText: string;

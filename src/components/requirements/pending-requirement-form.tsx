@@ -188,7 +188,7 @@ export function PendingRequirementForm({
       <ConfirmDialog
         open={deleteOpen}
         title="删除待评审需求"
-        description="删除后不能恢复，AI 执行记录仍会保留。"
+        description="删除后不能恢复，执行任务仍会保留。"
         confirmLabel="删除"
         destructive
         pending={isPending && pendingAction === "delete"}
