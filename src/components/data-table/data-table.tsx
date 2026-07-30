@@ -33,17 +33,18 @@ import { cn } from "@/lib/utils";
 function getColumnLayoutStyle(
   columnId: string,
   baseWidth: number,
+  fluidColumnId: string | undefined,
 ): CSSProperties {
-  // 操作列保持稳定宽度；普通列只限制最小宽度，由原生表格分配剩余空间。
-  if (columnId === "actions") {
-    return {
-      width: baseWidth,
-      minWidth: baseWidth,
-      maxWidth: baseWidth,
-    };
+  // 主内容列吸收剩余空间，其他列保持稳定宽度，避免长内容改变整张表的布局。
+  if (columnId === fluidColumnId) {
+    return { minWidth: baseWidth };
   }
 
-  return { minWidth: baseWidth };
+  return {
+    width: baseWidth,
+    minWidth: baseWidth,
+    maxWidth: baseWidth,
+  };
 }
 
 declare module "@tanstack/react-table" {
@@ -92,12 +93,15 @@ export function DataTable<TData>({
   });
 
   const rows = table.getRowModel().rows;
+  const fluidColumnId = table
+    .getVisibleLeafColumns()
+    .find((column) => column.id !== "actions")?.id;
 
   return (
     <div className="relative min-h-0 flex-1">
       <Table
         containerClassName="h-full overflow-auto"
-        className="table-auto"
+        className="table-fixed"
         data-testid="data-table"
       >
         <TableHeader className="bg-muted/95 sticky top-0 z-10 backdrop-blur-sm">
@@ -109,8 +113,12 @@ export function DataTable<TData>({
                   style={getColumnLayoutStyle(
                     header.column.id,
                     header.getSize(),
+                    fluidColumnId,
                   )}
-                  className={header.column.columnDef.meta?.headerClassName}
+                  className={cn(
+                    "truncate",
+                    header.column.columnDef.meta?.headerClassName,
+                  )}
                 >
                   {header.isPlaceholder
                     ? null
@@ -139,9 +147,13 @@ export function DataTable<TData>({
                     style={getColumnLayoutStyle(
                       cell.column.id,
                       cell.column.getSize(),
+                      fluidColumnId,
                     )}
                     className={cn(
-                      "h-12 overflow-hidden",
+                      "h-12",
+                      cell.column.id === "actions"
+                        ? "overflow-hidden"
+                        : "truncate",
                       cell.column.columnDef.meta?.cellClassName,
                     )}
                   >
