@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import type { CSSProperties } from "react";
 
 import {
   flexRender,
@@ -8,7 +8,6 @@ import {
   getExpandedRowModel,
   useReactTable,
   type ColumnDef,
-  type ColumnSizingState,
   type ExpandedState,
   type OnChangeFn,
   type Row,
@@ -31,6 +30,22 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
+function getColumnLayoutStyle(
+  columnId: string,
+  baseWidth: number,
+): CSSProperties {
+  // 操作列保持稳定宽度；普通列只限制最小宽度，由原生表格分配剩余空间。
+  if (columnId === "actions") {
+    return {
+      width: baseWidth,
+      minWidth: baseWidth,
+      maxWidth: baseWidth,
+    };
+  }
+
+  return { minWidth: baseWidth };
+}
+
 declare module "@tanstack/react-table" {
   // 泛型参数必须与 TanStack Table 的模块声明保持完全一致。
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -50,7 +65,6 @@ export function DataTable<TData>({
   expanded,
   onExpandedChange,
   rowClassName,
-  resizable,
 }: {
   columns: ColumnDef<TData>[];
   data: TData[];
@@ -61,11 +75,7 @@ export function DataTable<TData>({
   expanded?: ExpandedState;
   onExpandedChange?: OnChangeFn<ExpandedState>;
   rowClassName?: (row: Row<TData>) => string | undefined;
-  resizable?: boolean;
 }) {
-  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
-  const columnResizingEnabled = resizable ?? columns.length >= 5;
-
   // TanStack Table 的实例由库内部管理，React Compiler 不应尝试记忆化它。
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -76,79 +86,40 @@ export function DataTable<TData>({
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     state: {
-      columnSizing,
       ...(expanded === undefined ? {} : { expanded }),
     },
     onExpandedChange,
-    onColumnSizingChange: setColumnSizing,
-    columnResizeMode: "onChange",
-    enableColumnResizing: columnResizingEnabled,
-    defaultColumn: {
-      minSize: 56,
-      maxSize: 640,
-    },
   });
 
   const rows = table.getRowModel().rows;
-  const flexibleColumnId = table
-    .getVisibleLeafColumns()
-    .find((column) => column.id !== "actions")?.id;
 
   return (
     <div className="relative min-h-0 flex-1">
       <Table
         containerClassName="h-full overflow-auto"
-        className="table-fixed"
+        className="table-auto"
         data-testid="data-table"
       >
         <TableHeader className="bg-muted/95 sticky top-0 z-10 backdrop-blur-sm">
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id} className="hover:bg-transparent">
-              {headerGroup.headers.map((header) => {
-                const canResize =
-                  columnResizingEnabled &&
-                  header.column.id !== flexibleColumnId &&
-                  header.column.id !== "actions" &&
-                  header.column.getCanResize();
-
-                return (
-                  <TableHead
-                    key={header.id}
-                    style={
-                      header.column.id === flexibleColumnId
-                        ? undefined
-                        : { width: header.getSize() }
-                    }
-                    className={cn(
-                      "group/column relative",
-                      canResize && "pr-3",
-                      header.column.columnDef.meta?.headerClassName,
-                    )}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                    {canResize ? (
-                      <div
-                        data-testid={`column-resizer-${header.column.id}`}
-                        aria-hidden="true"
-                        onDoubleClick={() => header.column.resetSize()}
-                        onMouseDown={header.getResizeHandler()}
-                        onTouchStart={header.getResizeHandler()}
-                        className={cn(
-                          "absolute inset-y-0 right-0 w-2 cursor-col-resize touch-none select-none",
-                          "after:bg-border after:absolute after:top-1/2 after:right-0 after:h-5 after:w-px after:-translate-y-1/2 after:transition-colors",
-                          header.column.getIsResizing() &&
-                            "after:bg-ring after:w-0.5",
-                        )}
-                      />
-                    ) : null}
-                  </TableHead>
-                );
-              })}
+              {headerGroup.headers.map((header) => (
+                <TableHead
+                  key={header.id}
+                  style={getColumnLayoutStyle(
+                    header.column.id,
+                    header.getSize(),
+                  )}
+                  className={header.column.columnDef.meta?.headerClassName}
+                >
+                  {header.isPlaceholder
+                    ? null
+                    : flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
+                </TableHead>
+              ))}
             </TableRow>
           ))}
         </TableHeader>
@@ -165,6 +136,10 @@ export function DataTable<TData>({
                 {row.getVisibleCells().map((cell) => (
                   <TableCell
                     key={cell.id}
+                    style={getColumnLayoutStyle(
+                      cell.column.id,
+                      cell.column.getSize(),
+                    )}
                     className={cn(
                       "h-12 overflow-hidden",
                       cell.column.columnDef.meta?.cellClassName,
