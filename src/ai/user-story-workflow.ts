@@ -267,6 +267,12 @@ export function createGenerateUserStoryWorkflow({
               candidatePaths: batch.map((file) => file.path),
             }),
             abortSignal,
+            onRetry: ({ nextAttempt, maxAttempts, reason }) =>
+              onLog?.({
+                level: "WARN",
+                stage: AiExecutionStage.SELECTING_CODE,
+                message: `模型返回的代码定位结果无法校验（${reason}），正在进行第 ${nextAttempt}/${maxAttempts} 次生成。`,
+              }),
           });
           addUsage(usage, selection.usage);
           await onLog?.({
@@ -350,6 +356,12 @@ export function createGenerateUserStoryWorkflow({
           ),
         }),
         abortSignal,
+        onRetry: ({ nextAttempt, maxAttempts, reason }) =>
+          onLog?.({
+            level: "WARN",
+            stage: AiExecutionStage.GENERATING_DRAFT,
+            message: `模型返回的 US 草稿无法校验（${reason}），正在进行第 ${nextAttempt}/${maxAttempts} 次生成。`,
+          }),
       });
       addUsage(usage, generation.usage);
 

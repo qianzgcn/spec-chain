@@ -14,8 +14,11 @@ import { z } from "zod";
 
 const MODEL_CHECK_TIMEOUT_MS = 30_000;
 const STRUCTURED_OUTPUT_MAX_TOKENS = 32_768;
+const STRUCTURED_OUTPUT_MAX_ATTEMPTS = 2;
 const STRUCTURED_OUTPUT_INSTRUCTION =
-  "请仅返回符合下方 JSON Schema 的 JSON，不要添加 Markdown 代码块或其他说明。";
+  "不要输出分析、推理过程。请仅返回符合下方 JSON Schema 的 JSON，不要添加 Markdown 代码块或其他说明。";
+const STRUCTURED_OUTPUT_RETRY_INSTRUCTION =
+  "上一次响应无法解析为目标结构。请重新生成，并且只输出最终 JSON；不要输出分析、推理、解释、Markdown 或其他文字。";
 
 export type ModelProfileConfig = {
   name: string;
@@ -36,6 +39,11 @@ export type StructuredGenerationOptions<OUTPUT> = {
   prompt: string;
   abortSignal?: AbortSignal;
   timeoutMs?: number;
+  onRetry?: (event: {
+    nextAttempt: number;
+    maxAttempts: number;
+    reason: ModelProviderErrorCode;
+  }) => void | Promise<void>;
 };
 
 export function buildStructuredSystemPrompt(system: string, schema: z.ZodType) {
@@ -55,6 +63,73 @@ export interface ModelProvider {
   generateStructured<OUTPUT>(
     options: StructuredGenerationOptions<OUTPUT>,
   ): Promise<{ output: OUTPUT; usage: ModelUsage }>;
+}
+
+function findBalancedJsonEnd(text: string, start: number) {
+  const opening = text[start];
+  if (opening !== "{" && opening !== "[") return null;
+
+  const stack = [opening];
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start + 1; index < text.length; index += 1) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+    if (character === "{" || character === "[") {
+      stack.push(character);
+      continue;
+    }
+    if (character !== "}" && character !== "]") continue;
+
+    const expectedOpening = character === "}" ? "{" : "[";
+    if (stack.at(-1) !== expectedOpening) return null;
+    stack.pop();
+    if (stack.length === 0) return index + 1;
+  }
+
+  return null;
+}
+
+export function extractJsonValue(text: string) {
+  const withoutReasoning = text
+    .replace(/<(think|analysis|reasoning)\b[^>]*>[\s\S]*?<\/\1>/gi, "")
+    .trim();
+
+  for (let start = 0; start < withoutReasoning.length; start += 1) {
+    const character = withoutReasoning[start];
+    if (character !== "{" && character !== "[") continue;
+
+    const end = findBalancedJsonEnd(withoutReasoning, start);
+    if (end === null) continue;
+
+    const candidate = withoutReasoning.slice(start, end);
+    try {
+      JSON.parse(candidate);
+      return candidate;
+    } catch {
+      // 当前括号片段不是合法 JSON，继续寻找后续候选结果。
+    }
+  }
+
+  return withoutReasoning
+    .replace(/^```(?:json)?\s*\n?/i, "")
+    .replace(/\n?```\s*$/, "")
+    .trim();
 }
 
 export type ModelProviderErrorCode =
@@ -248,7 +323,7 @@ export function createModelProvider(
   });
   const model = wrapLanguageModel({
     model: compatibleProvider.chatModel(profile.modelId),
-    middleware: extractJsonMiddleware(),
+    middleware: extractJsonMiddleware({ transform: extractJsonValue }),
   });
 
   return {
@@ -258,28 +333,58 @@ export function createModelProvider(
       prompt,
       abortSignal,
       timeoutMs,
+      onRetry,
     }: StructuredGenerationOptions<OUTPUT>) {
-      try {
-        const result = await generateText({
-          model,
-          system: buildStructuredSystemPrompt(system, schema),
-          prompt,
-          output: Output.object({ schema }),
-          temperature: 0,
-          maxOutputTokens: STRUCTURED_OUTPUT_MAX_TOKENS,
-          maxRetries: 2,
-          timeout: timeoutMs,
-          abortSignal,
-        });
-        assertStructuredOutputComplete(result.finishReason);
+      const timeoutSignal =
+        timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs);
+      const operationSignal =
+        abortSignal && timeoutSignal
+          ? AbortSignal.any([abortSignal, timeoutSignal])
+          : (abortSignal ?? timeoutSignal);
 
-        return {
-          output: result.output,
-          usage: normalizeUsage(result.usage),
-        };
-      } catch (error) {
-        throw toModelProviderError(error);
+      for (
+        let attempt = 1;
+        attempt <= STRUCTURED_OUTPUT_MAX_ATTEMPTS;
+        attempt += 1
+      ) {
+        try {
+          const result = await generateText({
+            model,
+            system: `${buildStructuredSystemPrompt(system, schema)}${
+              attempt > 1 ? `\n\n${STRUCTURED_OUTPUT_RETRY_INSTRUCTION}` : ""
+            }`,
+            prompt,
+            output: Output.object({ schema }),
+            temperature: 0,
+            maxOutputTokens: STRUCTURED_OUTPUT_MAX_TOKENS,
+            maxRetries: 2,
+            abortSignal: operationSignal,
+          });
+          assertStructuredOutputComplete(result.finishReason);
+
+          return {
+            output: result.output,
+            usage: normalizeUsage(result.usage),
+          };
+        } catch (error) {
+          const providerError = toModelProviderError(error);
+          const retryable =
+            providerError.code === "JSON_PARSE" ||
+            providerError.code === "SCHEMA_VALIDATION" ||
+            providerError.code === "EMPTY_OUTPUT";
+          if (!retryable || attempt === STRUCTURED_OUTPUT_MAX_ATTEMPTS) {
+            throw providerError;
+          }
+
+          await onRetry?.({
+            nextAttempt: attempt + 1,
+            maxAttempts: STRUCTURED_OUTPUT_MAX_ATTEMPTS,
+            reason: providerError.code,
+          });
+        }
       }
+
+      throw new ModelProviderError("EMPTY_OUTPUT", "模型未返回可用内容");
     },
   };
 }

@@ -11,6 +11,7 @@ import {
   assertStructuredOutputComplete,
   buildStructuredSystemPrompt,
   createModelProvider,
+  extractJsonValue,
   toModelProviderError,
 } from "@/ai/model-provider";
 import { aiModelProfileInputSchema } from "@/lib/ai/model-profile";
@@ -40,6 +41,17 @@ describe("AI 模型配置", () => {
     expect(prompt).toContain('"title"');
     expect(prompt).toContain('"acceptanceCriteria"');
     expect(prompt).toContain('"given"');
+  });
+
+  it.each([
+    [
+      '<think>这里是推理过程，包含 {"ignored":true}</think>\n{"ok":true}',
+      '{"ok":true}',
+    ],
+    ['结果如下：\n```json\n{"ok":true}\n```', '{"ok":true}'],
+    ['无效片段 {not-json}，最终结果：{"ok":true}', '{"ok":true}'],
+  ])("只提取模型最终返回的 JSON", (text, expected) => {
+    expect(extractJsonValue(text)).toBe(expected);
   });
 
   it("将模型输出截断与结构化能力不足明确区分", () => {
@@ -109,6 +121,68 @@ describe("AI 模型配置", () => {
       temperature: 0,
       max_tokens: 32_768,
       response_format: { type: "json_object" },
+    });
+  });
+
+  it("结构化内容首次无法解析时自动重新生成", async () => {
+    let requestCount = 0;
+    const onRetry = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        requestCount += 1;
+        return new Response(
+          JSON.stringify({
+            id: `response-${requestCount}`,
+            model: "test-model",
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content:
+                    requestCount === 1
+                      ? '{"ok":tru'
+                      : '{"ok":true,"message":"连接正常"}',
+                },
+                finish_reason: "stop",
+              },
+            ],
+            usage: {
+              prompt_tokens: 10,
+              completion_tokens: 5,
+              total_tokens: 15,
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }),
+    );
+
+    const provider = createModelProvider({
+      name: "测试模型",
+      baseUrl: "https://api.example.com/v1",
+      modelId: "test-model",
+      apiKey: "secret",
+    });
+    const result = await provider.generateStructured({
+      schema: z.object({
+        ok: z.literal(true),
+        message: z.string(),
+      }),
+      system: "执行结构化输出测试。",
+      prompt: "返回连接结果。",
+      onRetry,
+    });
+
+    expect(result.output).toEqual({ ok: true, message: "连接正常" });
+    expect(requestCount).toBe(2);
+    expect(onRetry).toHaveBeenCalledWith({
+      nextAttempt: 2,
+      maxAttempts: 2,
+      reason: "JSON_PARSE",
     });
   });
 
