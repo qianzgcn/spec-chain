@@ -98,6 +98,28 @@ function buildBreadcrumbs(pathname: string): BreadcrumbEntry[] {
     return [{ label: "用例列表", href: "/test-cases" }, { label: "新建用例" }];
   }
 
+  if (pathname === "/test-cases/ai-generate") {
+    return [
+      { label: "用例列表", href: "/test-cases" },
+      { label: "AI辅助生成测试用例" },
+    ];
+  }
+
+  if (pathname === "/test-cases/pending-review") {
+    return [
+      { label: "用例列表", href: "/test-cases" },
+      { label: "待评审用例" },
+    ];
+  }
+
+  if (pathname.startsWith("/test-cases/pending-review/")) {
+    return [
+      { label: "用例列表", href: "/test-cases" },
+      { label: "待评审用例", href: "/test-cases/pending-review" },
+      { label: "用例详情" },
+    ];
+  }
+
   if (segments[0] === "test-cases" && segments[1]) {
     const testCasePath = `/test-cases/${segments[1]}`;
     if (segments[2] === "edit") {

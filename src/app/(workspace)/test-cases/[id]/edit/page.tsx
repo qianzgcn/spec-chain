@@ -25,12 +25,14 @@ export default async function EditTestCasePage({
     db.testCase.findFirst({
       where: { id, projectId: project.id, deletedAt: null },
       include: {
-        userStoryLinks: {
-          where: {
-            deletedAt: null,
-            userStory: { deletedAt: null },
+        userStory: {
+          select: {
+            id: true,
+            code: true,
+            title: true,
+            deletedAt: true,
+            feature: { select: { name: true } },
           },
-          select: { userStoryId: true },
         },
       },
     }),
@@ -60,20 +62,34 @@ export default async function EditTestCasePage({
     enabled: testCase.enabled,
     script: testCase.script ?? "",
     steps: testCase.steps,
-    userStoryIds: testCase.userStoryLinks.map((link) => link.userStoryId),
+    userStoryId: testCase.userStoryId,
   };
+  const selectableStories = userStories.map((story) => ({
+    id: story.id,
+    code: story.code,
+    title: story.title,
+    featureName: story.feature?.name ?? null,
+    deleted: false,
+  }));
+  if (
+    testCase.userStory?.deletedAt &&
+    !selectableStories.some((story) => story.id === testCase.userStory?.id)
+  ) {
+    selectableStories.push({
+      id: testCase.userStory.id,
+      code: testCase.userStory.code,
+      title: testCase.userStory.title,
+      featureName: testCase.userStory.feature?.name ?? null,
+      deleted: true,
+    });
+  }
 
   return (
     <TestCaseForm
       testCaseId={testCase.id}
       code={testCase.code}
       groups={groups}
-      userStories={userStories.map((story) => ({
-        id: story.id,
-        code: story.code,
-        title: story.title,
-        featureName: story.feature?.name ?? null,
-      }))}
+      userStories={selectableStories}
       initialValues={initialValues}
     />
   );

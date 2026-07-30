@@ -35,9 +35,9 @@ import { toast } from "@/components/ui/toast";
 import { AiCapability, AiExecutionStatus } from "@/generated/prisma/enums";
 import {
   ACTIVE_AI_EXECUTION_STATUSES,
-  AI_EXECUTION_STAGE_LABELS,
   AI_EXECUTION_STATUS_META,
   AI_TASK_TYPE_LABELS,
+  getAiExecutionStageLabel,
 } from "@/lib/ai/meta";
 import type { AiExecutionSummary } from "@/lib/ai/execution-types";
 import { formatDateTime } from "@/lib/date-time";
@@ -214,7 +214,13 @@ function AiExecutionsTable({
           <div className="text-muted-foreground mt-1 truncate text-xs">
             {row.original.feature
               ? `${row.original.feature.code} · ${row.original.feature.name}`
-              : "无 FE 归属"}
+              : row.original.sourceUserStory
+                ? `${row.original.sourceUserStory.code} · ${row.original.sourceUserStory.title}${
+                    row.original.sourceUserStory.deleted ? "（已删除）" : ""
+                  }`
+                : row.original.capability === AiCapability.GENERATE_TEST_CASES
+                  ? "输入需求内容"
+                  : "无 FE 归属"}
           </div>
         </div>
       ),
@@ -255,7 +261,8 @@ function AiExecutionsTable({
         headerClassName: "max-[1450px]:hidden",
         cellClassName: "max-[1450px]:hidden",
       },
-      cell: ({ row }) => AI_EXECUTION_STAGE_LABELS[row.original.stage],
+      cell: ({ row }) =>
+        getAiExecutionStageLabel(row.original.capability, row.original.stage),
     },
     {
       accessorKey: "requestedBy",
@@ -441,7 +448,7 @@ function AiExecutionsTable({
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title="删除执行任务"
-        description="删除后不能恢复，已生成的需求及执行日志不会受到影响。"
+        description="删除后不能恢复，已生成结果及执行日志不会受到影响。"
         confirmLabel="删除"
         destructive
         pending={isDeletePending}

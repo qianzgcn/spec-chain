@@ -18,34 +18,34 @@ async function requireCurrentProjectForAction() {
   return getCurrentProject();
 }
 
-async function validateGroupAndStories(
+async function validateGroupAndStory(
   projectId: string,
   groupId: string,
-  userStoryIds: string[],
+  userStoryId: string | null,
+  retainedUserStoryId: string | null = null,
 ): Promise<ActionResult | { ok: true }> {
-  if (new Set(userStoryIds).size !== userStoryIds.length) {
-    return { ok: false, message: "关联需求不能重复" };
-  }
-
-  const [group, storyCount] = await Promise.all([
+  const [group, userStory] = await Promise.all([
     db.testCaseGroup.findFirst({
       where: { id: groupId, projectId, deletedAt: null },
       select: { id: true },
     }),
-    db.userStory.count({
-      where: {
-        id: { in: userStoryIds },
-        projectId,
-        deletedAt: null,
-      },
-    }),
+    userStoryId
+      ? db.userStory.findFirst({
+          where: {
+            id: userStoryId,
+            projectId,
+            ...(userStoryId === retainedUserStoryId ? {} : { deletedAt: null }),
+          },
+          select: { id: true },
+        })
+      : null,
   ]);
 
   if (!group) {
     return { ok: false, message: "用例分组不存在或已删除" };
   }
-  if (storyCount !== userStoryIds.length) {
-    return { ok: false, message: "关联需求中包含无效或已删除的 US" };
+  if (userStoryId && !userStory) {
+    return { ok: false, message: "关联 US 不存在或已删除" };
   }
   return { ok: true };
 }
@@ -192,10 +192,10 @@ export async function createTestCaseAction(
     };
   }
 
-  const validation = await validateGroupAndStories(
+  const validation = await validateGroupAndStory(
     project.id,
     parsed.data.groupId,
-    parsed.data.userStoryIds,
+    parsed.data.userStoryId,
   );
   if (!validation.ok) return validation;
 
@@ -210,11 +210,7 @@ export async function createTestCaseAction(
       steps: parsed.data.steps,
       enabled: parsed.data.enabled,
       script: parsed.data.script.trim() || null,
-      userStoryLinks: {
-        create: parsed.data.userStoryIds.map((userStoryId) => ({
-          userStoryId,
-        })),
-      },
+      userStoryId: parsed.data.userStoryId,
     },
     select: { id: true },
   });
@@ -242,59 +238,34 @@ export async function updateTestCaseAction(
     };
   }
 
-  const [testCase, validation] = await Promise.all([
-    db.testCase.findFirst({
-      where: { id, projectId: project.id, deletedAt: null },
-      select: { id: true },
-    }),
-    validateGroupAndStories(
-      project.id,
-      parsed.data.groupId,
-      parsed.data.userStoryIds,
-    ),
-  ]);
+  const testCase = await db.testCase.findFirst({
+    where: { id, projectId: project.id, deletedAt: null },
+    select: { id: true, userStoryId: true },
+  });
 
   if (!testCase) {
     return { ok: false, message: "测试用例不存在或已删除" };
   }
+  const validation = await validateGroupAndStory(
+    project.id,
+    parsed.data.groupId,
+    parsed.data.userStoryId,
+    testCase.userStoryId,
+  );
   if (!validation.ok) return validation;
 
-  await db.$transaction(async (transaction) => {
-    await transaction.testCase.update({
-      where: { id },
-      data: {
-        groupId: parsed.data.groupId,
-        name: parsed.data.name,
-        priority: parsed.data.priority,
-        preconditions: parsed.data.preconditions || null,
-        steps: parsed.data.steps,
-        enabled: parsed.data.enabled,
-        script: parsed.data.script.trim() || null,
-      },
-    });
-
-    await transaction.testCaseUserStory.updateMany({
-      where: {
-        testCaseId: id,
-        deletedAt: null,
-        userStoryId: { notIn: parsed.data.userStoryIds },
-        userStory: { deletedAt: null },
-      },
-      data: { deletedAt: new Date() },
-    });
-
-    for (const userStoryId of parsed.data.userStoryIds) {
-      await transaction.testCaseUserStory.upsert({
-        where: {
-          testCaseId_userStoryId: {
-            testCaseId: id,
-            userStoryId,
-          },
-        },
-        create: { testCaseId: id, userStoryId },
-        update: { deletedAt: null },
-      });
-    }
+  await db.testCase.update({
+    where: { id },
+    data: {
+      groupId: parsed.data.groupId,
+      userStoryId: parsed.data.userStoryId,
+      name: parsed.data.name,
+      priority: parsed.data.priority,
+      preconditions: parsed.data.preconditions || null,
+      steps: parsed.data.steps,
+      enabled: parsed.data.enabled,
+      script: parsed.data.script.trim() || null,
+    },
   });
 
   revalidatePath("/test-cases");

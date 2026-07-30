@@ -6,11 +6,14 @@ import {
   createRepositoryCodeSource,
   type RepositoryAccess,
 } from "@/ai/repository-code-source";
+import type {
+  CodeReferenceRecord,
+  RepositorySnapshotRecord,
+} from "@/ai/relevant-code";
 import { builtInSkillResolver } from "@/ai/skills";
-import {
-  AiWorkflowError,
-  createGenerateUserStoryWorkflow,
-} from "@/ai/user-story-workflow";
+import { createGenerateTestCasesWorkflow } from "@/ai/test-case-workflow";
+import { createGenerateUserStoryWorkflow } from "@/ai/user-story-workflow";
+import { AiWorkflowError, type WorkflowLogEvent } from "@/ai/workflow";
 import {
   AiCapability,
   AiExecutionLogLevel,
@@ -96,14 +99,19 @@ function getSafeErrorCode(
   return "UNEXPECTED";
 }
 
-function getStageStartedMessage(stage: AiExecutionStage) {
+function getStageStartedMessage(
+  capability: AiCapability,
+  stage: AiExecutionStage,
+) {
   switch (stage) {
     case AiExecutionStage.CHECKING_REPOSITORIES:
       return "正在检查并读取项目代码仓库。";
     case AiExecutionStage.SELECTING_CODE:
       return "正在根据需求定位相关代码。";
     case AiExecutionStage.GENERATING_DRAFT:
-      return "正在根据需求和代码生成结构化 US 草稿。";
+      return capability === AiCapability.GENERATE_USER_STORY
+        ? "正在根据需求和代码生成结构化 US 草稿。"
+        : "正在根据需求和代码生成自然语言测试用例草稿。";
     case AiExecutionStage.COMPLETED:
       return "AI 任务已完成。";
     case AiExecutionStage.QUEUED:
@@ -211,6 +219,14 @@ async function executeTask(
               branch: true,
             },
           },
+          testGroups: {
+            where: { deletedAt: null },
+            orderBy: { name: "asc" },
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       },
       feature: {
@@ -249,10 +265,8 @@ async function executeTask(
       currentStage,
       "AI 执行器已开始处理任务。",
     );
-    if (execution.capability !== AiCapability.GENERATE_USER_STORY) {
-      throw new AiWorkflowError("当前 AI 任务类型不受支持");
-    }
     if (
+      execution.capability === AiCapability.GENERATE_USER_STORY &&
       execution.featureId &&
       (!execution.feature || execution.feature.deletedAt)
     ) {
@@ -263,11 +277,15 @@ async function executeTask(
     }
 
     const binding = await aiWorkerDb.aiCapabilityBinding.findUnique({
-      where: { capability: AiCapability.GENERATE_USER_STORY },
+      where: { capability: execution.capability },
       include: { modelProfile: true },
     });
     if (!binding || binding.modelProfile.deletedAt) {
-      throw new AiWorkflowError("管理员尚未配置生成 US 的默认模型");
+      const capabilityName =
+        execution.capability === AiCapability.GENERATE_USER_STORY
+          ? "生成 US"
+          : "生成测试用例";
+      throw new AiWorkflowError(`管理员尚未配置${capabilityName}的默认模型`);
     }
 
     let modelApiKey: string;
@@ -306,9 +324,7 @@ async function executeTask(
       },
     );
 
-    const skill = builtInSkillResolver.resolve(
-      AiCapability.GENERATE_USER_STORY,
-    );
+    const skill = builtInSkillResolver.resolve(execution.capability);
     await aiWorkerDb.aiExecution.update({
       where: { id: execution.id },
       data: {
@@ -324,7 +340,7 @@ async function executeTask(
       `已加载模型配置“${binding.modelProfile.name}”（${binding.modelProfile.modelId}）。`,
     );
 
-    const workflow = createGenerateUserStoryWorkflow({
+    const workflowDependencies = {
       modelProvider: createModelProvider({
         name: binding.modelProfile.name,
         baseUrl: binding.modelProfile.baseUrl,
@@ -333,16 +349,10 @@ async function executeTask(
       }),
       repositoryCodeSource: createRepositoryCodeSource(),
       skillResolver: builtInSkillResolver,
-    });
-
-    const result = await workflow.run({
-      requirementText: execution.requirementText,
-      featureContext: execution.feature
-        ? formatFeatureContext(execution.feature)
-        : null,
-      repositories,
+    };
+    const workflowCallbacks = {
       abortSignal: taskSignal,
-      onStage: async (stage) => {
+      onStage: async (stage: AiExecutionStage) => {
         const updated = await aiWorkerDb.aiExecution.updateMany({
           where: {
             id: execution.id,
@@ -356,11 +366,11 @@ async function executeTask(
           await writeLog(
             AiExecutionLogLevel.INFO,
             stage,
-            getStageStartedMessage(stage),
+            getStageStartedMessage(execution.capability, stage),
           );
         }
       },
-      onLog: async (event) => {
+      onLog: async (event: WorkflowLogEvent) => {
         await writeLog(
           event.level === "WARN"
             ? AiExecutionLogLevel.WARN
@@ -369,7 +379,9 @@ async function executeTask(
           event.message,
         );
       },
-      onRepositoriesLoaded: async (repositoriesSnapshot) => {
+      onRepositoriesLoaded: async (
+        repositoriesSnapshot: RepositorySnapshotRecord[],
+      ) => {
         await aiWorkerDb.aiExecution.updateMany({
           where: {
             id: execution.id,
@@ -381,7 +393,7 @@ async function executeTask(
           },
         });
       },
-      onCodeSelected: async (codeReferences) => {
+      onCodeSelected: async (codeReferences: CodeReferenceRecord[]) => {
         await aiWorkerDb.aiExecution.updateMany({
           where: {
             id: execution.id,
@@ -391,35 +403,122 @@ async function executeTask(
           data: { codeReferences: JSON.stringify(codeReferences) },
         });
       },
-    });
+    };
 
+    if (execution.capability === AiCapability.GENERATE_USER_STORY) {
+      const result = await createGenerateUserStoryWorkflow(
+        workflowDependencies,
+      ).run({
+        requirementText: execution.requirementText,
+        featureContext: execution.feature
+          ? formatFeatureContext(execution.feature)
+          : null,
+        repositories,
+        ...workflowCallbacks,
+      });
+      const finishedAt = new Date();
+
+      await aiWorkerDb.$transaction(async (transaction) => {
+        await transaction.userStoryDraft.create({
+          data: {
+            projectId: execution.projectId,
+            featureId: execution.featureId,
+            sourceExecutionId: execution.id,
+            title: result.draft.title,
+            asA: result.draft.asA,
+            iWant: result.draft.iWant,
+            soThat: result.draft.soThat,
+            businessRules: result.draft.businessRules.trim() || null,
+            nonFunctionalRequirements:
+              result.draft.nonFunctionalRequirements.trim() || null,
+            acceptanceCriteria: {
+              create: result.draft.acceptanceCriteria.map(
+                (criterion, position) => ({
+                  position,
+                  given: criterion.given,
+                  when: criterion.when,
+                  then: criterion.then,
+                }),
+              ),
+            },
+          },
+        });
+        await transaction.aiExecution.update({
+          where: { id: execution.id },
+          data: {
+            status: AiExecutionStatus.SUCCEEDED,
+            stage: AiExecutionStage.COMPLETED,
+            repositorySnapshot: JSON.stringify(result.repositories),
+            codeReferences: JSON.stringify(result.codeReferences),
+            promptTokens: result.usage.inputTokens,
+            completionTokens: result.usage.outputTokens,
+            totalTokens: result.usage.totalTokens,
+            finishedAt,
+            durationMs: finishedAt.getTime() - startedAt.getTime(),
+            workerId: null,
+          },
+        });
+      });
+      await writeLog(
+        AiExecutionLogLevel.INFO,
+        AiExecutionStage.COMPLETED,
+        "任务处理完成，US 草稿已保存。",
+      ).catch(() => undefined);
+      return;
+    }
+
+    const result = await createGenerateTestCasesWorkflow(
+      workflowDependencies,
+    ).run({
+      requirementText: execution.requirementText,
+      repositories,
+      groups: execution.project.testGroups,
+      ...workflowCallbacks,
+    });
     const finishedAt = new Date();
+
     await aiWorkerDb.$transaction(async (transaction) => {
-      await transaction.userStoryDraft.create({
+      const suggestedGroupIds = [
+        ...new Set(
+          result.drafts.flatMap((draft) =>
+            draft.groupId ? [draft.groupId] : [],
+          ),
+        ),
+      ];
+      const activeGroupIds = new Set(
+        suggestedGroupIds.length > 0
+          ? (
+              await transaction.testCaseGroup.findMany({
+                where: {
+                  id: { in: suggestedGroupIds },
+                  projectId: execution.projectId,
+                  deletedAt: null,
+                },
+                select: { id: true },
+              })
+            ).map((group) => group.id)
+          : [],
+      );
+
+      await transaction.testCaseDraftBatch.create({
         data: {
           projectId: execution.projectId,
-          featureId: execution.featureId,
           sourceExecutionId: execution.id,
-          title: result.draft.title,
-          asA: result.draft.asA,
-          iWant: result.draft.iWant,
-          soThat: result.draft.soThat,
-          businessRules: result.draft.businessRules.trim() || null,
-          nonFunctionalRequirements:
-            result.draft.nonFunctionalRequirements.trim() || null,
-          acceptanceCriteria: {
-            create: result.draft.acceptanceCriteria.map(
-              (criterion, position) => ({
-                position,
-                given: criterion.given,
-                when: criterion.when,
-                then: criterion.then,
-              }),
-            ),
+          drafts: {
+            create: result.drafts.map((draft, position) => ({
+              position,
+              name: draft.name,
+              priority: draft.priority,
+              preconditions: draft.preconditions.trim() || null,
+              steps: draft.steps,
+              groupId:
+                draft.groupId && activeGroupIds.has(draft.groupId)
+                  ? draft.groupId
+                  : null,
+            })),
           },
         },
       });
-
       await transaction.aiExecution.update({
         where: { id: execution.id },
         data: {
@@ -439,7 +538,7 @@ async function executeTask(
     await writeLog(
       AiExecutionLogLevel.INFO,
       AiExecutionStage.COMPLETED,
-      "任务处理完成，US 草稿已保存。",
+      `任务处理完成，已保存 ${result.drafts.length} 条待评审测试用例。`,
     ).catch(() => undefined);
   } catch (error) {
     const finishedAt = new Date();

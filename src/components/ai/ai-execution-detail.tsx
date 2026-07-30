@@ -42,9 +42,9 @@ import {
 } from "@/generated/prisma/enums";
 import {
   ACTIVE_AI_EXECUTION_STATUSES,
-  AI_EXECUTION_STAGE_LABELS,
   AI_EXECUTION_STATUS_META,
   AI_TASK_TYPE_LABELS,
+  getAiExecutionStageLabel,
 } from "@/lib/ai/meta";
 import type {
   AiExecutionDetail,
@@ -113,9 +113,11 @@ const LOG_LEVEL_META = {
 function ExecutionLogPanel({
   logs,
   active,
+  capability,
 }: {
   logs: AiExecutionLogEntry[];
   active: boolean;
+  capability: AiExecutionDetail["capability"];
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const shouldFollowRef = useRef(true);
@@ -181,7 +183,7 @@ function ExecutionLogPanel({
           {logs.map((log) => {
             const level = LOG_LEVEL_META[log.level];
             const stage = log.stage
-              ? AI_EXECUTION_STAGE_LABELS[log.stage]
+              ? getAiExecutionStageLabel(capability, log.stage)
               : "系统";
             return (
               <div
@@ -255,9 +257,13 @@ function AiExecutionDetailContent({
     execution.status === AiExecutionStatus.FAILED;
   const resultHref =
     execution.result && !execution.result.deleted
-      ? execution.result.confirmedUserStoryId
-        ? `/user-stories/${execution.result.confirmedUserStoryId}`
-        : `/requirements/pending-review/${execution.result.id}`
+      ? execution.result.kind === "USER_STORY"
+        ? execution.result.confirmedUserStoryId
+          ? `/user-stories/${execution.result.confirmedUserStoryId}`
+          : `/requirements/pending-review/${execution.result.id}`
+        : execution.result.pendingCount > 0
+          ? `/test-cases/pending-review?batch=${execution.result.id}`
+          : null
       : null;
   const information = [
     { label: "任务 ID", value: execution.id },
@@ -342,12 +348,18 @@ function AiExecutionDetailContent({
         description={
           execution.feature
             ? `${execution.feature.code} · ${execution.feature.name}`
-            : undefined
+            : execution.sourceUserStory
+              ? `${execution.sourceUserStory.code} · ${execution.sourceUserStory.title}${
+                  execution.sourceUserStory.deleted ? "（已删除）" : ""
+                }`
+              : undefined
         }
         meta={
           <>
             <Badge variant={statusMeta.badgeVariant}>{statusMeta.label}</Badge>
-            <span>{AI_EXECUTION_STAGE_LABELS[execution.stage]}</span>
+            <span>
+              {getAiExecutionStageLabel(execution.capability, execution.stage)}
+            </span>
           </>
         }
         actions={
@@ -447,12 +459,16 @@ function AiExecutionDetailContent({
         </dl>
       </PageSection>
 
-      <ExecutionLogPanel logs={execution.logs} active={executionActive} />
+      <ExecutionLogPanel
+        logs={execution.logs}
+        active={executionActive}
+        capability={execution.capability}
+      />
 
       <ConfirmDialog
         open={deleteDialogOpen}
         title="删除执行任务"
-        description="删除后不能恢复，已生成的需求及执行日志不会受到影响。"
+        description="删除后不能恢复，已生成结果及执行日志不会受到影响。"
         confirmLabel="删除"
         destructive
         pending={isDeletePending}

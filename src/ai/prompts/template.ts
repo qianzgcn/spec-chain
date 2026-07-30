@@ -1,4 +1,14 @@
+import { readFileSync } from "node:fs";
+
 const PLACEHOLDER_PATTERN = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
+
+export function readPromptFile(url: URL) {
+  const content = readFileSync(url, "utf8").trim();
+  if (!content) {
+    throw new Error(`提示词文件不能为空：${url.pathname}`);
+  }
+  return content;
+}
 
 export function renderPromptTemplate(
   template: string,

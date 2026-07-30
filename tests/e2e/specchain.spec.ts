@@ -105,6 +105,37 @@ async function dismissNotifications(page: Page) {
   await expect(closeButtons).toHaveCount(0);
 }
 
+async function expectAiWorkerIdleAfterTask(
+  databasePath: string,
+  executionId: string,
+) {
+  await expect
+    .poll(
+      () => {
+        const database = new Database(databasePath, { readonly: true });
+        try {
+          const execution = database
+            .prepare(`SELECT "status" FROM "AiExecution" WHERE "id" = ?`)
+            .get(executionId) as { status: string } | undefined;
+          const leaseCount = (
+            database
+              .prepare(`SELECT COUNT(*) AS "count" FROM "AiWorkerLease"`)
+              .get() as { count: number }
+          ).count;
+
+          return {
+            status: execution?.status ?? null,
+            leaseCount,
+          };
+        } finally {
+          database.close();
+        }
+      },
+      { timeout: 30_000 },
+    )
+    .toEqual({ status: "FAILED", leaseCount: 0 });
+}
+
 test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   const databasePath = path.resolve(process.cwd(), "data", "e2e.db");
 
@@ -213,6 +244,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
     "/requirements",
     "/requirements/pending-review",
     "/test-cases",
+    "/test-cases/pending-review",
     "/test-case-groups",
     "/ai-executions",
     "/ai-settings",
@@ -340,6 +372,11 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await page.getByRole("combobox", { name: "生成 US 默认模型" }).click();
   await page.getByRole("option", { name: /E2E OpenAI 兼容模型/ }).click();
   await expect(page.getByText("生成 US 默认", { exact: true })).toBeVisible();
+  await page.getByRole("combobox", { name: "生成测试用例默认模型" }).click();
+  await page.getByRole("option", { name: /E2E OpenAI 兼容模型/ }).click();
+  await expect(
+    page.getByText("生成测试用例默认", { exact: true }),
+  ).toBeVisible();
 
   const encryptedModelDatabase = new Database(databasePath, {
     readonly: true,
@@ -572,12 +609,253 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
       "/requirements",
       "/requirements/pending-review",
       "/test-cases",
+      "/test-cases/pending-review",
       "/ai-executions",
     ]) {
       await page.goto(pagePath);
       await expectTablePageFillsWorkspace(page);
     }
   }
+});
+
+test("AI 生成的测试用例支持逐条评审并关联唯一 US", async ({ page }) => {
+  const databasePath = path.resolve(process.cwd(), "data", "e2e.db");
+
+  await page.goto("/login");
+  await page.getByRole("textbox", { name: "用户名" }).fill("admin");
+  await page.getByRole("textbox", { name: "密码" }).fill("admin12345");
+  await page.getByRole("button", { name: "登录" }).click();
+  await page.waitForURL(
+    (url) => url.pathname !== "/login" && url.pathname !== "/",
+  );
+
+  await page.goto("/projects");
+  await page.getByRole("button", { name: "新建项目" }).click();
+  await page
+    .getByRole("textbox", { name: "项目名称" })
+    .fill("E2E AI 用例评审项目");
+  await page.getByRole("button", { name: "创建项目", exact: true }).click();
+  await expect(page).toHaveURL(/\/project-settings$/);
+
+  const database = new Database(databasePath);
+  const context = database
+    .prepare(
+      `SELECT p."id" AS "projectId", u."id" AS "userId"
+       FROM "Project" p
+       JOIN "User" u ON u."username" = 'admin'
+       WHERE p."name" = ?`,
+    )
+    .get("E2E AI 用例评审项目") as {
+    projectId: string;
+    userId: string;
+  };
+  const now = new Date().toISOString();
+  database
+    .prepare(
+      `INSERT INTO "UserStory" (
+        "id", "projectId", "code", "title", "asA", "iWant", "soThat",
+        "status", "createdAt", "updatedAt"
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'DESIGN', ?, ?)`,
+    )
+    .run(
+      "e2e-test-case-source-story",
+      context.projectId,
+      "US-20260730190000000",
+      "管理员登录校验",
+      "管理员",
+      "使用用户名和密码登录",
+      "安全访问平台",
+      now,
+      now,
+    );
+  database
+    .prepare(
+      `INSERT INTO "TestCaseGroup" (
+        "id", "projectId", "name", "createdAt", "updatedAt"
+      ) VALUES (?, ?, ?, ?, ?)`,
+    )
+    .run("e2e-ai-test-case-group", context.projectId, "登录与会话", now, now);
+  database
+    .prepare(
+      `INSERT INTO "AiExecution" (
+        "id", "projectId", "requestedById", "sourceUserStoryId",
+        "capability", "status", "stage", "requirementText",
+        "modelProfileNameSnapshot", "modelIdSnapshot", "skillNameSnapshot",
+        "skillVersionSnapshot", "queuedAt", "startedAt", "finishedAt",
+        "durationMs", "createdAt", "updatedAt"
+      ) VALUES (
+        ?, ?, ?, ?, 'GENERATE_TEST_CASES', 'SUCCEEDED', 'COMPLETED', ?,
+        'E2E OpenAI 兼容模型', 'e2e-structured-model',
+        '生成自然语言测试用例', '1.0.0', ?, ?, ?, 1200, ?, ?
+      )`,
+    )
+    .run(
+      "e2e-ai-test-case-success",
+      context.projectId,
+      context.userId,
+      "e2e-test-case-source-story",
+      "来源：已有 US\n\nUS 标题：管理员登录校验",
+      now,
+      now,
+      now,
+      now,
+      now,
+    );
+  database
+    .prepare(
+      `INSERT INTO "TestCaseDraftBatch" (
+        "id", "projectId", "sourceExecutionId", "createdAt", "updatedAt"
+      ) VALUES (?, ?, ?, ?, ?)`,
+    )
+    .run(
+      "e2e-test-case-draft-batch",
+      context.projectId,
+      "e2e-ai-test-case-success",
+      now,
+      now,
+    );
+  const insertDraft = database.prepare(
+    `INSERT INTO "TestCaseDraft" (
+      "id", "batchId", "groupId", "position", "name", "priority", "preconditions",
+      "steps", "status", "createdAt", "updatedAt"
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)`,
+  );
+  insertDraft.run(
+    "e2e-test-case-draft-failed-login",
+    "e2e-test-case-draft-batch",
+    "e2e-ai-test-case-group",
+    0,
+    "管理员使用错误密码登录失败",
+    "P1",
+    "1. 系统中存在可登录的管理员账号 A。\n2. 当前用户未登录。",
+    "1. 访问登录入口。\n2. 使用账号 A 和错误密码提交登录。\n3. 验证系统拒绝登录，用户仍处于未登录状态。",
+    now,
+    now,
+  );
+  insertDraft.run(
+    "e2e-test-case-draft-success-login",
+    "e2e-test-case-draft-batch",
+    null,
+    1,
+    "管理员使用正确密码登录成功",
+    "P0",
+    "1. 系统中存在可登录的管理员账号 A。\n2. 当前用户未登录。",
+    "1. 访问登录入口。\n2. 使用账号 A 和正确密码提交登录。\n3. 验证用户进入已登录状态。",
+    now,
+    now,
+  );
+  database
+    .prepare(
+      `INSERT INTO "AiExecutionLog" (
+        "id", "executionId", "position", "level", "stage", "message", "createdAt"
+      ) VALUES (?, ?, 0, 'INFO', 'COMPLETED', ?, ?)`,
+    )
+    .run(
+      "e2e-ai-test-case-log",
+      "e2e-ai-test-case-success",
+      "任务处理完成，已保存 2 条待评审测试用例。",
+      now,
+    );
+  database.close();
+
+  await page.goto("/test-cases/ai-generate");
+  await expect(
+    page.getByRole("heading", { name: "AI辅助生成测试用例" }),
+  ).toBeVisible();
+  await expect(page.getByText("选择已有US", { exact: true })).toBeVisible();
+  await page.getByText("输入需求内容", { exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "需求内容" })).toBeVisible();
+  await page.getByText("选择已有US", { exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "选择 US" })).toBeVisible();
+
+  await page.goto("/ai-executions");
+  const executionRow = page
+    .locator("tbody tr")
+    .filter({ hasText: "e2e-ai-test-case-success" });
+  await expect(executionRow).toContainText("AI辅助生成测试用例");
+  await executionRow.getByRole("button", { name: "查看" }).click();
+  await expect(page.getByRole("log")).toContainText(
+    "已保存 2 条待评审测试用例",
+  );
+  await page.getByRole("button", { name: "查看生成结果" }).click();
+  await expect(page).toHaveURL(
+    /\/test-cases\/pending-review\?batch=e2e-test-case-draft-batch$/,
+  );
+
+  let firstDraftRow = page
+    .locator("tbody tr")
+    .filter({ hasText: "管理员使用错误密码登录失败" });
+  await expect(
+    firstDraftRow.getByRole("combobox", {
+      name: "设置“管理员使用错误密码登录失败”的分组",
+    }),
+  ).toContainText("登录与会话");
+  await firstDraftRow
+    .getByRole("link", { name: "管理员使用错误密码登录失败" })
+    .click();
+  await expect(page).toHaveURL(
+    /\/test-cases\/pending-review\/e2e-test-case-draft-failed-login$/,
+  );
+  await expect(
+    page.getByRole("heading", { name: "管理员使用错误密码登录失败" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /US-20260730190000000/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "返回列表" }).click();
+
+  firstDraftRow = page
+    .locator("tbody tr")
+    .filter({ hasText: "管理员使用错误密码登录失败" });
+  await firstDraftRow.getByRole("button", { name: "评审通过" }).click();
+  await expect(page.getByText("管理员使用错误密码登录失败")).toHaveCount(0);
+
+  const secondDraftRow = page
+    .locator("tbody tr")
+    .filter({ hasText: "管理员使用正确密码登录成功" });
+  const remainingGroup = secondDraftRow.getByRole("combobox", {
+    name: "设置“管理员使用正确密码登录成功”的分组",
+  });
+  await remainingGroup.click();
+  await page.getByRole("option", { name: "登录与会话" }).click();
+  await expect(page.getByText("用例分组已更新", { exact: true })).toBeVisible();
+  await secondDraftRow.getByRole("button", { name: "评审通过" }).click();
+  await expect(page.getByText("管理员使用正确密码登录成功")).toHaveCount(0);
+
+  await page.goto("/test-cases");
+  await expect(
+    page.getByRole("link", { name: "管理员使用错误密码登录失败" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "管理员使用正确密码登录成功" }),
+  ).toBeVisible();
+
+  const verificationDatabase = new Database(databasePath, { readonly: true });
+  const linkedCases = verificationDatabase
+    .prepare(
+      `SELECT "name", "userStoryId", "groupId"
+       FROM "TestCase"
+       WHERE "name" IN (?, ?)
+       ORDER BY "name"`,
+    )
+    .all("管理员使用错误密码登录失败", "管理员使用正确密码登录成功") as Array<{
+    name: string;
+    userStoryId: string | null;
+    groupId: string;
+  }>;
+  verificationDatabase.close();
+
+  expect(linkedCases).toHaveLength(2);
+  expect(
+    linkedCases.every(
+      (testCase) => testCase.userStoryId === "e2e-test-case-source-story",
+    ),
+  ).toBe(true);
+  expect(
+    linkedCases.every(
+      (testCase) => testCase.groupId === "e2e-ai-test-case-group",
+    ),
+  ).toBe(true);
 });
 
 test("失败的 AI 任务可以使用原任务 ID 重新运行", async ({ page }) => {
@@ -673,6 +951,7 @@ test("失败的 AI 任务可以使用原任务 ID 重新运行", async ({ page }
   await expect(page.getByRole("log")).not.toContainText(
     "旧日志：初次执行失败。",
   );
+  await expectAiWorkerIdleAfterTask(databasePath, "e2e-retry-task");
 
   await page.goto("/ai-executions");
   await expect(

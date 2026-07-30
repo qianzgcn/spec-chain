@@ -22,6 +22,10 @@ const updateProfileSchema = aiModelProfileInputSchema.extend({
 });
 
 const profileIdSchema = z.string().min(1);
+const capabilityBindingSchema = z.object({
+  capability: z.enum(AiCapability),
+  profileId: profileIdSchema,
+});
 
 async function hasDuplicateName(name: string, excludedId?: string) {
   const profiles = await db.aiModelProfile.findMany({
@@ -156,17 +160,17 @@ export async function deleteAiModelProfileAction(
   return { ok: true, message: "模型配置已删除" };
 }
 
-export async function bindUserStoryModelAction(
-  profileId: string,
+export async function bindAiCapabilityModelAction(
+  input: unknown,
 ): Promise<ActionResult> {
   await requireAdmin();
-  const parsedId = profileIdSchema.safeParse(profileId);
-  if (!parsedId.success) {
+  const parsed = capabilityBindingSchema.safeParse(input);
+  if (!parsed.success) {
     return { ok: false, message: "请选择默认模型" };
   }
 
   const profile = await db.aiModelProfile.findFirst({
-    where: { id: parsedId.data, deletedAt: null },
+    where: { id: parsed.data.profileId, deletedAt: null },
     select: { id: true },
   });
   if (!profile) {
@@ -174,16 +178,20 @@ export async function bindUserStoryModelAction(
   }
 
   await db.aiCapabilityBinding.upsert({
-    where: { capability: AiCapability.GENERATE_USER_STORY },
+    where: { capability: parsed.data.capability },
     create: {
-      capability: AiCapability.GENERATE_USER_STORY,
+      capability: parsed.data.capability,
       modelProfileId: profile.id,
     },
     update: { modelProfileId: profile.id },
   });
 
   revalidatePath("/ai-settings");
-  return { ok: true, message: "生成 US 的默认模型已更新" };
+  const capabilityName =
+    parsed.data.capability === AiCapability.GENERATE_USER_STORY
+      ? "生成 US"
+      : "生成测试用例";
+  return { ok: true, message: `${capabilityName}的默认模型已更新` };
 }
 
 export async function checkAiModelProfileAction(

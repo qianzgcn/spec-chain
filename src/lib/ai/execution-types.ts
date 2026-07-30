@@ -6,12 +6,24 @@ import {
   AiExecutionStatus,
 } from "@/generated/prisma/enums";
 
-export type AiExecutionDraftSummary = {
+export type AiExecutionUserStoryResult = {
+  kind: "USER_STORY";
   id: string;
   status: AiDraftStatus;
   deleted: boolean;
   confirmedUserStoryId: string | null;
 };
+
+export type AiExecutionTestCaseResult = {
+  kind: "TEST_CASE_BATCH";
+  id: string;
+  deleted: boolean;
+  pendingCount: number;
+  confirmedCount: number;
+};
+
+export type AiExecutionResult =
+  AiExecutionUserStoryResult | AiExecutionTestCaseResult;
 
 export type AiExecutionSummary = {
   id: string;
@@ -25,6 +37,11 @@ export type AiExecutionSummary = {
   durationMs: number | null;
   requestedBy: string;
   feature: { code: string; name: string } | null;
+  sourceUserStory: {
+    code: string;
+    title: string;
+    deleted: boolean;
+  } | null;
 };
 
 export type AiExecutionLogEntry = {
@@ -44,6 +61,6 @@ export type AiExecutionDetail = AiExecutionSummary & {
   promptTokens: number | null;
   completionTokens: number | null;
   totalTokens: number | null;
-  result: AiExecutionDraftSummary | null;
+  result: AiExecutionResult | null;
   logs: AiExecutionLogEntry[];
 };

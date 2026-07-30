@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildTestCaseCodeSelectionPrompt,
+  buildTestCaseDraftsPrompt,
+  generateTestCasesSystemPrompt,
+} from "@/ai/prompts/generate-test-cases";
+import {
   buildCodeSelectionPrompt,
   buildUserStoryDraftPrompt,
   generateUserStorySystemPrompt,
@@ -69,5 +74,56 @@ describe("AI 生成 US 提示词", () => {
     expect(() => renderPromptTemplate("需求：{{REQUIREMENT}}", {})).toThrow(
       "提示词模板缺少变量：REQUIREMENT",
     );
+  });
+});
+
+describe("AI 生成测试用例提示词", () => {
+  it("使用独立 Skill 并明确最少可靠覆盖原则", () => {
+    const skill = builtInSkillResolver.resolve(
+      AiCapability.GENERATE_TEST_CASES,
+    );
+
+    expect(skill.version).toBe("1.0.0");
+    expect(skill.instructions).toBe(generateTestCasesSystemPrompt);
+    expect(skill.instructions).toContain("最少用例集合");
+    expect(skill.instructions).toContain(
+      "验收标准只是测试设计依据，不是一条验收标准对应一条测试用例",
+    );
+    expect(skill.instructions).toContain(
+      "不绑定 CSS 选择器、DOM、坐标、按钮位置",
+    );
+  });
+
+  it("代码定位与草稿提示词分别注入需求、仓库和代码证据", () => {
+    const selectionPrompt = buildTestCaseCodeSelectionPrompt({
+      requirementText: "管理员使用错误密码时应登录失败",
+      repository: "team/spec-chain",
+      branch: "main",
+      commitSha: "abc123",
+      candidatePaths: ["src/app/login/page.tsx"],
+    });
+    const generationPrompt = buildTestCaseDraftsPrompt({
+      requirementText: "管理员使用错误密码时应登录失败",
+      groups: [{ id: "group-auth", name: "认证与会话" }],
+      codeEvidence: [
+        {
+          repository: "team/spec-chain",
+          path: "src/app/login/page.tsx",
+          commitSha: "abc123",
+          selectionReason: "核实登录入口和失败状态",
+          content: "export function LoginPage() {}",
+        },
+      ],
+    });
+
+    expect(selectionPrompt).toContain("管理员使用错误密码时应登录失败");
+    expect(selectionPrompt).toContain("team/spec-chain");
+    expect(selectionPrompt).toContain('"src/app/login/page.tsx"');
+    expect(generationPrompt).toContain("1～20 条用例");
+    expect(generationPrompt).toContain("src/app/login/page.tsx");
+    expect(generationPrompt).toContain("LoginPage");
+    expect(generationPrompt).toContain("group-auth");
+    expect(generationPrompt).toContain("认证与会话");
+    expect(generationPrompt).toContain("无法明确归类时返回 `null`");
   });
 });

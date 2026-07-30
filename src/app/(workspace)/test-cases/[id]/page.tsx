@@ -28,19 +28,13 @@ export default async function TestCaseDetailPage({
     where: { id, projectId: project.id, deletedAt: null },
     include: {
       group: { select: { name: true } },
-      userStoryLinks: {
-        where: { deletedAt: null },
-        orderBy: { createdAt: "asc" },
-        include: {
-          userStory: {
-            select: {
-              id: true,
-              code: true,
-              title: true,
-              deletedAt: true,
-              feature: { select: { name: true } },
-            },
-          },
+      userStory: {
+        select: {
+          id: true,
+          code: true,
+          title: true,
+          deletedAt: true,
+          feature: { select: { name: true } },
         },
       },
     },
@@ -86,26 +80,22 @@ export default async function TestCaseDetailPage({
       </PageSection>
 
       <PageSection title="关联 US">
-        {testCase.userStoryLinks.length ? (
-          <ul className="flex flex-col gap-2">
-            {testCase.userStoryLinks.map(({ userStory }) => (
-              <li key={userStory.id} className="text-sm">
-                {userStory.deletedAt ? (
-                  <span className="text-muted-foreground">
-                    {userStory.code} · {userStory.title}（已删除）
-                  </span>
-                ) : (
-                  <Link
-                    className="font-medium underline-offset-4 hover:underline"
-                    href={`/user-stories/${userStory.id}`}
-                  >
-                    {userStory.code} · {userStory.title}
-                    {userStory.feature ? `（${userStory.feature.name}）` : ""}
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ul>
+        {testCase.userStory ? (
+          testCase.userStory.deletedAt ? (
+            <span className="text-muted-foreground text-sm">
+              {testCase.userStory.code} · {testCase.userStory.title}（已删除）
+            </span>
+          ) : (
+            <Link
+              className="text-sm font-medium underline-offset-4 hover:underline"
+              href={`/user-stories/${testCase.userStory.id}`}
+            >
+              {testCase.userStory.code} · {testCase.userStory.title}
+              {testCase.userStory.feature
+                ? `（${testCase.userStory.feature.name}）`
+                : ""}
+            </Link>
+          )
         ) : (
           <span className="text-muted-foreground text-sm">未关联 US</span>
         )}

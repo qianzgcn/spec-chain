@@ -1,14 +1,4 @@
-import { readFileSync } from "node:fs";
-
-import { renderPromptTemplate } from "@/ai/prompts/template";
-
-function readPromptFile(url: URL) {
-  const content = readFileSync(url, "utf8").trim();
-  if (!content) {
-    throw new Error(`提示词文件不能为空：${url.pathname}`);
-  }
-  return content;
-}
+import { readPromptFile, renderPromptTemplate } from "@/ai/prompts/template";
 
 export const generateUserStorySystemPrompt = readPromptFile(
   new URL("./generate-user-story/skill.md", import.meta.url),

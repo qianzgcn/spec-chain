@@ -1,4 +1,5 @@
 import { AiCapability } from "@/generated/prisma/enums";
+import { generateTestCasesSystemPrompt } from "@/ai/prompts/generate-test-cases";
 import { generateUserStorySystemPrompt } from "@/ai/prompts/generate-user-story";
 
 export type AiSkill = {
@@ -22,12 +23,21 @@ const GENERATE_USER_STORY_SKILL: AiSkill = {
   instructions: generateUserStorySystemPrompt,
 };
 
+const GENERATE_TEST_CASES_SKILL: AiSkill = {
+  capability: AiCapability.GENERATE_TEST_CASES,
+  name: "生成自然语言测试用例",
+  purpose: "根据需求和现有代码生成可独立执行、需要人工评审的测试用例草稿。",
+  version: "1.0.0",
+  instructions: generateTestCasesSystemPrompt,
+};
+
 export const builtInSkillResolver: SkillResolver = {
   resolve(capability) {
-    if (capability === AiCapability.GENERATE_USER_STORY) {
-      return GENERATE_USER_STORY_SKILL;
+    switch (capability) {
+      case AiCapability.GENERATE_USER_STORY:
+        return GENERATE_USER_STORY_SKILL;
+      case AiCapability.GENERATE_TEST_CASES:
+        return GENERATE_TEST_CASES_SKILL;
     }
-
-    throw new Error(`没有为能力 ${capability} 配置 Skill`);
   },
 };

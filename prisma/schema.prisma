@@ -41,6 +41,7 @@ enum RunStatus {
 
 enum AiCapability {
   GENERATE_USER_STORY
+  GENERATE_TEST_CASES
 }
 
 enum AiModelCheckStatus {
@@ -117,14 +118,15 @@ model Project {
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
 
-  repositories Repository[]
-  variables    ProjectVariable[]
-  features     Feature[]
-  userStories  UserStory[]
-  testGroups   TestCaseGroup[]
-  testCases    TestCase[]
-  aiExecutions AiExecution[]
-  aiDrafts     UserStoryDraft[]
+  repositories         Repository[]
+  variables            ProjectVariable[]
+  features             Feature[]
+  userStories          UserStory[]
+  testGroups           TestCaseGroup[]
+  testCases            TestCase[]
+  aiExecutions         AiExecution[]
+  aiDrafts             UserStoryDraft[]
+  testCaseDraftBatches TestCaseDraftBatch[]
 
   @@index([deletedAt])
   @@index([updatedAt])
@@ -197,11 +199,12 @@ model UserStory {
   updatedAt                 DateTime          @updatedAt
   deletedAt                 DateTime?
 
-  project            Project               @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  feature            Feature?              @relation(fields: [featureId], references: [id], onDelete: Restrict)
-  acceptanceCriteria AcceptanceCriterion[]
-  testCaseLinks      TestCaseUserStory[]
-  sourceDraft        UserStoryDraft?       @relation("ConfirmedUserStory")
+  project              Project               @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  feature              Feature?              @relation(fields: [featureId], references: [id], onDelete: Restrict)
+  acceptanceCriteria   AcceptanceCriterion[]
+  testCases            TestCase[]
+  aiTestCaseExecutions AiExecution[]         @relation("AiTestCaseSourceUserStory")
+  sourceDraft          UserStoryDraft?       @relation("ConfirmedUserStory")
 
   @@index([projectId, deletedAt, updatedAt])
   @@index([featureId, deletedAt])
@@ -231,8 +234,9 @@ model TestCaseGroup {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  project   Project    @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  testCases TestCase[]
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  testCases      TestCase[]
+  testCaseDrafts TestCaseDraft[]
 
   @@index([projectId, deletedAt])
 }
@@ -241,6 +245,7 @@ model TestCase {
   id            String       @id @default(cuid())
   projectId     String
   groupId       String
+  userStoryId   String?
   code          String       @unique
   name          String
   priority      TestPriority @default(P2)
@@ -252,27 +257,14 @@ model TestCase {
   updatedAt     DateTime     @updatedAt
   deletedAt     DateTime?
 
-  project        Project             @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  group          TestCaseGroup       @relation(fields: [groupId], references: [id], onDelete: Restrict)
-  userStoryLinks TestCaseUserStory[]
-  runs           TestRun[]
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  group       TestCaseGroup  @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  userStory   UserStory?     @relation(fields: [userStoryId], references: [id], onDelete: Restrict)
+  runs        TestRun[]
+  sourceDraft TestCaseDraft? @relation("ConfirmedTestCase")
 
   @@index([projectId, deletedAt, updatedAt])
   @@index([groupId, deletedAt])
-}
-
-model TestCaseUserStory {
-  id          String    @id @default(cuid())
-  testCaseId  String
-  userStoryId String
-  createdAt   DateTime  @default(now())
-  deletedAt   DateTime?
-
-  testCase  TestCase  @relation(fields: [testCaseId], references: [id], onDelete: Restrict)
-  userStory UserStory @relation(fields: [userStoryId], references: [id], onDelete: Restrict)
-
-  @@unique([testCaseId, userStoryId])
-  @@index([testCaseId, deletedAt])
   @@index([userStoryId, deletedAt])
 }
 
@@ -354,6 +346,7 @@ model AiExecution {
   projectId                String
   requestedById            String
   featureId                String?
+  sourceUserStoryId        String?
   capability               AiCapability
   status                   AiExecutionStatus @default(QUEUED)
   stage                    AiExecutionStage  @default(QUEUED)
@@ -377,15 +370,18 @@ model AiExecution {
   updatedAt                DateTime          @updatedAt
   deletedAt                DateTime?
 
-  project     Project          @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  requestedBy User             @relation(fields: [requestedById], references: [id], onDelete: Restrict)
-  feature     Feature?         @relation(fields: [featureId], references: [id], onDelete: Restrict)
-  draft       UserStoryDraft?
-  logs        AiExecutionLog[]
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  requestedBy        User                @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  feature            Feature?            @relation(fields: [featureId], references: [id], onDelete: Restrict)
+  sourceUserStory    UserStory?          @relation("AiTestCaseSourceUserStory", fields: [sourceUserStoryId], references: [id], onDelete: Restrict)
+  draft              UserStoryDraft?
+  testCaseDraftBatch TestCaseDraftBatch?
+  logs               AiExecutionLog[]
 
   @@index([status, queuedAt])
   @@index([projectId, deletedAt, queuedAt])
   @@index([featureId])
+  @@index([sourceUserStoryId])
 }
 
 model AiExecutionLog {
@@ -445,6 +441,46 @@ model DraftAcceptanceCriterion {
   draft UserStoryDraft @relation(fields: [draftId], references: [id], onDelete: Restrict)
 
   @@index([draftId, deletedAt, position])
+}
+
+model TestCaseDraftBatch {
+  id                String    @id @default(cuid())
+  projectId         String
+  sourceExecutionId String    @unique
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  project         Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  sourceExecution AiExecution     @relation(fields: [sourceExecutionId], references: [id], onDelete: Restrict)
+  drafts          TestCaseDraft[]
+
+  @@index([projectId, deletedAt, updatedAt])
+}
+
+model TestCaseDraft {
+  id                  String        @id @default(cuid())
+  batchId             String
+  groupId             String?
+  confirmedTestCaseId String?       @unique
+  position            Int
+  name                String
+  priority            TestPriority
+  preconditions       String?
+  steps               String
+  status              AiDraftStatus @default(PENDING)
+  confirmedAt         DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  deletedAt           DateTime?
+
+  batch             TestCaseDraftBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  group             TestCaseGroup?     @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  confirmedTestCase TestCase?          @relation("ConfirmedTestCase", fields: [confirmedTestCaseId], references: [id], onDelete: Restrict)
+
+  @@index([batchId, deletedAt, position])
+  @@index([groupId, deletedAt])
+  @@index([status, deletedAt])
 }
 
 model AiWorkerLease {

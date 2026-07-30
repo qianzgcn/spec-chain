@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default async function AiSettingsPage() {
   await requireAdmin();
-  const [profiles, binding] = await Promise.all([
+  const [profiles, bindings] = await Promise.all([
     db.aiModelProfile.findMany({
       where: { deletedAt: null },
       select: {
@@ -27,17 +27,27 @@ export default async function AiSettingsPage() {
       },
       orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
     }),
-    db.aiCapabilityBinding.findUnique({
-      where: { capability: AiCapability.GENERATE_USER_STORY },
-      select: { modelProfileId: true },
+    db.aiCapabilityBinding.findMany({
+      where: {
+        capability: {
+          in: [
+            AiCapability.GENERATE_USER_STORY,
+            AiCapability.GENERATE_TEST_CASES,
+          ],
+        },
+      },
+      select: { capability: true, modelProfileId: true },
     }),
   ]);
+  const bindingByCapability = new Map(
+    bindings.map((binding) => [binding.capability, binding.modelProfileId]),
+  );
 
   return (
     <PageContainer table className="gap-5">
       <PageHeader
         title="模型配置"
-        description="管理 OpenAI 兼容模型，并指定 AI 辅助生成 US 使用的默认模型。"
+        description="管理 OpenAI 兼容模型，并分别指定生成 US 和测试用例使用的默认模型。"
       />
 
       <AiSettingsManagement
@@ -46,7 +56,12 @@ export default async function AiSettingsPage() {
           lastCheckedAt: profile.lastCheckedAt?.toISOString() ?? null,
           updatedAt: profile.updatedAt.toISOString(),
         }))}
-        defaultProfileId={binding?.modelProfileId ?? null}
+        defaultProfileIds={{
+          [AiCapability.GENERATE_USER_STORY]:
+            bindingByCapability.get(AiCapability.GENERATE_USER_STORY) ?? null,
+          [AiCapability.GENERATE_TEST_CASES]:
+            bindingByCapability.get(AiCapability.GENERATE_TEST_CASES) ?? null,
+        }}
       />
     </PageContainer>
   );

@@ -10,10 +10,12 @@ import {
 } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
 import {
-  createAiExecutionSchema,
+  createAiTestCaseExecutionSchema,
+  createAiUserStoryExecutionSchema,
   deleteAiExecutionSchema,
   retryAiExecutionSchema,
 } from "@/lib/ai/execution-schema";
+import { formatUserStoryForTestCaseGeneration } from "@/ai/test-case-requirement";
 import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { startAiQueueWorker } from "@/server/ai/launcher";
@@ -61,11 +63,57 @@ async function markWorkerStartFailure(
   });
 }
 
+async function createQueuedExecution(input: {
+  projectId: string;
+  requestedById: string;
+  capability: AiCapability;
+  requirementText: string;
+  featureId?: string | null;
+  sourceUserStoryId?: string | null;
+}) {
+  const execution = await db.aiExecution.create({
+    data: {
+      projectId: input.projectId,
+      requestedById: input.requestedById,
+      featureId: input.featureId ?? null,
+      sourceUserStoryId: input.sourceUserStoryId ?? null,
+      capability: input.capability,
+      status: AiExecutionStatus.QUEUED,
+      requirementText: input.requirementText,
+      logs: {
+        create: {
+          position: 0,
+          level: AiExecutionLogLevel.INFO,
+          stage: AiExecutionStage.QUEUED,
+          message: "任务已进入队列，等待 AI 执行器处理。",
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  if (!startAiQueueWorker()) {
+    await markWorkerStartFailure(execution.id, 1);
+    revalidatePath("/ai-executions");
+    return {
+      ok: false as const,
+      message: "无法启动 AI 队列，请查看服务日志",
+    };
+  }
+
+  revalidatePath("/ai-executions");
+  return {
+    ok: true as const,
+    message: "AI 任务已进入队列",
+    data: execution,
+  };
+}
+
 export async function createAiUserStoryExecutionAction(
   input: unknown,
 ): Promise<ActionResult<{ id: string }>> {
   const { user, project } = await getCurrentActionContext();
-  const parsed = createAiExecutionSchema.safeParse(input);
+  const parsed = createAiUserStoryExecutionSchema.safeParse(input);
   if (!project) {
     return { ok: false, message: "请先创建项目" };
   }
@@ -91,41 +139,89 @@ export async function createAiUserStoryExecutionAction(
     }
   }
 
-  const execution = await db.aiExecution.create({
-    data: {
-      projectId: project.id,
-      requestedById: user.id,
-      featureId: parsed.data.featureId ?? null,
-      capability: AiCapability.GENERATE_USER_STORY,
-      status: AiExecutionStatus.QUEUED,
-      requirementText: parsed.data.requirementText,
-      logs: {
-        create: {
-          position: 0,
-          level: AiExecutionLogLevel.INFO,
-          stage: AiExecutionStage.QUEUED,
-          message: "任务已进入队列，等待 AI 执行器处理。",
-        },
-      },
-    },
-    select: { id: true },
+  return createQueuedExecution({
+    projectId: project.id,
+    requestedById: user.id,
+    featureId: parsed.data.featureId,
+    capability: AiCapability.GENERATE_USER_STORY,
+    requirementText: parsed.data.requirementText,
   });
+}
 
-  if (!startAiQueueWorker()) {
-    await markWorkerStartFailure(execution.id, 1);
-    revalidatePath("/ai-executions");
+export async function createAiTestCaseExecutionAction(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  const { user, project } = await getCurrentActionContext();
+  if (!project) {
+    return { ok: false, message: "请先创建项目" };
+  }
+
+  const parsed = createAiTestCaseExecutionSchema.safeParse(input);
+  if (!parsed.success) {
     return {
       ok: false,
-      message: "无法启动 AI 队列，请查看服务日志",
+      message: "请检查生成来源",
+      fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
 
-  revalidatePath("/ai-executions");
-  return {
-    ok: true,
-    message: "AI 任务已进入队列",
-    data: execution,
-  };
+  if (parsed.data.sourceMode === "TEXT") {
+    return createQueuedExecution({
+      projectId: project.id,
+      requestedById: user.id,
+      capability: AiCapability.GENERATE_TEST_CASES,
+      requirementText: parsed.data.requirementText.trim(),
+    });
+  }
+
+  const userStoryId = parsed.data.userStoryId;
+  if (!userStoryId) {
+    return { ok: false, message: "请选择一个 US" };
+  }
+
+  const userStory = await db.userStory.findFirst({
+    where: {
+      id: userStoryId,
+      projectId: project.id,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      title: true,
+      asA: true,
+      iWant: true,
+      soThat: true,
+      businessRules: true,
+      nonFunctionalRequirements: true,
+      acceptanceCriteria: {
+        where: { deletedAt: null },
+        orderBy: { position: "asc" },
+        select: {
+          given: true,
+          when: true,
+          then: true,
+        },
+      },
+      feature: {
+        select: {
+          name: true,
+          summary: true,
+          backgroundGoal: true,
+        },
+      },
+    },
+  });
+  if (!userStory) {
+    return { ok: false, message: "所选 US 不存在或已删除" };
+  }
+
+  return createQueuedExecution({
+    projectId: project.id,
+    requestedById: user.id,
+    sourceUserStoryId: userStory.id,
+    capability: AiCapability.GENERATE_TEST_CASES,
+    requirementText: formatUserStoryForTestCaseGeneration(userStory),
+  });
 }
 
 export async function retryAiExecutionAction(

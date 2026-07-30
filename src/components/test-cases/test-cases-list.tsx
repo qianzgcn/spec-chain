@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -354,14 +354,23 @@ export function TestCasesList({
                 重置筛选
               </Button>
             ) : null}
-            <Button
-              className="ml-auto"
-              nativeButton={false}
-              render={<Link href="/test-cases/new" />}
-            >
-              <PlusIcon data-icon="inline-start" />
-              新建用例
-            </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="outline"
+                nativeButton={false}
+                render={<Link href="/test-cases/ai-generate" />}
+              >
+                <SparklesIcon data-icon="inline-start" />
+                AI辅助生成测试用例
+              </Button>
+              <Button
+                nativeButton={false}
+                render={<Link href="/test-cases/new" />}
+              >
+                <PlusIcon data-icon="inline-start" />
+                新建用例
+              </Button>
+            </div>
           </>
         }
         footer={

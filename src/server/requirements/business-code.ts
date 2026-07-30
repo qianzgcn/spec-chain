@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/server/db";
 
 const shanghaiTimestampFormatter = new Intl.DateTimeFormat("en-CA", {
@@ -29,25 +30,42 @@ function formatShanghaiTimestamp(timestamp: number) {
   ].join("");
 }
 
-export async function generateBusinessCode(prefix: "FE" | "US" | "TC") {
-  const timestamp = await db.$transaction(async (transaction) => {
-    const now = BigInt(Date.now());
-    const existing = await transaction.businessCodeSequence.findUnique({
-      where: { prefix },
-    });
-    const nextTimestamp =
-      existing && existing.lastTimestamp >= now
-        ? existing.lastTimestamp + 1n
-        : now;
+type BusinessCodePrefix = "FE" | "US" | "TC";
 
-    await transaction.businessCodeSequence.upsert({
-      where: { prefix },
-      create: { prefix, lastTimestamp: nextTimestamp },
-      update: { lastTimestamp: nextTimestamp },
-    });
+async function reserveTimestamp(
+  transaction: Prisma.TransactionClient,
+  prefix: BusinessCodePrefix,
+) {
+  const now = BigInt(Date.now());
+  const existing = await transaction.businessCodeSequence.findUnique({
+    where: { prefix },
+  });
+  const nextTimestamp =
+    existing && existing.lastTimestamp >= now
+      ? existing.lastTimestamp + 1n
+      : now;
 
-    return nextTimestamp;
+  await transaction.businessCodeSequence.upsert({
+    where: { prefix },
+    create: { prefix, lastTimestamp: nextTimestamp },
+    update: { lastTimestamp: nextTimestamp },
   });
 
+  return nextTimestamp;
+}
+
+export async function generateBusinessCode(prefix: BusinessCodePrefix) {
+  const timestamp = await db.$transaction((transaction) =>
+    reserveTimestamp(transaction, prefix),
+  );
+
+  return `${prefix}-${formatShanghaiTimestamp(Number(timestamp))}`;
+}
+
+export async function generateBusinessCodeInTransaction(
+  transaction: Prisma.TransactionClient,
+  prefix: BusinessCodePrefix,
+) {
+  const timestamp = await reserveTimestamp(transaction, prefix);
   return `${prefix}-${formatShanghaiTimestamp(Number(timestamp))}`;
 }

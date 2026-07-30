@@ -19,6 +19,9 @@ export async function getAiExecutionSummaries(projectId: string) {
       durationMs: true,
       requestedBy: { select: { username: true } },
       feature: { select: { code: true, name: true } },
+      sourceUserStory: {
+        select: { code: true, title: true, deletedAt: true },
+      },
     },
   });
 
@@ -34,6 +37,13 @@ export async function getAiExecutionSummaries(projectId: string) {
     durationMs: execution.durationMs,
     requestedBy: execution.requestedBy.username,
     feature: execution.feature,
+    sourceUserStory: execution.sourceUserStory
+      ? {
+          code: execution.sourceUserStory.code,
+          title: execution.sourceUserStory.title,
+          deleted: Boolean(execution.sourceUserStory.deletedAt),
+        }
+      : null,
   }));
 }
 
@@ -63,6 +73,9 @@ export async function getAiExecutionDetail(
       totalTokens: true,
       requestedBy: { select: { username: true } },
       feature: { select: { code: true, name: true } },
+      sourceUserStory: {
+        select: { code: true, title: true, deletedAt: true },
+      },
       logs: {
         orderBy: { position: "asc" },
         select: {
@@ -81,11 +94,28 @@ export async function getAiExecutionDetail(
           confirmedUserStoryId: true,
         },
       },
+      testCaseDraftBatch: {
+        select: {
+          id: true,
+          deletedAt: true,
+          drafts: {
+            where: { deletedAt: null },
+            select: { status: true },
+          },
+        },
+      },
     },
   });
   if (!execution) return null;
 
-  const { draft, logs, requestedBy, ...detail } = execution;
+  const {
+    draft,
+    testCaseDraftBatch,
+    logs,
+    requestedBy,
+    sourceUserStory,
+    ...detail
+  } = execution;
   const latestLogs = logs.filter(
     (log) => log.createdAt.getTime() >= execution.queuedAt.getTime(),
   );
@@ -95,17 +125,37 @@ export async function getAiExecutionDetail(
     startedAt: execution.startedAt?.toISOString() ?? null,
     finishedAt: execution.finishedAt?.toISOString() ?? null,
     requestedBy: requestedBy.username,
+    sourceUserStory: sourceUserStory
+      ? {
+          code: sourceUserStory.code,
+          title: sourceUserStory.title,
+          deleted: Boolean(sourceUserStory.deletedAt),
+        }
+      : null,
     logs: latestLogs.map((log) => ({
       ...log,
       createdAt: log.createdAt.toISOString(),
     })),
     result: draft
-      ? {
+      ? ({
+          kind: "USER_STORY",
           id: draft.id,
           status: draft.status,
           deleted: Boolean(draft.deletedAt),
           confirmedUserStoryId: draft.confirmedUserStoryId,
-        }
-      : null,
+        } as const)
+      : testCaseDraftBatch
+        ? ({
+            kind: "TEST_CASE_BATCH",
+            id: testCaseDraftBatch.id,
+            deleted: Boolean(testCaseDraftBatch.deletedAt),
+            pendingCount: testCaseDraftBatch.drafts.filter(
+              (item) => item.status === "PENDING",
+            ).length,
+            confirmedCount: testCaseDraftBatch.drafts.filter(
+              (item) => item.status === "CONFIRMED",
+            ).length,
+          } as const)
+        : null,
   };
 }

@@ -28,7 +28,7 @@ export const testCaseSchema = z.object({
     .trim()
     .min(1, "测试步骤不能为空")
     .max(100_000, "测试步骤内容过长"),
-  userStoryIds: z.array(z.string()),
+  userStoryId: z.string().min(1).nullable(),
 });
 
 export type TestCaseFormValues = z.infer<typeof testCaseSchema>;

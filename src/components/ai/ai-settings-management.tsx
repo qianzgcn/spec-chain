@@ -9,7 +9,7 @@ import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
 import {
-  bindUserStoryModelAction,
+  bindAiCapabilityModelAction,
   checkAiModelProfileAction,
   createAiModelProfileAction,
   deleteAiModelProfileAction,
@@ -48,7 +48,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
-import { AiModelCheckStatus } from "@/generated/prisma/enums";
+import { AiCapability, AiModelCheckStatus } from "@/generated/prisma/enums";
 import {
   aiModelProfileFormSchema,
   type AiModelProfileFormValues,
@@ -89,10 +89,10 @@ const MODEL_CHECK_STATUS_META: Record<
 
 export function AiSettingsManagement({
   profiles,
-  defaultProfileId,
+  defaultProfileIds,
 }: {
   profiles: ModelProfileItem[];
-  defaultProfileId: string | null;
+  defaultProfileIds: Record<AiCapability, string | null>;
 }) {
   const router = useRouter();
   const [editingProfile, setEditingProfile] = useState<ModelProfileItem | null>(
@@ -193,11 +193,17 @@ export function AiSettingsManagement({
     });
   }
 
-  function bindDefaultModel(profileId: string | null) {
+  function bindDefaultModel(
+    capability: AiCapability,
+    profileId: string | null,
+  ) {
     if (!profileId) return;
 
     startTransition(async () => {
-      const result = await bindUserStoryModelAction(profileId);
+      const result = await bindAiCapabilityModelAction({
+        capability,
+        profileId,
+      });
       if (!result.ok) {
         toast.add({ type: "error", description: result.message });
         return;
@@ -245,8 +251,13 @@ export function AiSettingsManagement({
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate font-medium">{row.original.name}</span>
-          {row.original.id === defaultProfileId ? (
+          {row.original.id ===
+          defaultProfileIds[AiCapability.GENERATE_USER_STORY] ? (
             <Badge variant="secondary">生成 US 默认</Badge>
+          ) : null}
+          {row.original.id ===
+          defaultProfileIds[AiCapability.GENERATE_TEST_CASES] ? (
+            <Badge variant="secondary">生成测试用例默认</Badge>
           ) : null}
         </div>
       ),
@@ -324,7 +335,9 @@ export function AiSettingsManagement({
             },
             {
               label: "删除",
-              disabled: isPending || row.original.id === defaultProfileId,
+              disabled:
+                isPending ||
+                Object.values(defaultProfileIds).includes(row.original.id),
               destructive: true,
               onClick: () => setDeleteTarget(row.original),
             },
@@ -339,32 +352,63 @@ export function AiSettingsManagement({
       <DataTableShell
         toolbar={
           <>
-            <span className="text-sm font-medium">生成 US 默认模型</span>
-            <Select
-              items={profileOptions}
-              value={defaultProfileId}
-              disabled={!profiles.length || isPending}
-              onValueChange={bindDefaultModel}
-            >
-              <SelectTrigger className="w-80" aria-label="生成 US 默认模型">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {profileOptions.map((option) => (
-                    <SelectItem
-                      key={option.value ?? "placeholder"}
-                      value={option.value}
-                    >
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <span className="text-muted-foreground text-xs">
-              用户发起任务时自动使用该模型
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">生成 US</span>
+              <Select
+                items={profileOptions}
+                value={defaultProfileIds[AiCapability.GENERATE_USER_STORY]}
+                disabled={!profiles.length || isPending}
+                onValueChange={(profileId) =>
+                  bindDefaultModel(AiCapability.GENERATE_USER_STORY, profileId)
+                }
+              >
+                <SelectTrigger className="w-64" aria-label="生成 US 默认模型">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {profileOptions.map((option) => (
+                      <SelectItem
+                        key={option.value ?? "user-story-placeholder"}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">生成测试用例</span>
+              <Select
+                items={profileOptions}
+                value={defaultProfileIds[AiCapability.GENERATE_TEST_CASES]}
+                disabled={!profiles.length || isPending}
+                onValueChange={(profileId) =>
+                  bindDefaultModel(AiCapability.GENERATE_TEST_CASES, profileId)
+                }
+              >
+                <SelectTrigger
+                  className="w-64"
+                  aria-label="生成测试用例默认模型"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {profileOptions.map((option) => (
+                      <SelectItem
+                        key={option.value ?? "test-case-placeholder"}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
             <Button className="ml-auto" onClick={openCreate}>
               <PlusIcon data-icon="inline-start" />
               新建模型

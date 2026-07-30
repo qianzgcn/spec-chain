@@ -78,6 +78,7 @@ const TABLE_PAGE_PATHS = new Set([
   "/ai-executions",
   "/ai-settings",
   "/test-cases",
+  "/test-cases/pending-review",
   "/test-case-groups",
   "/projects",
   "/users",
@@ -101,6 +102,13 @@ function isPathActive(pathname: string, href: string) {
       pathname === href ||
       pathname.startsWith("/features") ||
       pathname.startsWith("/user-stories")
+    );
+  }
+  if (href === "/test-cases") {
+    return (
+      pathname === href ||
+      (pathname.startsWith("/test-cases/") &&
+        !pathname.startsWith("/test-cases/pending-review"))
     );
   }
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -217,6 +225,7 @@ export function AppShell({
       icon: ClipboardCheckIcon,
       children: [
         { label: "用例列表", href: "/test-cases" },
+        { label: "待评审用例", href: "/test-cases/pending-review" },
         { label: "分组管理", href: "/test-case-groups" },
       ],
     },

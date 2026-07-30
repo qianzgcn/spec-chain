@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useTransition } from "react";
+import { useTransition } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import dynamic from "next/dynamic";
@@ -17,16 +17,11 @@ import type { ScriptEditorProps } from "@/components/test-cases/script-editor";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
-  ComboboxChip,
-  ComboboxChips,
-  ComboboxChipsInput,
   ComboboxContent,
   ComboboxEmpty,
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-  ComboboxValue,
-  useComboboxAnchor,
 } from "@/components/ui/combobox";
 import {
   Field,
@@ -81,6 +76,7 @@ type TestCaseFormProps = {
     code: string;
     title: string;
     featureName: string | null;
+    deleted?: boolean;
   }>;
   initialValues?: TestCaseFormValues;
 };
@@ -98,7 +94,6 @@ export function TestCaseForm({
   initialValues,
 }: TestCaseFormProps) {
   const router = useRouter();
-  const storyAnchor = useComboboxAnchor();
   const [isPending, startTransition] = useTransition();
   const form = useForm<TestCaseFormValues>({
     resolver: zodResolver(testCaseSchema),
@@ -110,7 +105,7 @@ export function TestCaseForm({
       enabled: true,
       script: "",
       steps: "",
-      userStoryIds: [],
+      userStoryId: null,
     },
   });
   const dirty = form.formState.isDirty;
@@ -124,8 +119,11 @@ export function TestCaseForm({
       story.id,
       `${story.code} · ${story.title}${
         story.featureName ? `（${story.featureName}）` : ""
-      }`,
+      }${story.deleted ? "（已删除）" : ""}`,
     ]),
+  );
+  const deletedStoryIds = new Set(
+    userStories.filter((story) => story.deleted).map((story) => story.id),
   );
 
   function submit(values: TestCaseFormValues) {
@@ -290,50 +288,39 @@ export function TestCaseForm({
 
             <Controller
               control={form.control}
-              name="userStoryIds"
+              name="userStoryId"
               render={({ field, fieldState }) => (
                 <Field
                   className="col-span-12"
                   data-invalid={fieldState.invalid}
                 >
-                  <FieldLabel htmlFor="test-case-user-stories">
+                  <FieldLabel htmlFor="test-case-user-story">
                     关联 US（可选）
                   </FieldLabel>
                   <Combobox
-                    multiple
                     autoHighlight
                     items={storyIds}
                     value={field.value}
                     itemToStringLabel={(storyId: string) =>
                       storyLabels.get(storyId) ?? storyId
                     }
-                    onValueChange={field.onChange}
+                    onValueChange={(value) => field.onChange(value ?? null)}
                   >
-                    <ComboboxChips ref={storyAnchor}>
-                      <ComboboxValue>
-                        {(values: string[]) => (
-                          <Fragment>
-                            {values.map((value) => (
-                              <ComboboxChip key={value}>
-                                {storyLabels.get(value) ?? value}
-                              </ComboboxChip>
-                            ))}
-                            <ComboboxChipsInput
-                              id="test-case-user-stories"
-                              placeholder={
-                                values.length ? undefined : "搜索并选择 US"
-                              }
-                              aria-invalid={fieldState.invalid}
-                            />
-                          </Fragment>
-                        )}
-                      </ComboboxValue>
-                    </ComboboxChips>
-                    <ComboboxContent anchor={storyAnchor}>
+                    <ComboboxInput
+                      id="test-case-user-story"
+                      placeholder="搜索并选择 US"
+                      showClear
+                      aria-invalid={fieldState.invalid}
+                    />
+                    <ComboboxContent>
                       <ComboboxEmpty>没有匹配的 US</ComboboxEmpty>
                       <ComboboxList>
                         {(storyId: string) => (
-                          <ComboboxItem key={storyId} value={storyId}>
+                          <ComboboxItem
+                            key={storyId}
+                            value={storyId}
+                            disabled={deletedStoryIds.has(storyId)}
+                          >
                             {storyLabels.get(storyId)}
                           </ComboboxItem>
                         )}
