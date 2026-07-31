@@ -75,7 +75,7 @@ import { cn } from "@/lib/utils";
 const TABLE_PAGE_PATHS = new Set([
   "/requirements",
   "/requirements/pending-review",
-  "/ai-executions",
+  "/execution-tasks",
   "/ai-settings",
   "/test-cases",
   "/test-cases/pending-review",
@@ -218,7 +218,7 @@ export function AppShell({
     {
       label: "执行任务",
       icon: HistoryIcon,
-      href: "/ai-executions",
+      href: "/execution-tasks",
     },
     {
       label: "测试用例",

@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 
 import { ArrowLeftIcon } from "lucide-react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
+import { ButtonLink } from "@/components/navigation/button-link";
 import {
   TestRunPanel,
   type TestRunSummary,
 } from "@/components/test-cases/test-run-panel";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
@@ -39,11 +38,13 @@ export default async function TestCaseRunsPage({
       script: true,
       group: { select: { name: true } },
       runs: {
+        where: { deletedAt: null },
         orderBy: { queuedAt: "desc" },
         take: 20,
         select: {
           id: true,
           status: true,
+          stage: true,
           queuedAt: true,
           startedAt: true,
           durationMs: true,
@@ -57,6 +58,7 @@ export default async function TestCaseRunsPage({
   const initialRuns: TestRunSummary[] = testCase.runs.map((run) => ({
     id: run.id,
     status: run.status,
+    stage: run.stage,
     queuedAt: run.queuedAt.toISOString(),
     startedAt: run.startedAt?.toISOString() ?? null,
     durationMs: run.durationMs,
@@ -82,21 +84,16 @@ export default async function TestCaseRunsPage({
           </>
         }
         actions={
-          <Button
-            variant="outline"
-            nativeButton={false}
-            render={<Link href={`/test-cases/${testCase.id}`} />}
-          >
+          <ButtonLink href={`/test-cases/${testCase.id}`} variant="outline">
             <ArrowLeftIcon data-icon="inline-start" />
             返回用例详情
-          </Button>
+          </ButtonLink>
         }
       />
 
       <TestRunPanel
         testCaseId={testCase.id}
         enabled={testCase.enabled}
-        hasScript={Boolean(testCase.script?.trim())}
         hasBaseUrl={Boolean(project.baseUrl)}
         initialRuns={initialRuns}
       />

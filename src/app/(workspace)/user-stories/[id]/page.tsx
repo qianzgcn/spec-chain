@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
 
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageSection } from "@/components/layout/page-section";
 import { MarkdownView } from "@/components/markdown/markdown-view";
+import { ButtonLink } from "@/components/navigation/button-link";
 import { RequirementDetailActions } from "@/components/requirements/requirement-detail-actions";
 import { UserStoryStatusSelect } from "@/components/requirements/user-story-status-select";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -49,15 +48,14 @@ export default async function UserStoryDetailPage({
             <Badge variant="outline">US</Badge>
             <span className="font-mono text-xs">{story.code}</span>
             {story.feature ? (
-              <Button
+              <ButtonLink
+                href={`/features/${story.feature.id}`}
                 variant="link"
                 size="sm"
                 className="h-auto p-0"
-                nativeButton={false}
-                render={<Link href={`/features/${story.feature.id}`} />}
               >
                 {story.feature.code} · {story.feature.name}
-              </Button>
+              </ButtonLink>
             ) : null}
           </>
         }

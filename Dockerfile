@@ -2,7 +2,8 @@ FROM node:22.22.0-bookworm-slim AS dependencies
 
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1 \
-    DATABASE_URL=file:./data/install.db
+    DATABASE_URL=file:./data/install.db \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 COPY package.json package-lock.json ./
 COPY prisma/schema.prisma ./prisma/schema.prisma
@@ -32,8 +33,10 @@ ENV NODE_ENV=production \
     PORT=3000
 
 COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /ms-playwright /ms-playwright
 RUN npm install --global npm@11.11.1 \
-    && npx playwright install --with-deps chromium
+    && node node_modules/playwright/cli.js install-deps chromium \
+    && node -e "const fs=require('node:fs');const browser=require('playwright').chromium;if(!fs.existsSync(browser.executablePath()))process.exit(1)"
 
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/package.json ./package.json

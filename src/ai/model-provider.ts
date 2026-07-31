@@ -163,13 +163,23 @@ export function assertStructuredOutputComplete(finishReason: FinishReason) {
   }
 }
 
-function normalizeUsage(usage: LanguageModelUsage): ModelUsage {
+export function normalizeModelUsage(usage: LanguageModelUsage): ModelUsage {
   return {
     inputTokens: usage.inputTokens ?? 0,
     outputTokens: usage.outputTokens ?? 0,
     totalTokens:
       usage.totalTokens ?? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
   };
+}
+
+export function createCompatibleLanguageModel(profile: ModelProfileConfig) {
+  const compatibleProvider = createOpenAICompatible({
+    name: "specchain-openai-compatible",
+    baseURL: profile.baseUrl,
+    apiKey: profile.apiKey,
+    includeUsage: true,
+  });
+  return compatibleProvider.chatModel(profile.modelId);
 }
 
 function findStatusCode(error: unknown): number | undefined {
@@ -315,14 +325,8 @@ export function toModelProviderError(error: unknown): ModelProviderError {
 export function createModelProvider(
   profile: ModelProfileConfig,
 ): ModelProvider {
-  const compatibleProvider = createOpenAICompatible({
-    name: "specchain-openai-compatible",
-    baseURL: profile.baseUrl,
-    apiKey: profile.apiKey,
-    includeUsage: true,
-  });
   const model = wrapLanguageModel({
-    model: compatibleProvider.chatModel(profile.modelId),
+    model: createCompatibleLanguageModel(profile),
     middleware: extractJsonMiddleware({ transform: extractJsonValue }),
   });
 
@@ -364,7 +368,7 @@ export function createModelProvider(
 
           return {
             output: result.output,
-            usage: normalizeUsage(result.usage),
+            usage: normalizeModelUsage(result.usage),
           };
         } catch (error) {
           const providerError = toModelProviderError(error);

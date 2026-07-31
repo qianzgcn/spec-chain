@@ -33,6 +33,7 @@ export default async function AiSettingsPage() {
           in: [
             AiCapability.GENERATE_USER_STORY,
             AiCapability.GENERATE_TEST_CASES,
+            AiCapability.GENERATE_AUTOMATION_SCRIPT,
           ],
         },
       },
@@ -47,7 +48,7 @@ export default async function AiSettingsPage() {
     <PageContainer table className="gap-5">
       <PageHeader
         title="模型配置"
-        description="管理 OpenAI 兼容模型，并分别指定生成 US 和测试用例使用的默认模型。"
+        description="管理 OpenAI 兼容模型，并分别指定三项 AI 能力使用的默认模型。"
       />
 
       <AiSettingsManagement
@@ -61,6 +62,9 @@ export default async function AiSettingsPage() {
             bindingByCapability.get(AiCapability.GENERATE_USER_STORY) ?? null,
           [AiCapability.GENERATE_TEST_CASES]:
             bindingByCapability.get(AiCapability.GENERATE_TEST_CASES) ?? null,
+          [AiCapability.GENERATE_AUTOMATION_SCRIPT]:
+            bindingByCapability.get(AiCapability.GENERATE_AUTOMATION_SCRIPT) ??
+            null,
         }}
       />
     </PageContainer>

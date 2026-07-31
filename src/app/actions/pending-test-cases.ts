@@ -29,8 +29,8 @@ function revalidateDraftPages(input: { draftId: string; executionId: string }) {
   revalidatePath(`/test-cases/pending-review/${input.draftId}`);
   revalidatePath("/test-cases");
   revalidatePath("/test-case-groups");
-  revalidatePath("/ai-executions");
-  revalidatePath(`/ai-executions/${input.executionId}`);
+  revalidatePath("/execution-tasks");
+  revalidatePath(`/execution-tasks/${input.executionId}`);
 }
 
 export async function updatePendingTestCaseDraftGroupAction(

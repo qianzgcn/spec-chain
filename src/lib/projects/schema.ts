@@ -62,6 +62,11 @@ const variableDescriptionSchema = z
   .trim()
   .max(500, "描述不能超过 500 个字符");
 
+const automationInstructionsSchema = z
+  .string()
+  .trim()
+  .max(20_000, "自动化约束不能超过 20000 个字符");
+
 const variableActionSchema = z.object({
   id: z.string().optional(),
   name: variableNameSchema,
@@ -100,11 +105,13 @@ export const projectRepositoriesFormSchema = z.object({
 export const projectTestingSettingsSchema = z.object({
   projectId: z.string().min(1),
   baseUrl: z.union([z.literal(""), z.url("请输入有效的 Base URL")]),
+  automationInstructions: automationInstructionsSchema.optional().default(""),
   variables: z.array(variableActionSchema),
 });
 
 export const projectTestingSettingsFormSchema = z.object({
   baseUrl: z.union([z.literal(""), z.url("请输入有效的 Base URL")]),
+  automationInstructions: automationInstructionsSchema,
   variables: z.array(variableFormSchema),
 });
 

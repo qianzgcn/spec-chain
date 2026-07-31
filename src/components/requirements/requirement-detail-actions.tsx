@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 
 import { CopyIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import {
@@ -12,6 +11,7 @@ import {
   getRequirementMarkdownAction,
 } from "@/app/actions/requirements";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { ButtonLink } from "@/components/navigation/button-link";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
@@ -70,14 +70,13 @@ export function RequirementDetailActions({
     <>
       <div className="flex items-center gap-2">
         {type === "FEATURE" ? (
-          <Button
+          <ButtonLink
+            href={`/features/${id}/user-stories/new`}
             variant="outline"
-            nativeButton={false}
-            render={<Link href={`/features/${id}/user-stories/new`} />}
           >
             <PlusIcon data-icon="inline-start" />
             新建US
-          </Button>
+          </ButtonLink>
         ) : null}
         <Button variant="outline" onClick={copy} disabled={isPending}>
           {isPending ? (
@@ -87,14 +86,10 @@ export function RequirementDetailActions({
           )}
           复制内容
         </Button>
-        <Button
-          variant="outline"
-          nativeButton={false}
-          render={<Link href={`${basePath}/edit`} />}
-        >
+        <ButtonLink href={`${basePath}/edit`} variant="outline">
           <PencilIcon data-icon="inline-start" />
           编辑
-        </Button>
+        </ButtonLink>
         <Button
           variant="destructive"
           disabled={isPending}

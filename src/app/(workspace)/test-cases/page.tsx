@@ -97,7 +97,6 @@ export default async function TestCasesPage({
       priority: true,
       enabled: true,
       script: true,
-      steps: true,
       updatedAt: true,
       group: { select: { name: true } },
       runs: {
@@ -116,8 +115,6 @@ export default async function TestCasesPage({
     priority: testCase.priority,
     enabled: testCase.enabled,
     hasScript: Boolean(testCase.script?.trim()),
-    stepCount: testCase.steps.split(/\r?\n/).filter((line) => line.trim())
-      .length,
     lastRunStatus: testCase.runs[0]?.status ?? null,
     updatedAt: testCase.updatedAt.toISOString(),
   }));

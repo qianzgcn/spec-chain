@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { MoreHorizontalIcon } from "lucide-react";
 import Link from "next/link";
 
+import { ButtonLink } from "@/components/navigation/button-link";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,6 +21,7 @@ export type DataTableRowAction = {
   ariaLabel?: string;
   href?: string;
   icon?: ReactNode;
+  variant?: "default" | "outline" | "secondary" | "ghost";
   disabled?: boolean;
   destructive?: boolean;
   loading?: boolean;
@@ -39,19 +41,24 @@ function DirectAction({ action }: { action: DataTableRowAction }) {
     "aria-label": action.ariaLabel,
     disabled: action.disabled,
     size: "xs" as const,
-    variant: action.destructive ? ("destructive" as const) : ("ghost" as const),
+    variant: action.destructive
+      ? ("destructive" as const)
+      : (action.variant ?? "ghost"),
   };
 
-  if (action.href) {
+  if (action.href && !action.disabled) {
     return (
-      <Button
-        {...commonProps}
-        nativeButton={false}
-        render={<Link href={action.href} />}
+      <ButtonLink
+        href={action.href}
+        aria-label={action.ariaLabel}
+        size="xs"
+        variant={
+          action.destructive ? "destructive" : (action.variant ?? "ghost")
+        }
         onClick={action.onClick}
       >
         {content}
-      </Button>
+      </ButtonLink>
     );
   }
 

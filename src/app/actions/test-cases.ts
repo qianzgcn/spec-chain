@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
-import { RunStatus } from "@/generated/prisma/enums";
+import {
+  AiExecutionStatus,
+  RunStatus,
+  TestCaseScriptSource,
+} from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
 import {
   testCaseGroupNameSchema,
@@ -198,6 +202,7 @@ export async function createTestCaseAction(
     parsed.data.userStoryId,
   );
   if (!validation.ok) return validation;
+  const script = parsed.data.script.trim() || null;
 
   const testCase = await db.testCase.create({
     data: {
@@ -209,7 +214,8 @@ export async function createTestCaseAction(
       preconditions: parsed.data.preconditions || null,
       steps: parsed.data.steps,
       enabled: parsed.data.enabled,
-      script: parsed.data.script.trim() || null,
+      script,
+      scriptSource: script ? TestCaseScriptSource.MANUAL : null,
       userStoryId: parsed.data.userStoryId,
     },
     select: { id: true },
@@ -240,7 +246,11 @@ export async function updateTestCaseAction(
 
   const testCase = await db.testCase.findFirst({
     where: { id, projectId: project.id, deletedAt: null },
-    select: { id: true, userStoryId: true },
+    select: {
+      id: true,
+      userStoryId: true,
+      script: true,
+    },
   });
 
   if (!testCase) {
@@ -253,6 +263,8 @@ export async function updateTestCaseAction(
     testCase.userStoryId,
   );
   if (!validation.ok) return validation;
+  const script = parsed.data.script.trim() || null;
+  const scriptChanged = script !== testCase.script;
 
   await db.testCase.update({
     where: { id },
@@ -264,7 +276,14 @@ export async function updateTestCaseAction(
       preconditions: parsed.data.preconditions || null,
       steps: parsed.data.steps,
       enabled: parsed.data.enabled,
-      script: parsed.data.script.trim() || null,
+      script,
+      ...(scriptChanged
+        ? {
+            scriptSource: script ? TestCaseScriptSource.MANUAL : null,
+            aiScriptFingerprint: null,
+            scriptGeneratedAt: null,
+          }
+        : {}),
     },
   });
 
@@ -314,6 +333,14 @@ export async function deleteTestCaseAction(id: string): Promise<ActionResult> {
               status: { in: [RunStatus.QUEUED, RunStatus.RUNNING] },
             },
           },
+          aiExecutions: {
+            where: {
+              deletedAt: null,
+              status: {
+                in: [AiExecutionStatus.QUEUED, AiExecutionStatus.RUNNING],
+              },
+            },
+          },
         },
       },
     },
@@ -321,7 +348,7 @@ export async function deleteTestCaseAction(id: string): Promise<ActionResult> {
   if (!testCase) {
     return { ok: false, message: "测试用例不存在或已删除" };
   }
-  if (testCase._count.runs > 0) {
+  if (testCase._count.runs + testCase._count.aiExecutions > 0) {
     return { ok: false, message: "请先停止正在排队或运行的任务" };
   }
 

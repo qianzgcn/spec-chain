@@ -1,6 +1,7 @@
 import { AiCapability } from "@/generated/prisma/enums";
 import { generateTestCasesSystemPrompt } from "@/ai/prompts/generate-test-cases";
 import { generateUserStorySystemPrompt } from "@/ai/prompts/generate-user-story";
+import { generateAutomationScriptSystemPrompt } from "@/automation/prompts";
 
 export type AiSkill = {
   capability: AiCapability;
@@ -31,6 +32,15 @@ const GENERATE_TEST_CASES_SKILL: AiSkill = {
   instructions: generateTestCasesSystemPrompt,
 };
 
+const GENERATE_AUTOMATION_SCRIPT_SKILL: AiSkill = {
+  capability: AiCapability.GENERATE_AUTOMATION_SCRIPT,
+  name: "生成 Playwright 自动化脚本",
+  purpose:
+    "根据单条自然语言测试用例和真实页面探测结果生成可直接运行的 Playwright 脚本。",
+  version: "1.0.0",
+  instructions: generateAutomationScriptSystemPrompt,
+};
+
 export const builtInSkillResolver: SkillResolver = {
   resolve(capability) {
     switch (capability) {
@@ -38,6 +48,8 @@ export const builtInSkillResolver: SkillResolver = {
         return GENERATE_USER_STORY_SKILL;
       case AiCapability.GENERATE_TEST_CASES:
         return GENERATE_TEST_CASES_SKILL;
+      case AiCapability.GENERATE_AUTOMATION_SCRIPT:
+        return GENERATE_AUTOMATION_SCRIPT_SKILL;
     }
   },
 };

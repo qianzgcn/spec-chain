@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { RunStatus } from "@/generated/prisma/enums";
+import { RunStatus, TestRunStage } from "@/generated/prisma/enums";
 import { getAuthenticatedApiContext } from "@/server/api/context";
 import { db } from "@/server/db";
 
@@ -20,6 +20,7 @@ export async function POST(
   const run = await db.testRun.findFirst({
     where: {
       id,
+      deletedAt: null,
       testCase: { projectId: context.project.id },
     },
     select: { id: true, status: true, startedAt: true },
@@ -30,29 +31,43 @@ export async function POST(
 
   if (run.status === RunStatus.QUEUED) {
     const now = new Date();
-    await db.testRun.updateMany({
-      where: { id, status: RunStatus.QUEUED },
+    const stopped = await db.testRun.updateMany({
+      where: { id, status: RunStatus.QUEUED, deletedAt: null },
       data: {
         status: RunStatus.STOPPED,
+        stage: TestRunStage.COMPLETED,
         cancelRequestedAt: now,
         finishedAt: now,
         durationMs: 0,
         errorSummary: "排队任务已由用户停止",
       },
     });
-    return NextResponse.json({ message: "排队任务已停止" });
+    if (stopped.count === 1) {
+      return NextResponse.json({ message: "排队任务已停止" });
+    }
+
+    // 调度器可能恰好领取了任务，此时继续提交运行中停止请求。
+    const cancelRequested = await db.testRun.updateMany({
+      where: { id, status: RunStatus.RUNNING, deletedAt: null },
+      data: { cancelRequestedAt: now },
+    });
+    if (cancelRequested.count === 1) {
+      return NextResponse.json({ message: "已提交停止请求" });
+    }
   }
 
   if (run.status === RunStatus.RUNNING) {
-    await db.testRun.updateMany({
-      where: { id, status: RunStatus.RUNNING },
+    const cancelRequested = await db.testRun.updateMany({
+      where: { id, status: RunStatus.RUNNING, deletedAt: null },
       data: { cancelRequestedAt: new Date() },
     });
-    return NextResponse.json({ message: "已提交停止请求" });
+    if (cancelRequested.count === 1) {
+      return NextResponse.json({ message: "已提交停止请求" });
+    }
   }
 
   return NextResponse.json(
-    { message: "该运行已经结束，无需停止" },
+    { message: "任务状态已发生变化，请刷新后重试" },
     { status: 409 },
   );
 }

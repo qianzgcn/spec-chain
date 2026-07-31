@@ -11,7 +11,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/navigation/button-link";
 import { Separator } from "@/components/ui/separator";
 
 type BreadcrumbEntry = {
@@ -83,9 +83,9 @@ function buildBreadcrumbs(pathname: string): BreadcrumbEntry[] {
     return [{ label: "需求列表", href: "/requirements" }, { label: "US 详情" }];
   }
 
-  if (segments[0] === "ai-executions" && segments[1]) {
+  if (segments[0] === "execution-tasks" && segments[1]) {
     return [
-      { label: "执行任务", href: "/ai-executions" },
+      { label: "执行任务", href: "/execution-tasks" },
       { label: "任务详情" },
     ];
   }
@@ -168,16 +168,15 @@ export function WorkspaceBreadcrumbs({ pathname }: { pathname: string }) {
   return (
     <>
       {parent?.href ? (
-        <Button
+        <ButtonLink
+          href={parent.href}
           variant="ghost"
           size="sm"
-          nativeButton={false}
-          render={<Link href={parent.href} />}
           aria-label={`返回${parent.label}`}
         >
           <ArrowLeftIcon data-icon="inline-start" />
           返回
-        </Button>
+        </ButtonLink>
       ) : null}
       <Separator orientation="vertical" className="h-4" />
       <Breadcrumb>

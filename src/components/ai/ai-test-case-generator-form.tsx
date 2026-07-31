@@ -7,7 +7,7 @@ import { ArrowLeftIcon, SparklesIcon } from "lucide-react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
-import { createAiTestCaseExecutionAction } from "@/app/actions/ai-executions";
+import { createAiTestCaseExecutionAction } from "@/app/actions/execution-tasks";
 import { FormPage } from "@/components/layout/form-page";
 import { PageSection } from "@/components/layout/page-section";
 import { Button } from "@/components/ui/button";
@@ -111,7 +111,7 @@ export function AiTestCaseGeneratorForm({
 
       form.reset(values);
       toast.add({ type: "success", description: result.message });
-      router.push(`/ai-executions/${result.data.id}`);
+      router.push(`/execution-tasks/${result.data.id}`);
     });
   }
 

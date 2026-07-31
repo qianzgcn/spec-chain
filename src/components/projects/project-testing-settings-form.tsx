@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { VariableKind } from "@/generated/prisma/enums";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
@@ -59,6 +60,7 @@ export function ProjectTestingSettingsForm({
   project: {
     id: string;
     baseUrl: string;
+    automationInstructions: string;
     variables: ProjectTestingSettingsFormValues["variables"];
   };
 }) {
@@ -67,6 +69,7 @@ export function ProjectTestingSettingsForm({
     resolver: zodResolver(projectTestingSettingsFormSchema),
     defaultValues: {
       baseUrl: project.baseUrl,
+      automationInstructions: project.automationInstructions,
       variables: project.variables,
     },
   });
@@ -140,6 +143,35 @@ export function ProjectTestingSettingsForm({
                 {...form.register("baseUrl")}
               />
               <FieldError errors={[form.formState.errors.baseUrl]} />
+            </Field>
+          </FieldGroup>
+        </PageSection>
+
+        <PageSection
+          title="自动化约束"
+          description="补充登录约定、稳定入口和项目特性，供 AI 生成自动化脚本时使用。"
+        >
+          <FieldGroup>
+            <Field
+              data-invalid={Boolean(
+                form.formState.errors.automationInstructions,
+              )}
+            >
+              <FieldLabel htmlFor="automation-instructions">
+                自动化约束
+              </FieldLabel>
+              <Textarea
+                id="automation-instructions"
+                rows={8}
+                placeholder="例如：测试环境统一从登录页进入；管理员账号使用 ADMIN_USERNAME 和 ADMIN_PASSWORD 变量。"
+                aria-invalid={Boolean(
+                  form.formState.errors.automationInstructions,
+                )}
+                {...form.register("automationInstructions")}
+              />
+              <FieldError
+                errors={[form.formState.errors.automationInstructions]}
+              />
             </Field>
           </FieldGroup>
         </PageSection>

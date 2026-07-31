@@ -7,7 +7,7 @@ import { ArrowLeftIcon, SparklesIcon } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
-import { createAiUserStoryExecutionAction } from "@/app/actions/ai-executions";
+import { createAiUserStoryExecutionAction } from "@/app/actions/execution-tasks";
 import { FormPage } from "@/components/layout/form-page";
 import { PageSection } from "@/components/layout/page-section";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +59,7 @@ export function AiUserStoryGeneratorForm({
 
       form.reset(values);
       toast.add({ type: "success", description: result.message });
-      router.push(`/ai-executions/${result.data.id}`);
+      router.push(`/execution-tasks/${result.data.id}`);
     });
   }
 

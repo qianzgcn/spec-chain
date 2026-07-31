@@ -190,7 +190,9 @@ export async function bindAiCapabilityModelAction(
   const capabilityName =
     parsed.data.capability === AiCapability.GENERATE_USER_STORY
       ? "生成 US"
-      : "生成测试用例";
+      : parsed.data.capability === AiCapability.GENERATE_TEST_CASES
+        ? "生成测试用例"
+        : "生成自动化脚本";
   return { ok: true, message: `${capabilityName}的默认模型已更新` };
 }
 

@@ -31,6 +31,7 @@ export default async function ProjectTestingSettingsPage() {
     select: {
       id: true,
       baseUrl: true,
+      automationInstructions: true,
       variables: {
         where: { deletedAt: null },
         orderBy: { position: "asc" },
@@ -53,6 +54,7 @@ export default async function ProjectTestingSettingsPage() {
       project={{
         id: project.id,
         baseUrl: project.baseUrl ?? "",
+        automationInstructions: project.automationInstructions ?? "",
         variables: project.variables.map((variable) => ({
           id: variable.id,
           name: variable.name,

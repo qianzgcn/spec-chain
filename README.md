@@ -1,22 +1,19 @@
 # SpecChain
 
-SpecChain 是面向团队内部使用的需求与测试用例管理平台。首版提供项目、Feature、用户故事、验收标准、测试用例、AI 辅助生成 US、AI 辅助生成自然语言测试用例及 Playwright 自动化运行的一体化管理。
+SpecChain 是面向内部团队的需求与测试工程平台，覆盖 Feature、用户故事、自然语言测试用例、AI 辅助生成、Playwright 自动化脚本和执行任务。系统只支持桌面端，建议浏览器宽度不低于 1280 像素。
 
-系统只面向桌面端，建议浏览器宽度不低于 1280 像素。
+核心能力：
 
-## 首版能力
+- 使用 `As / I want / so that` 和 `Given / When / Then` 管理结构化需求。
+- 一个 US 可以关联多条测试用例；测试用例也可以不关联 US。
+- AI 可分别生成待评审 US、待评审自然语言测试用例和正式自动化脚本。
+- 自动化脚本生成通过受控 Playwright CLI 会话探测真实页面。
+- 所有 AI 任务和测试执行统一进入“执行任务”，支持并发隔离、实时日志、停止、失败截图和历史记录。
+- 项目变量、仓库 PAT 和模型 API Key 使用 AES-256-GCM 加密保存。
 
-- 用户名和密码登录、数据库会话、管理员用户管理及修改密码。
-- 项目基础设置、测试地址与环境变量，以及 GitHub/Gitee 代码仓库和加密凭据管理。
-- Feature 与用户故事统一需求列表，支持检索、筛选和 Markdown 复制；AI 生成结果集中进入“待评审需求”。
-- 标准用户故事模板：`As`、`I want`、`so that` 及多条 `Given/When/Then` 验收标准。
-- 结合需求、FE 上下文和 GitHub/Gitee 代码生成待评审的结构化 US 草稿。
-- 根据一个已有 US 或单独输入的需求生成一组待评审自然语言测试用例，并按单条用例完成分组和评审。
-- 测试用例分组、优先级、自然语言步骤、可选的单个 US 关联和 Playwright TypeScript 脚本；一个 US 可以关联多条测试用例。
-- 单并发运行队列、实时日志、停止任务、超时处理、失败截图及运行历史。
-- 所有业务删除均为逻辑删除，不提供恢复入口。
+## 代码启动
 
-## 技术基线
+### 环境基线
 
 | 分类       | 版本或方案                                      |
 | ---------- | ----------------------------------------------- |
@@ -25,19 +22,12 @@ SpecChain 是面向团队内部使用的需求与测试用例管理平台。首�
 | 界面       | Shadcn/ui（Base UI + Nova）、Tailwind CSS 4     |
 | 表单与表格 | React Hook Form、TanStack Table                 |
 | 数据       | Prisma 7.9、SQLite、better-sqlite3 适配器       |
-| 校验与状态 | Zod 4、TanStack Query 5                         |
 | AI         | Vercel AI SDK 7、OpenAI 兼容模型适配器          |
-| 认证与加密 | Argon2id、数据库 Session、AES-256-GCM           |
-| 测试       | Vitest 4、Playwright 1.62                       |
+| 自动化     | Playwright Test 1.62、Playwright CLI、Chromium  |
+| 测试       | Vitest 4、Playwright Test                       |
 | 工程质量   | ESLint 9、Prettier 3、Pino                      |
 
-项目使用 `package-lock.json` 锁定完整依赖版本。
-
-## 本地启动
-
-### 1. 准备环境
-
-安装 Git、nvm-windows，并切换到项目约定的 Node.js 版本：
+完整依赖版本由 `package-lock.json` 锁定。Windows 本地开发建议使用 nvm-windows：
 
 ```powershell
 nvm install 22.22.0
@@ -46,65 +36,49 @@ node --version
 npm --version
 ```
 
-### 2. 配置环境变量
+### 本地开发
 
-```powershell
-Copy-Item .env.example .env
-node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
-```
+1. 复制环境变量模板：
 
-编辑 `.env`：
+   ```powershell
+   Copy-Item .env.example .env
+   ```
 
-- 将生成的随机值填入 `APP_ENCRYPTION_KEY`。
-- 将 `ADMIN_PASSWORD` 改为至少 8 位的安全密码。
-- 本地使用 HTTP 时保持 `SESSION_COOKIE_SECURE="false"`。
+2. 生成 32 字节加密密钥：
 
-敏感变量、仓库 PAT 和模型 API Key 加密后都与当前 `APP_ENCRYPTION_KEY` 绑定。系统已有数据后不得随意更换该密钥，否则已保存的敏感数据将无法解密。
+   ```powershell
+   node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+   ```
 
-### 3. 安装并运行
+3. 编辑 `.env`：
+
+   - 将随机值填入 `APP_ENCRYPTION_KEY`。
+   - 将 `ADMIN_PASSWORD` 改为至少 8 位的安全密码。
+   - 本地 HTTP 环境保持 `SESSION_COOKIE_SECURE="false"`。
+   - `AI_TASK_CONCURRENCY` 和 `BROWSER_TASK_CONCURRENCY` 默认均为 `2`，可按机器资源设置为 `1～16`。
+
+4. 安装依赖并启动：
+
+   ```powershell
+   npm ci
+   npm run dev
+   ```
+
+`npm ci` 会通过项目的 `postinstall` 自动安装固定 Playwright 版本对应的 Chromium。Playwright Test 与 Playwright CLI 共用这一份浏览器，不依赖全局 npm 包或人工安装。访问 [http://localhost:3000](http://localhost:3000)。`npm run dev` 会先应用已有 Prisma migration 并初始化管理员；管理员已存在时不会重置其密码。
+
+`APP_ENCRYPTION_KEY` 与已保存的敏感变量、仓库 PAT 和模型 API Key 绑定。数据库中已有加密数据后不要直接更换该密钥。
+
+### 生产启动与容器
+
+本机 Node 方式：
 
 ```powershell
 npm ci
-npx playwright install chromium
-npm run dev
+npm run build
+npm run start
 ```
 
-访问 [http://localhost:3000](http://localhost:3000)。首次启动会自动创建 SQLite 文件、执行数据库迁移，并创建 `.env` 中配置的初始管理员。
-
-如果管理员已经存在，后续启动不会用 `ADMIN_PASSWORD` 覆盖其当前密码。
-
-## GitHub/Gitee 仓库连接
-
-每个项目可分别配置一份 GitHub PAT 和 Gitee PAT，同项目的仓库会根据地址自动选择对应凭据。PAT 使用 AES-256-GCM 加密保存，已配置值只显示固定掩码且不能直接修改；如需更换，必须先删除再新增。
-
-首版支持 `github.com` 和 `gitee.com` 的 HTTPS、SCP 风格 SSH 及标准 SSH 仓库根地址，不支持企业私有域名。建议 PAT 仅授予目标仓库所需的最小读取权限。
-
-“检查连接”通过托管平台 API 验证 PAT、仓库和指定分支是否可访问，不会执行 Git clone、pull 或 push，也不代表 Git 协议通道已经验证。
-
-## AI 辅助生成需求与测试用例
-
-管理员在“模型配置”中创建一个或多个模型，并分别为“生成 US”和“生成测试用例”指定默认模型。两个能力可以使用同一个模型，也可以独立配置。当前版本接入实现了 OpenAI Chat Completions 兼容接口的服务，配置项包括模型名称、Base URL、模型 ID 和 API Key。
-
-- API Key 使用 AES-256-GCM 加密，保存后只显示固定掩码。
-- “检查模型”会实际验证认证、接口连通性和结构化输出能力。
-- 模型列表保存最近一次检查结果和时间；编辑模型配置后会自动重置为“未检查”。
-- 用户不能在生成页面临时切换模型，任务按能力使用管理员绑定的默认模型。
-- 系统通过 GitHub/Gitee 官方 API 解析分支最新提交，并始终按该提交读取文件树和有限的相关源码，保证单次任务使用同一个不可变代码快照。
-- 只有找到真实相关代码且需求信息足够时才创建待评审结果；生成 US 时确认草稿后才创建正式 US，生成测试用例时逐条完成评审。
-- AI 会尝试从当前项目已有分组中为每条用例选择明确匹配项；无法可靠归类时保持未分组，由评审者在待评审列表中选择。
-- 选择已有 US 生成测试用例时，系统会快照用户故事、全部验收标准、业务规则、非功能需求及所属 FE。验收标准仅用于整体理解和覆盖设计，不与测试用例建立一对一映射。
-- AI 会生成满足可靠业务覆盖所需的最少用例集合，每条用例包含独立执行所需的前置条件、输入、步骤和可观察结果。单次任务最多生成 20 条。
-- AI 执行记录长期保留模型、Skill、仓库提交和代码路径引用，但不保存完整源码、PAT 或 API Key。执行详情只展示任务信息、终端式日志、输入需求和生成结果入口，不向浏览器返回仓库快照或代码路径。
-
-两项能力的业务提示词分别集中在 `src/ai/prompts/generate-user-story/` 和 `src/ai/prompts/generate-test-cases/`。Markdown 文件承载可评审的提示词正文，TypeScript 只负责强类型变量注入和结果校验。提示词行为发生实质变化时应同步提升对应 Skill 版本。
-
-当前只读分析不执行 Git clone、pull，也不向模型开放 Shell。不要让并发任务共用一个可变工作目录；以后只有在代码搜索、本地构建或脚本验证确实需要完整文件系统时，才应引入“裸仓库缓存 + fetch + 每次执行独立的 detached worktree”，任务全程固定提交并在结束后清理工作树。
-
-不同 OpenAI 兼容服务对结构化输出的实现可能不同，新模型投入使用前应先执行“检查模型”。当前版本不包含 Playwright CLI 页面探测、自动化脚本生成或 Skill 管理。
-
-## 容器部署
-
-项目按“一个 Next.js 服务加一个 Chromium”的单容器方式部署，不支持普通 Serverless，也不应横向启动多个共享 SQLite 的应用实例。
+单容器方式：
 
 ```powershell
 Copy-Item .env.example .env
@@ -113,67 +87,203 @@ docker compose up --build -d
 docker compose ps
 ```
 
-默认访问地址为 [http://localhost:3000](http://localhost:3000)。如需调整宿主机端口，可在 `.env` 中增加：
-
-```dotenv
-SPECCHAIN_PORT="8080"
-```
-
-容器启动时会自动执行数据库迁移和管理员初始化。数据库、运行日志和失败截图保存在名为 `specchain-data` 的持久化卷中。
-
-生产环境应通过 HTTPS 反向代理访问，并设置：
+容器内只有一个 Next.js Node 服务和 Chromium。SQLite、运行日志及失败截图位于持久化卷 `specchain-data`。生产环境应通过 HTTPS 反向代理访问，并设置：
 
 ```dotenv
 SESSION_COOKIE_SECURE="true"
 ```
 
-完整的部署、备份和升级步骤见 [部署说明](docs/部署说明.md)。
+如需调整宿主机端口，可设置 `SPECCHAIN_PORT`。完整备份、升级和部署边界见 [部署说明](docs/部署说明.md)。
 
-## 常用命令
+项目不支持普通 Serverless，也不应启动多个共享同一 SQLite 文件的应用实例。
 
-| 命令                   | 用途                               |
-| ---------------------- | ---------------------------------- |
-| `npm run dev`          | 准备数据库并启动本地开发服务       |
-| `npm run build`        | 构建生产版本                       |
-| `npm run start`        | 准备数据库并启动生产服务           |
-| `npm run db:migrate`   | 在开发环境创建并应用迁移           |
-| `npm run db:studio`    | 打开 Prisma 数据查看工具           |
-| `npm run format`       | 格式化代码和文档                   |
-| `npm run format:check` | 检查代码格式                       |
-| `npm run typecheck`    | 检查 TypeScript 类型               |
-| `npm run lint`         | 检查代码规范                       |
-| `npm test`             | 运行单元测试                       |
-| `npm run test:e2e`     | 使用独立数据库运行浏览器端到端测试 |
+### 常用命令
 
-安装依赖时会自动生成 Prisma 客户端，`dev` 和 `start` 会自动执行已有迁移并初始化管理员，无需单独运行数据库准备命令。AI 与 Playwright Worker 由应用在收到任务后按需启动，不需要人工运行。
+| 命令                      | 用途                                       |
+| ------------------------- | ------------------------------------------ |
+| `npm run dev`             | 应用 migration、初始化管理员并启动开发服务 |
+| `npm run build`           | 生成 Prisma Client 并构建生产版本          |
+| `npm run start`           | 应用 migration、初始化管理员并启动生产服务 |
+| `npm run db:migrate`      | 创建并应用开发环境 migration               |
+| `npm run db:studio`       | 打开 Prisma Studio                         |
+| `npm run format`          | 格式化代码和文档                           |
+| `npm run format:check`    | 检查格式                                   |
+| `npm run typecheck`       | 检查 TypeScript 类型                       |
+| `npm run lint`            | 检查代码规范                               |
+| `npm test`                | 运行单元测试                               |
+| `npm run test:e2e`        | 使用独立数据库运行浏览器端到端测试         |
+| `npm run browser:install` | 修复安装项目固定版本的 Chromium            |
 
-端到端测试使用 `data/e2e.db`，每次运行前自动重置，不会修改日常开发数据库。
+推荐提交前依次执行：
 
-## 目录说明
-
-```text
-prisma/                 数据模型、迁移和管理员初始化
-scripts/                端到端测试数据库重置脚本
-src/app/                页面、Server Actions 和 HTTP 接口
-src/components/         中文业务界面组件
-src/ai/                 模型适配、仓库代码读取和 AI 工作流
-src/ai-worker/          短生命周期 AI 队列工作进程
-src/lib/                纯领域逻辑与通用类型
-src/server/             认证、数据库、加密及队列启动逻辑
-src/runner/             Playwright 队列工作进程
-tests/unit/             领域逻辑和安全测试
-tests/e2e/              浏览器核心流程测试
+```powershell
+npm run format:check
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run test:e2e
 ```
 
-## 自动化运行安全边界
+端到端测试使用独立的 `data/e2e.db`，不会修改日常开发数据库。
 
-用户保存的是完整 Playwright Test TypeScript 文件，可以导入模块并执行 Node.js 代码。首版仅面向内部可信用户：
+如果 Windows 报告 Prisma `schema-engine-windows.exe spawn UNKNOWN`，通常是 WDAC 或智能应用控制阻止了二进制文件。应从系统安全策略层面允许项目依赖目录中的 Prisma 引擎，不要为绕过本机策略修改 Schema、migration 或业务代码。
 
-- 每次运行使用独立临时目录，但目录隔离不是安全沙箱。
-- 全平台同一时间只执行一个任务，队列按先进先出处理。
-- 项目敏感变量在日志写入数据库前会被脱敏。
-- 单次运行默认最多十分钟。
-- 失败时保存截图，不保存视频和 Trace。
-- 运行摘要长期保留，原始日志和截图保留 30 天。
+## 代码架构
 
-不要向不可信用户开放脚本编辑或运行权限，也不要把该版本直接暴露到公网。
+### 总体结构
+
+```mermaid
+flowchart LR
+  UI["Next.js 页面<br/>Server / Client Components"]
+  ENTRY["Server Actions<br/>Route Handlers"]
+  DB[("Prisma + SQLite")]
+  LAUNCHER["任务启动与恢复"]
+  SCHEDULER["短生命周期调度器<br/>数据库租约"]
+  AI_POOL["普通 AI 资源池"]
+  BROWSER_POOL["浏览器资源池"]
+  AI_WORKER["AI Worker<br/>US / 自然语言用例"]
+  SCRIPT_WORKER["AI Worker<br/>自动化脚本"]
+  RUNNER["Runner<br/>测试用例执行"]
+  REPO["GitHub / Gitee API"]
+  MODEL["OpenAI 兼容模型"]
+  CLI["Playwright CLI<br/>受控页面探测"]
+  PW["Playwright Test<br/>Chromium"]
+  ARTIFACTS[("日志与失败截图")]
+
+  UI --> ENTRY
+  ENTRY --> DB
+  ENTRY --> LAUNCHER
+  LAUNCHER --> SCHEDULER
+  SCHEDULER --> AI_POOL
+  SCHEDULER --> BROWSER_POOL
+  AI_POOL --> AI_WORKER
+  BROWSER_POOL --> SCRIPT_WORKER
+  BROWSER_POOL --> RUNNER
+  AI_WORKER --> REPO
+  AI_WORKER --> MODEL
+  SCRIPT_WORKER --> MODEL
+  SCRIPT_WORKER --> CLI
+  RUNNER --> PW
+  AI_WORKER --> DB
+  SCRIPT_WORKER --> DB
+  RUNNER --> DB
+  RUNNER --> ARTIFACTS
+```
+
+Web 层只负责读取页面、校验输入、创建任务和展示状态。耗时 AI 与浏览器工作均在独立子进程中运行，不占用 Next.js 请求生命周期。
+
+### 分层职责
+
+```text
+prisma/                 数据模型、前向 migration 和管理员初始化
+scripts/                端到端测试数据库准备脚本
+src/app/                页面、Server Actions 和 Route Handlers
+src/components/         Shadcn/ui 基础组件与中文业务组件
+src/lib/                纯领域规则、Schema、类型和展示元数据
+src/server/             认证、数据库、加密、DTO 及任务启动
+src/ai/                 模型适配、提示词、代码读取和结构化工作流
+src/ai-worker/          单个 AI 任务的装载、分派、日志和持久化
+src/automation/         页面探测工具、Agent 编排、指纹和脚本校验
+src/task-scheduler/     数据库租约、FIFO 领取和双资源池容量控制
+src/task-runtime/       子进程、运行环境和进程树终止能力
+src/runner/             测试执行上下文、脚本补齐、运行及产物处理
+tests/unit/             领域逻辑、并发策略和安全边界测试
+tests/e2e/              登录、需求、用例、AI 与运行核心流程测试
+```
+
+主要边界：
+
+- 页面读取使用 React Server Components；交互表单和动态列表保留最小 Client Component 边界。
+- 普通表单和业务操作使用 Server Actions；轮询、停止、日志和截图使用 Route Handlers。
+- Client 与 Server Action 共用客户端安全的 Zod Schema，服务端校验始终是最终权威。
+- Prisma 只在服务端和任务子进程中使用，数据库实体不会直接透传给浏览器。
+- UI 组件只负责交互与展示，任务状态转换、错误分类、输入指纹和安全校验位于领域或服务模块。
+
+### 执行任务主流程
+
+```mermaid
+sequenceDiagram
+  participant U as 用户
+  participant W as Next.js Web
+  participant D as SQLite
+  participant S as 任务调度器
+  participant P as 独立 Worker
+
+  U->>W: 提交 AI 任务或运行用例
+  W->>D: 创建 QUEUED 记录
+  W-->>U: 返回任务 ID 与详情页
+  W->>S: 尝试启动调度器
+  S->>D: 获取租约并按 FIFO 领取任务
+  S->>P: 启动独立子进程
+  P->>D: 更新阶段与追加日志
+  U->>W: 轮询任务状态
+  W->>D: 读取统一 ExecutionTask DTO
+  W-->>U: 返回最新状态与日志
+  P->>D: 原子保存结果并写入终态
+  P-->>S: 子进程退出
+  S->>D: 队列为空后释放租约
+  S-->>S: 调度器退出
+```
+
+调度器维护两个互不占用配额的资源池：
+
+- 普通 AI 池：生成 US、生成自然语言测试用例。
+- 浏览器池：主动生成自动化脚本、测试用例执行。
+
+每个任务拥有独立 Worker ID、AbortSignal、临时目录、日志流和浏览器会话。数据库条件更新保证只有当前 Worker 能写入终态；单个任务失败、停止或超时不会终止其他任务。
+
+服务重启时，`instrumentation.ts` 会清理遗留 Playwright CLI 会话，将遗留运行中任务标记为失败，释放调度租约，并在存在排队任务时重新启动调度器。
+
+### 三类 AI 工作流
+
+| 能力           | 主要输入                                       | 外部能力                     | 结果                         |
+| -------------- | ---------------------------------------------- | ---------------------------- | ---------------------------- |
+| 生成 US        | 需求、可选 FE 上下文、相关源码                 | 仓库 API、模型结构化输出     | 待评审 US 草稿               |
+| 生成测试用例   | 一个 US 或自由需求、相关源码、已有用例分组     | 仓库 API、模型结构化输出     | 1～20 条待评审自然语言用例   |
+| 生成自动化脚本 | 正式用例、Base URL、变量元数据、项目自动化约束 | 模型工具调用、Playwright CLI | 校验后保存的 Playwright 脚本 |
+
+三项能力拥有独立模型绑定、Skill、提示词和任务记录。提示词集中在：
+
+```text
+src/ai/prompts/generate-user-story/
+src/ai/prompts/generate-test-cases/
+src/ai/prompts/generate-automation-script/
+```
+
+Markdown 文件承载可评审的提示词正文；TypeScript 负责强类型变量注入、工具权限和结果校验。提示词行为发生实质变化时，应同步提升对应 Skill 版本。
+
+生成 US 和自然语言测试用例通过 GitHub/Gitee 官方 API 读取同一提交下的文件树及有限相关源码，不执行 Git clone，也不向模型开放 Shell。仓库地址只支持 `github.com` 和 `gitee.com`；PAT 按仓库域名自动选择。
+
+自动化脚本生成不读取代码仓库。模型只看到变量名称、类型和描述；变量值保留在服务端 `toolsContext` 中。页面探测工具白名单只允许同源导航、语义快照、元素查找、稳定 locator 和必要交互，不允许 Shell、文件系统、截图、Cookie、任意 JavaScript、跨域导航或网络拦截。
+
+### 测试用例执行
+
+运行用例时：
+
+1. Web 创建一条 `TestRun`，在统一任务页中显示为“测试用例执行”。
+2. 手工脚本直接执行；AI 脚本输入指纹未变化时复用。
+3. 没有脚本或 AI 脚本已过期时，在同一任务内探测页面、生成并校验脚本。
+4. 脚本通过静态安全检查和 `playwright test --list` 后原子保存。
+5. Runner 只实际执行一次，不由 AI 自动修复或重复触发写操作。
+6. stdout、stderr 和阶段日志脱敏后持久化；失败或超时时保存截图。
+
+手工编辑的完整 Playwright 文件可以执行 Node.js 代码，因此首版只面向内部可信用户。独立目录不是容器级安全沙箱，不要向不可信用户开放脚本编辑或运行权限。
+
+### 数据与安全
+
+- 登录使用 Argon2id 密码哈希、数据库 Session 和 HttpOnly Cookie，会话有效期 7 天。
+- 敏感变量、仓库 PAT 和模型 API Key 使用 AES-256-GCM 加密，密文不进入客户端响应或日志。
+- 所有业务删除均为逻辑删除；密钥密文等不应保留的秘密在删除时物理清除。
+- 测试执行日志和失败截图保留 30 天；任务摘要长期保留。
+- AI 脚本生成和测试执行阶段分别最多 10 分钟。
+- AI 脚本必须为单文件、单测试，并禁止动态执行、网络拦截、Cookie 操作、固定休眠及绕过平台超时。
+
+### 代码约定
+
+- 新项目只写前向 migration，不增加历史兼容、双写或旧路由跳转。
+- 优先按业务职责拆分模块，不为行数指标建立无意义的抽象层。
+- 中文注释只解释并发、所有权、安全和任务生命周期等非显然规则。
+- 页面导航使用语义链接；业务动作使用按钮，E2E 优先按可访问角色和名称定位。
+- 所有外部输入在边界处使用 Zod 校验，内部函数接收已校验的强类型数据。
+- 结构化错误对用户提供中文安全信息，不记录模型原文、完整源码、PAT、API Key 或敏感变量值。

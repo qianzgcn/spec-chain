@@ -238,6 +238,7 @@ export async function updateProjectTestingSettingsAction(
 ): Promise<
   ActionResult<{
     baseUrl: string;
+    automationInstructions: string;
     variables: Array<{
       id: string;
       name: string;
@@ -309,7 +310,10 @@ export async function updateProjectTestingSettingsAction(
   const variables = await db.$transaction(async (transaction) => {
     await transaction.project.update({
       where: { id: project.id },
-      data: { baseUrl: parsed.data.baseUrl || null },
+      data: {
+        baseUrl: parsed.data.baseUrl || null,
+        automationInstructions: parsed.data.automationInstructions || null,
+      },
     });
 
     await transaction.projectVariable.updateMany({
@@ -376,6 +380,7 @@ export async function updateProjectTestingSettingsAction(
     message: "测试设置已保存",
     data: {
       baseUrl: parsed.data.baseUrl,
+      automationInstructions: parsed.data.automationInstructions,
       variables: variables.map((variable) => ({
         ...variable,
         value: variable.kind === VariableKind.SECRET ? "" : variable.value,

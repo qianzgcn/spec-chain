@@ -259,6 +259,10 @@ export function AiSettingsManagement({
           defaultProfileIds[AiCapability.GENERATE_TEST_CASES] ? (
             <Badge variant="secondary">生成测试用例默认</Badge>
           ) : null}
+          {row.original.id ===
+          defaultProfileIds[AiCapability.GENERATE_AUTOMATION_SCRIPT] ? (
+            <Badge variant="secondary">生成自动化脚本默认</Badge>
+          ) : null}
         </div>
       ),
     },
@@ -400,6 +404,41 @@ export function AiSettingsManagement({
                     {profileOptions.map((option) => (
                       <SelectItem
                         key={option.value ?? "test-case-placeholder"}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">生成自动化脚本</span>
+              <Select
+                items={profileOptions}
+                value={
+                  defaultProfileIds[AiCapability.GENERATE_AUTOMATION_SCRIPT]
+                }
+                disabled={!profiles.length || isPending}
+                onValueChange={(profileId) =>
+                  bindDefaultModel(
+                    AiCapability.GENERATE_AUTOMATION_SCRIPT,
+                    profileId,
+                  )
+                }
+              >
+                <SelectTrigger
+                  className="w-64"
+                  aria-label="生成自动化脚本默认模型"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {profileOptions.map((option) => (
+                      <SelectItem
+                        key={option.value ?? "automation-placeholder"}
                         value={option.value}
                       >
                         {option.label}

@@ -18,6 +18,7 @@ import { DataTableRowActions } from "@/components/data-table/data-table-row-acti
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { SearchInput } from "@/components/data-table/search-input";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { ButtonLink } from "@/components/navigation/button-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,7 +43,6 @@ export type TestCaseListItem = {
   priority: TestPriority;
   enabled: boolean;
   hasScript: boolean;
-  stepCount: number;
   lastRunStatus: RunStatus | null;
   updatedAt: string;
 };
@@ -86,6 +86,7 @@ export function TestCasesList({
   const [deleteTarget, setDeleteTarget] = useState<TestCaseListItem | null>(
     null,
   );
+  const [runningId, setRunningId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const groupOptions = [
@@ -133,6 +134,33 @@ export function TestCasesList({
     });
   }
 
+  async function runTestCase(testCase: TestCaseListItem) {
+    setRunningId(testCase.id);
+    try {
+      const response = await fetch(`/api/test-cases/${testCase.id}/runs`, {
+        method: "POST",
+      });
+      const payload = (await response.json()) as {
+        run?: { id: string };
+        message?: string;
+      };
+      if (!response.ok || !payload.run) {
+        throw new Error(payload.message ?? "创建运行任务失败");
+      }
+
+      toast.add({ type: "success", description: "运行任务已进入队列" });
+      navigate(`/execution-tasks/${payload.run.id}`);
+    } catch (error) {
+      toast.add({
+        type: "error",
+        description:
+          error instanceof Error ? error.message : "创建运行任务失败",
+      });
+    } finally {
+      setRunningId(null);
+    }
+  }
+
   const columns: ColumnDef<TestCaseListItem>[] = [
     {
       accessorKey: "name",
@@ -173,19 +201,9 @@ export function TestCasesList({
       },
     },
     {
-      accessorKey: "stepCount",
-      header: "步骤",
-      size: 64,
-      meta: {
-        headerClassName: "max-[1500px]:hidden",
-        cellClassName: "max-[1500px]:hidden text-muted-foreground",
-      },
-      cell: ({ row }) => `${row.original.stepCount} 条`,
-    },
-    {
       accessorKey: "hasScript",
-      header: "自动化",
-      size: 84,
+      header: "脚本状态",
+      size: 96,
       meta: {
         headerClassName: "max-[1500px]:hidden",
         cellClassName: "max-[1500px]:hidden",
@@ -237,20 +255,30 @@ export function TestCasesList({
     {
       id: "actions",
       header: () => <span className="sr-only">操作</span>,
-      size: 96,
+      size: 128,
       meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => (
         <DataTableRowActions
           testId="test-case-actions"
           actions={[
             {
+              label: "运行",
+              ariaLabel: `运行 ${row.original.name}`,
+              variant: "outline",
+              loading: runningId === row.original.id,
+              disabled:
+                !row.original.enabled || isPending || runningId !== null,
+              onClick: () => runTestCase(row.original),
+            },
+            {
               label: "编辑",
               href: `/test-cases/${row.original.id}/edit`,
+              disabled: runningId !== null,
             },
             {
               label: "删除",
               icon: <Trash2Icon />,
-              disabled: isPending,
+              disabled: isPending || runningId !== null,
               destructive: true,
               onClick: () => setDeleteTarget(row.original),
             },
@@ -355,21 +383,14 @@ export function TestCasesList({
               </Button>
             ) : null}
             <div className="ml-auto flex items-center gap-2">
-              <Button
-                variant="outline"
-                nativeButton={false}
-                render={<Link href="/test-cases/ai-generate" />}
-              >
+              <ButtonLink href="/test-cases/ai-generate" variant="outline">
                 <SparklesIcon data-icon="inline-start" />
                 AI辅助生成测试用例
-              </Button>
-              <Button
-                nativeButton={false}
-                render={<Link href="/test-cases/new" />}
-              >
+              </ButtonLink>
+              <ButtonLink href="/test-cases/new">
                 <PlusIcon data-icon="inline-start" />
                 新建用例
-              </Button>
+              </ButtonLink>
             </div>
           </>
         }

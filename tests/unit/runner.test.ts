@@ -42,7 +42,6 @@ describe("运行结果状态", () => {
       resolveRunStatus({
         timedOut: false,
         stopRequested: false,
-        leaseLost: false,
         exitCode: 0,
       }),
     ).toBe(RunStatus.PASSED);
@@ -53,7 +52,6 @@ describe("运行结果状态", () => {
       resolveRunStatus({
         timedOut: true,
         stopRequested: true,
-        leaseLost: false,
         exitCode: null,
       }),
     ).toBe(RunStatus.TIMED_OUT);
@@ -64,26 +62,16 @@ describe("运行结果状态", () => {
       resolveRunStatus({
         timedOut: false,
         stopRequested: true,
-        leaseLost: false,
         exitCode: null,
       }),
     ).toBe(RunStatus.STOPPED);
   });
 
-  it("租约丢失或非零退出码时失败", () => {
+  it("非零退出码时失败", () => {
     expect(
       resolveRunStatus({
         timedOut: false,
         stopRequested: false,
-        leaseLost: true,
-        exitCode: 0,
-      }),
-    ).toBe(RunStatus.FAILED);
-    expect(
-      resolveRunStatus({
-        timedOut: false,
-        stopRequested: false,
-        leaseLost: false,
         exitCode: 1,
       }),
     ).toBe(RunStatus.FAILED);

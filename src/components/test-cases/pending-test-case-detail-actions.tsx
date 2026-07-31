@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 
 import { ArrowLeftIcon, CheckIcon, Trash2Icon } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import {
@@ -11,6 +10,7 @@ import {
   deletePendingTestCaseDraftAction,
 } from "@/app/actions/pending-test-cases";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { ButtonLink } from "@/components/navigation/button-link";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
@@ -75,14 +75,10 @@ export function PendingTestCaseDetailActions({
   return (
     <>
       <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          nativeButton={false}
-          render={<Link href="/test-cases/pending-review" />}
-        >
+        <ButtonLink href="/test-cases/pending-review" variant="outline">
           <ArrowLeftIcon data-icon="inline-start" />
           返回列表
-        </Button>
+        </ButtonLink>
         <Button disabled={isPending || !hasGroup} onClick={confirm}>
           {pendingAction === "confirm" ? (
             <Spinner data-icon="inline-start" />

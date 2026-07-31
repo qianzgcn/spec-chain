@@ -1,0 +1,112 @@
+import {
+  AiCapability,
+  AiExecutionStage,
+  AiExecutionStatus,
+  RunStatus,
+  TestRunStage,
+} from "@/generated/prisma/enums";
+import {
+  TEST_CASE_RUN_TASK_TYPE,
+  type ExecutionTaskStatus,
+  type ExecutionTaskType,
+} from "@/lib/execution-tasks/types";
+
+type BadgeVariant = "info" | "success" | "warning" | "destructive" | "outline";
+
+export const EXECUTION_TASK_TYPE_LABELS: Record<ExecutionTaskType, string> = {
+  [AiCapability.GENERATE_USER_STORY]: "AI辅助生成US",
+  [AiCapability.GENERATE_TEST_CASES]: "AI辅助生成测试用例",
+  [AiCapability.GENERATE_AUTOMATION_SCRIPT]: "AI辅助生成自动化脚本",
+  [TEST_CASE_RUN_TASK_TYPE]: "测试用例执行",
+};
+
+export const EXECUTION_TASK_STATUS_META: Record<
+  ExecutionTaskStatus,
+  { label: string; badgeVariant: BadgeVariant }
+> = {
+  QUEUED: { label: "排队中", badgeVariant: "outline" },
+  RUNNING: { label: "运行中", badgeVariant: "info" },
+  SUCCEEDED: { label: "成功", badgeVariant: "success" },
+  FAILED: { label: "失败", badgeVariant: "destructive" },
+  TIMED_OUT: { label: "超时", badgeVariant: "warning" },
+  STOPPED: { label: "已停止", badgeVariant: "outline" },
+};
+
+export const ACTIVE_EXECUTION_TASK_STATUSES = new Set<ExecutionTaskStatus>([
+  "QUEUED",
+  "RUNNING",
+]);
+
+export const TERMINAL_EXECUTION_TASK_STATUSES = new Set<ExecutionTaskStatus>([
+  "SUCCEEDED",
+  "FAILED",
+  "TIMED_OUT",
+  "STOPPED",
+]);
+
+export const AI_EXECUTION_STAGE_LABELS: Record<AiExecutionStage, string> = {
+  [AiExecutionStage.QUEUED]: "等待执行",
+  [AiExecutionStage.CHECKING_REPOSITORIES]: "检查并读取代码仓库",
+  [AiExecutionStage.SELECTING_CODE]: "定位相关代码",
+  [AiExecutionStage.GENERATING_DRAFT]: "生成结构化草稿",
+  [AiExecutionStage.PROBING_PAGE]: "探测真实页面",
+  [AiExecutionStage.GENERATING_SCRIPT]: "生成自动化脚本",
+  [AiExecutionStage.VALIDATING_SCRIPT]: "校验自动化脚本",
+  [AiExecutionStage.COMPLETED]: "已完成",
+};
+
+export const TEST_RUN_STAGE_LABELS: Record<TestRunStage, string> = {
+  [TestRunStage.QUEUED]: "等待执行",
+  [TestRunStage.GENERATING_SCRIPT]: "生成自动化脚本",
+  [TestRunStage.PROBING_PAGE]: "探测真实页面",
+  [TestRunStage.VALIDATING_SCRIPT]: "校验自动化脚本",
+  [TestRunStage.RUNNING_TEST]: "执行测试用例",
+  [TestRunStage.COMPLETED]: "已完成",
+};
+
+export function getAiExecutionStageLabel(
+  capability: AiCapability,
+  stage: AiExecutionStage,
+) {
+  if (stage !== AiExecutionStage.GENERATING_DRAFT) {
+    return AI_EXECUTION_STAGE_LABELS[stage];
+  }
+
+  return capability === AiCapability.GENERATE_USER_STORY
+    ? "生成结构化 US"
+    : capability === AiCapability.GENERATE_TEST_CASES
+      ? "生成自然语言测试用例"
+      : AI_EXECUTION_STAGE_LABELS[stage];
+}
+
+export function mapAiExecutionStatus(
+  status: AiExecutionStatus,
+): ExecutionTaskStatus {
+  switch (status) {
+    case AiExecutionStatus.QUEUED:
+      return "QUEUED";
+    case AiExecutionStatus.RUNNING:
+      return "RUNNING";
+    case AiExecutionStatus.SUCCEEDED:
+      return "SUCCEEDED";
+    case AiExecutionStatus.FAILED:
+      return "FAILED";
+  }
+}
+
+export function mapTestRunStatus(status: RunStatus): ExecutionTaskStatus {
+  switch (status) {
+    case RunStatus.QUEUED:
+      return "QUEUED";
+    case RunStatus.RUNNING:
+      return "RUNNING";
+    case RunStatus.PASSED:
+      return "SUCCEEDED";
+    case RunStatus.FAILED:
+      return "FAILED";
+    case RunStatus.TIMED_OUT:
+      return "TIMED_OUT";
+    case RunStatus.STOPPED:
+      return "STOPPED";
+  }
+}

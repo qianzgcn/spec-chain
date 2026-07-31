@@ -4,7 +4,8 @@ import {
   NoOutputGeneratedError,
   TypeValidationError,
 } from "ai";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import type { LogWarningsFunction } from "ai";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import {
@@ -17,6 +18,24 @@ import {
 import { aiModelProfileInputSchema } from "@/lib/ai/model-profile";
 
 describe("AI 模型配置", () => {
+  beforeEach(() => {
+    const logWarnings: LogWarningsFunction = ({ warnings }) => {
+      const unexpected = warnings.filter(
+        (warning) =>
+          warning.type !== "unsupported" ||
+          warning.feature !== "responseFormat",
+      );
+      if (unexpected.length > 0) {
+        throw new Error(
+          `出现未预期的 AI SDK 警告：${JSON.stringify(unexpected)}`,
+        );
+      }
+    };
+    // 兼容网关按设计不声明原生 json_schema 能力，测试只忽略这一条已知提示；
+    // 其他 SDK 警告仍会直接使测试失败。
+    vi.stubGlobal("AI_SDK_LOG_WARNINGS", logWarnings);
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });

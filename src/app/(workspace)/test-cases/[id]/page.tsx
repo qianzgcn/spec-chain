@@ -3,11 +3,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { createAutomationInputFingerprint } from "@/automation/fingerprint";
+import {
+  AUTOMATION_SCRIPT_STATUS_META,
+  getAutomationScriptStatus,
+} from "@/automation/script-status";
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageSection } from "@/components/layout/page-section";
 import { TestCaseDetailActions } from "@/components/test-cases/test-case-detail-actions";
 import { Badge } from "@/components/ui/badge";
+import { AiCapability, AiExecutionStatus } from "@/generated/prisma/enums";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
@@ -37,11 +43,51 @@ export default async function TestCaseDetailPage({
           feature: { select: { name: true } },
         },
       },
+      project: {
+        select: {
+          baseUrl: true,
+          automationInstructions: true,
+          variables: {
+            where: { deletedAt: null },
+            orderBy: { position: "asc" },
+            select: {
+              name: true,
+              kind: true,
+              description: true,
+            },
+          },
+        },
+      },
+      aiExecutions: {
+        where: {
+          capability: AiCapability.GENERATE_AUTOMATION_SCRIPT,
+          status: {
+            in: [AiExecutionStatus.QUEUED, AiExecutionStatus.RUNNING],
+          },
+          deletedAt: null,
+        },
+        orderBy: { queuedAt: "desc" },
+        take: 1,
+        select: { id: true },
+      },
     },
   });
   if (!testCase) notFound();
 
   const priorityMeta = TEST_PRIORITY_META[testCase.priority];
+  const currentFingerprint = createAutomationInputFingerprint({
+    testCase,
+    baseUrl: testCase.project.baseUrl ?? "",
+    automationInstructions: testCase.project.automationInstructions,
+    variables: testCase.project.variables,
+  });
+  const scriptStatus = getAutomationScriptStatus({
+    script: testCase.script,
+    source: testCase.scriptSource,
+    aiFingerprint: testCase.aiScriptFingerprint,
+    currentFingerprint,
+  });
+  const scriptStatusMeta = AUTOMATION_SCRIPT_STATUS_META[scriptStatus];
 
   return (
     <PageContainer className="flex flex-col gap-5">
@@ -59,7 +105,14 @@ export default async function TestCaseDetailPage({
             <span>{testCase.group.name}</span>
           </>
         }
-        actions={<TestCaseDetailActions id={testCase.id} />}
+        actions={
+          <TestCaseDetailActions
+            id={testCase.id}
+            scriptStatus={scriptStatus}
+            hasBaseUrl={Boolean(testCase.project.baseUrl)}
+            activeGenerationTaskId={testCase.aiExecutions[0]?.id ?? null}
+          />
+        }
       />
 
       <PageSection title="用例内容">
@@ -101,7 +154,14 @@ export default async function TestCaseDetailPage({
         )}
       </PageSection>
 
-      <PageSection title="Playwright TypeScript 脚本">
+      <PageSection
+        title="Playwright TypeScript 脚本"
+        actions={
+          <Badge variant={scriptStatusMeta.badgeVariant}>
+            {scriptStatusMeta.label}
+          </Badge>
+        }
+      >
         {testCase.script ? (
           <pre className="bg-foreground text-background max-h-[520px] overflow-auto rounded-lg p-5 font-mono text-xs leading-6 whitespace-pre-wrap">
             <code>{testCase.script}</code>

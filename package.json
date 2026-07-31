@@ -17,9 +17,10 @@
     "typecheck": "tsc --noEmit --incremental false",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "browser:install": "playwright install chromium",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate && npm run browser:install"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.16",
@@ -27,7 +28,8 @@
     "@codemirror/lang-javascript": "^6.2.5",
     "@hookform/resolvers": "^5.5.7",
     "@node-rs/argon2": "^2.0.2",
-    "@playwright/test": "^1.62.0",
+    "@playwright/cli": "0.1.17",
+    "@playwright/test": "1.62.0",
     "@prisma/adapter-better-sqlite3": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@tanstack/react-query": "^5.101.4",
@@ -40,6 +42,7 @@
     "lucide-react": "^1.27.0",
     "next": "^16.2.12",
     "pino": "^10.3.1",
+    "playwright": "1.62.0",
     "prisma": "^7.9.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

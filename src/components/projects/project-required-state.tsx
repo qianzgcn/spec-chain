@@ -1,7 +1,6 @@
 import { FolderKanbanIcon } from "lucide-react";
-import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/navigation/button-link";
 import {
   Empty,
   EmptyContent,
@@ -27,9 +26,7 @@ export function ProjectRequiredState({
           <EmptyDescription>{description}</EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
-          <Button nativeButton={false} render={<Link href="/projects" />}>
-            前往项目管理
-          </Button>
+          <ButtonLink href="/projects">前往项目管理</ButtonLink>
         </EmptyContent>
       </Empty>
     </div>

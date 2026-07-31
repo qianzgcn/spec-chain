@@ -60,11 +60,15 @@ export const createAiTestCaseExecutionSchema = z
 
 export const aiTestCaseGeneratorFormSchema = createAiTestCaseExecutionSchema;
 
-export const retryAiExecutionSchema = z.object({
-  executionId: z.string().min(1),
+export const retryExecutionTaskSchema = z.object({
+  taskId: z.string().min(1),
 });
 
-export const deleteAiExecutionSchema = retryAiExecutionSchema;
+export const deleteExecutionTaskSchema = retryExecutionTaskSchema;
+
+export const createAutomationScriptExecutionSchema = z.object({
+  testCaseId: z.string().min(1),
+});
 
 export type AiUserStoryGeneratorFormValues = z.infer<
   typeof aiUserStoryGeneratorFormSchema

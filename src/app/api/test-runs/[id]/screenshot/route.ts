@@ -22,6 +22,7 @@ export async function GET(
   const run = await db.testRun.findFirst({
     where: {
       id,
+      deletedAt: null,
       testCase: { projectId: context.project.id },
     },
     select: {

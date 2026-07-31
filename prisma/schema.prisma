@@ -42,6 +42,7 @@ enum RunStatus {
 enum AiCapability {
   GENERATE_USER_STORY
   GENERATE_TEST_CASES
+  GENERATE_AUTOMATION_SCRIPT
 }
 
 enum AiModelCheckStatus {
@@ -62,6 +63,9 @@ enum AiExecutionStage {
   CHECKING_REPOSITORIES
   SELECTING_CODE
   GENERATING_DRAFT
+  PROBING_PAGE
+  GENERATING_SCRIPT
+  VALIDATING_SCRIPT
   COMPLETED
 }
 
@@ -74,6 +78,20 @@ enum AiExecutionLogLevel {
 enum AiDraftStatus {
   PENDING
   CONFIRMED
+}
+
+enum TestCaseScriptSource {
+  MANUAL
+  AI
+}
+
+enum TestRunStage {
+  QUEUED
+  GENERATING_SCRIPT
+  PROBING_PAGE
+  VALIDATING_SCRIPT
+  RUNNING_TEST
+  COMPLETED
 }
 
 model User {
@@ -106,17 +124,18 @@ model Session {
 }
 
 model Project {
-  id                 String    @id @default(cuid())
-  name               String
-  description        String?
-  baseUrl            String?
-  githubPatEncrypted String?
-  githubPatAccount   String?
-  giteePatEncrypted  String?
-  giteePatAccount    String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  deletedAt          DateTime?
+  id                     String    @id @default(cuid())
+  name                   String
+  description            String?
+  baseUrl                String?
+  githubPatEncrypted     String?
+  githubPatAccount       String?
+  giteePatEncrypted      String?
+  giteePatAccount        String?
+  automationInstructions String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  deletedAt              DateTime?
 
   repositories         Repository[]
   variables            ProjectVariable[]
@@ -242,26 +261,30 @@ model TestCaseGroup {
 }
 
 model TestCase {
-  id            String       @id @default(cuid())
-  projectId     String
-  groupId       String
-  userStoryId   String?
-  code          String       @unique
-  name          String
-  priority      TestPriority @default(P2)
-  preconditions String?
-  steps         String
-  enabled       Boolean      @default(true)
-  script        String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  deletedAt     DateTime?
+  id                  String                @id @default(cuid())
+  projectId           String
+  groupId             String
+  userStoryId         String?
+  code                String                @unique
+  name                String
+  priority            TestPriority          @default(P2)
+  preconditions       String?
+  steps               String
+  enabled             Boolean               @default(true)
+  script              String?
+  scriptSource        TestCaseScriptSource?
+  aiScriptFingerprint String?
+  scriptGeneratedAt   DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  deletedAt           DateTime?
 
-  project     Project        @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  group       TestCaseGroup  @relation(fields: [groupId], references: [id], onDelete: Restrict)
-  userStory   UserStory?     @relation(fields: [userStoryId], references: [id], onDelete: Restrict)
-  runs        TestRun[]
-  sourceDraft TestCaseDraft? @relation("ConfirmedTestCase")
+  project      Project        @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  group        TestCaseGroup  @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  userStory    UserStory?     @relation(fields: [userStoryId], references: [id], onDelete: Restrict)
+  runs         TestRun[]
+  aiExecutions AiExecution[]
+  sourceDraft  TestCaseDraft? @relation("ConfirmedTestCase")
 
   @@index([projectId, deletedAt, updatedAt])
   @@index([groupId, deletedAt])
@@ -269,42 +292,43 @@ model TestCase {
 }
 
 model TestRun {
-  id                   String    @id @default(cuid())
-  testCaseId           String
-  requestedById        String
-  status               RunStatus @default(QUEUED)
-  queuedAt             DateTime  @default(now())
-  startedAt            DateTime?
-  finishedAt           DateTime?
-  durationMs           Int?
-  exitCode             Int?
-  errorSummary         String?
-  logContent           String?
-  screenshotPath       String?
-  artifactsExpireAt    DateTime
-  artifactsPurgedAt    DateTime?
-  cancelRequestedAt    DateTime?
-  workerId             String?
-  testCaseCodeSnapshot String
-  testCaseNameSnapshot String
-  scriptSnapshot       String
-  baseUrlSnapshot      String
+  id                       String       @id @default(cuid())
+  testCaseId               String
+  requestedById            String
+  status                   RunStatus    @default(QUEUED)
+  stage                    TestRunStage @default(QUEUED)
+  queuedAt                 DateTime     @default(now())
+  startedAt                DateTime?
+  finishedAt               DateTime?
+  durationMs               Int?
+  exitCode                 Int?
+  errorSummary             String?
+  logContent               String?
+  screenshotPath           String?
+  artifactsExpireAt        DateTime
+  artifactsPurgedAt        DateTime?
+  cancelRequestedAt        DateTime?
+  workerId                 String?
+  testCaseCodeSnapshot     String
+  testCaseNameSnapshot     String
+  scriptSnapshot           String?
+  baseUrlSnapshot          String
+  generatedScriptInRun     Boolean      @default(false)
+  modelProfileNameSnapshot String?
+  modelIdSnapshot          String?
+  skillNameSnapshot        String?
+  skillVersionSnapshot     String?
+  promptTokens             Int?
+  completionTokens         Int?
+  totalTokens              Int?
+  deletedAt                DateTime?
 
   testCase    TestCase @relation(fields: [testCaseId], references: [id], onDelete: Restrict)
   requestedBy User     @relation(fields: [requestedById], references: [id], onDelete: Restrict)
 
-  @@index([status, queuedAt])
-  @@index([testCaseId, queuedAt])
+  @@index([status, deletedAt, queuedAt])
+  @@index([testCaseId, deletedAt, queuedAt])
   @@index([artifactsExpireAt, artifactsPurgedAt])
-}
-
-model RunnerLease {
-  id        String   @id
-  ownerId   String
-  expiresAt DateTime
-  updatedAt DateTime @updatedAt
-
-  @@index([expiresAt])
 }
 
 model BusinessCodeSequence {
@@ -347,6 +371,7 @@ model AiExecution {
   requestedById            String
   featureId                String?
   sourceUserStoryId        String?
+  testCaseId               String?
   capability               AiCapability
   status                   AiExecutionStatus @default(QUEUED)
   stage                    AiExecutionStage  @default(QUEUED)
@@ -374,6 +399,7 @@ model AiExecution {
   requestedBy        User                @relation(fields: [requestedById], references: [id], onDelete: Restrict)
   feature            Feature?            @relation(fields: [featureId], references: [id], onDelete: Restrict)
   sourceUserStory    UserStory?          @relation("AiTestCaseSourceUserStory", fields: [sourceUserStoryId], references: [id], onDelete: Restrict)
+  testCase           TestCase?           @relation(fields: [testCaseId], references: [id], onDelete: Restrict)
   draft              UserStoryDraft?
   testCaseDraftBatch TestCaseDraftBatch?
   logs               AiExecutionLog[]
@@ -382,6 +408,7 @@ model AiExecution {
   @@index([projectId, deletedAt, queuedAt])
   @@index([featureId])
   @@index([sourceUserStoryId])
+  @@index([testCaseId])
 }
 
 model AiExecutionLog {
@@ -483,7 +510,7 @@ model TestCaseDraft {
   @@index([status, deletedAt])
 }
 
-model AiWorkerLease {
+model TaskSchedulerLease {
   id        String   @id
   ownerId   String
   expiresAt DateTime

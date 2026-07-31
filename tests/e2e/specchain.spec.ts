@@ -64,6 +64,8 @@ async function expectTablePageFillsWorkspace(page: Page) {
 }
 
 async function expectTestCaseActionsAligned(page: Page) {
+  await expect(page.getByRole("columnheader", { name: "步骤" })).toHaveCount(0);
+
   await expect
     .poll(async () =>
       page.evaluate(() => {
@@ -90,7 +92,8 @@ async function expectTestCaseActionsAligned(page: Page) {
     .toBeLessThanOrEqual(12);
 
   const actions = page.getByTestId("test-case-actions").first();
-  await expect(actions.getByRole("button", { name: "编辑" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: /^运行 / })).toBeVisible();
+  await expect(actions.getByRole("link", { name: "编辑" })).toBeVisible();
   await expect(actions.getByRole("button", { name: "删除" })).toBeVisible();
   await expect(actions.getByRole("button", { name: "更多操作" })).toHaveCount(
     0,
@@ -119,7 +122,7 @@ async function expectAiWorkerIdleAfterTask(
             .get(executionId) as { status: string } | undefined;
           const leaseCount = (
             database
-              .prepare(`SELECT COUNT(*) AS "count" FROM "AiWorkerLease"`)
+              .prepare(`SELECT COUNT(*) AS "count" FROM "TaskSchedulerLease"`)
               .get() as { count: number }
           ).count;
 
@@ -176,7 +179,8 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await expect(page.getByText("共 0 个")).toBeVisible();
 
   await dismissNotifications(page);
-  await page.getByRole("button", { name: "新建US" }).click();
+  await page.getByRole("link", { name: "新建US" }).click();
+  await expect(page).toHaveURL(/\/features\/[^/]+\/user-stories\/new$/);
   await page.getByRole("textbox", { name: "US 标题" }).fill("客服提交退款");
   await page.getByRole("textbox", { name: "As" }).fill("客服专员");
   await page.getByRole("textbox", { name: "I want" }).fill("提交订单退款申请");
@@ -216,6 +220,8 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByText("点击提交，退款记录创建成功")).toBeVisible();
   await expect(page.getByText("尚未编写自动化脚本")).toBeVisible();
+  await expect(page.getByText("未生成", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "AI生成脚本" })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "自动化运行" })).toHaveCount(
     0,
   );
@@ -225,7 +231,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
     await route.continue();
   });
   await dismissNotifications(page);
-  await page.getByRole("button", { name: "执行记录" }).click();
+  await page.getByRole("link", { name: "执行记录" }).click();
   await expect(page.getByText("正在加载…")).toBeVisible();
   await expect(page).toHaveURL(/\/test-cases\/.+\/runs$/);
   await expect(page.getByRole("heading", { name: "执行记录" })).toBeVisible();
@@ -246,7 +252,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
     "/test-cases",
     "/test-cases/pending-review",
     "/test-case-groups",
-    "/ai-executions",
+    "/execution-tasks",
     "/ai-settings",
     "/projects",
     "/users",
@@ -270,6 +276,9 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await page
     .getByRole("textbox", { name: "Base URL" })
     .fill("https://example.com");
+  await page
+    .getByRole("textbox", { name: "自动化约束" })
+    .fill("所有自动化用例从项目登录页开始。");
   await page.getByRole("button", { name: "添加变量" }).click();
   const variableType = page.getByRole("combobox", { name: "类型" });
   await expect(variableType).toBeVisible();
@@ -377,6 +386,11 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await expect(
     page.getByText("生成测试用例默认", { exact: true }),
   ).toBeVisible();
+  await page.getByRole("combobox", { name: "生成自动化脚本默认模型" }).click();
+  await page.getByRole("option", { name: /E2E OpenAI 兼容模型/ }).click();
+  await expect(
+    page.getByText("生成自动化脚本默认", { exact: true }),
+  ).toBeVisible();
 
   const encryptedModelDatabase = new Database(databasePath, {
     readonly: true,
@@ -394,12 +408,10 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await page.getByRole("link", { name: "订单退款" }).click();
   await expect(page).toHaveURL(/\/features\/[^/]+$/);
   await expect(page.getByRole("heading", { name: "订单退款" })).toBeVisible();
-  await page.getByRole("button", { name: "新建US" }).click();
+  await page.getByRole("link", { name: "新建US" }).click();
   await expect(page.getByRole("heading", { name: "新建US" })).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "AI辅助生成US" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "AI辅助生成US" }).click();
+  await expect(page.getByRole("link", { name: "AI辅助生成US" })).toBeVisible();
+  await page.getByRole("link", { name: "AI辅助生成US" }).click();
   await expect(
     page.getByRole("heading", { name: "AI辅助生成US" }),
   ).toBeVisible();
@@ -409,7 +421,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
     .getByRole("textbox", { name: "需求内容" })
     .fill("客服需要根据订单状态提交退款，并明确显示成功或失败原因。");
   await page.getByRole("button", { name: "开始生成" }).click();
-  await expect(page).toHaveURL(/\/ai-executions\/[^?]+$/);
+  await expect(page).toHaveURL(/\/execution-tasks\/[^?]+$/);
   const failedTaskUrl = page.url();
   const failedTaskId = failedTaskUrl.split("/").at(-1);
   expect(failedTaskId).toBeTruthy();
@@ -548,10 +560,15 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
     );
   writableDatabase.close();
 
-  await page.goto("/ai-executions");
+  await page.goto("/execution-tasks");
   await expect(page.getByRole("heading", { name: "执行任务" })).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: "执行时间" }),
+  ).toBeVisible();
   await expect(page.getByText("客服需要提交订单退款")).toBeVisible();
-  await expect(page.getByText("e2e-ai-success", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("e2e-ai-success", { exact: true }).first(),
+  ).toBeVisible();
   await expect(
     page.getByRole("cell", { name: "AI辅助生成US" }).first(),
   ).toBeVisible();
@@ -564,24 +581,24 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   const successfulExecutionRow = page
     .locator("tbody tr")
     .filter({ hasText: "客服需要提交订单退款" });
-  await successfulExecutionRow.getByRole("button", { name: "查看" }).click();
+  await successfulExecutionRow.getByRole("link", { name: "查看" }).click();
   await expect(page.getByRole("heading", { name: "任务详情" })).toBeVisible();
   await expect(page.getByText("实际引用的代码")).toHaveCount(0);
   await expect(page.getByText("src/app/refunds/page.tsx")).toHaveCount(0);
   await expect(page.getByRole("log")).toContainText(
     "结构化 US 已生成，等待用户评审。",
   );
-  await expect(page.getByRole("log")).toContainText("INFO[生成完成]");
+  await expect(page.getByRole("log")).toContainText("INFO[已完成]");
 
   const executionPayload = await page.evaluate(async () => {
-    const response = await fetch("/api/ai-executions/e2e-ai-success");
+    const response = await fetch("/api/execution-tasks/e2e-ai-success");
     return response.text();
   });
   expect(executionPayload).not.toContain("repositorySnapshot");
   expect(executionPayload).not.toContain("codeReferences");
   expect(executionPayload).not.toContain("src/app/refunds/page.tsx");
 
-  await page.getByRole("button", { name: "查看生成结果" }).click();
+  await page.getByRole("link", { name: "查看生成结果" }).click();
   await expect(page).toHaveURL(/\/requirements\/pending-review\/e2e-ai-draft$/);
   await expect(page.getByRole("heading", { name: "评审需求" })).toBeVisible();
   await page.getByRole("textbox", { name: "US 标题" }).fill("客服提交订单退款");
@@ -590,7 +607,10 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
 
   await page.goto("/requirements/pending-review");
   await expect(page.getByText("客服提交订单退款")).toBeVisible();
-  await page.getByRole("button", { name: "评审" }).click();
+  await page
+    .getByTestId("data-table")
+    .getByRole("link", { name: "评审", exact: true })
+    .click();
   await page.getByRole("button", { name: "确认创建US" }).click();
   await expect(
     page.getByRole("heading", { name: "客服提交订单退款" }),
@@ -599,7 +619,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await page.goto("/requirements/pending-review");
   await expect(page.getByText("客服提交订单退款")).toHaveCount(0);
 
-  await page.goto("/ai-executions");
+  await page.goto("/execution-tasks");
   await expectTablePageFillsWorkspace(page);
   await expect(page.getByRole("link", { name: "评审草稿" })).toHaveCount(0);
 
@@ -610,7 +630,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
       "/requirements/pending-review",
       "/test-cases",
       "/test-cases/pending-review",
-      "/ai-executions",
+      "/execution-tasks",
     ]) {
       await page.goto(pagePath);
       await expectTablePageFillsWorkspace(page);
@@ -768,16 +788,16 @@ test("AI 生成的测试用例支持逐条评审并关联唯一 US", async ({ pa
   await page.getByText("选择已有US", { exact: true }).click();
   await expect(page.getByRole("combobox", { name: "选择 US" })).toBeVisible();
 
-  await page.goto("/ai-executions");
+  await page.goto("/execution-tasks");
   const executionRow = page
     .locator("tbody tr")
     .filter({ hasText: "e2e-ai-test-case-success" });
   await expect(executionRow).toContainText("AI辅助生成测试用例");
-  await executionRow.getByRole("button", { name: "查看" }).click();
+  await executionRow.getByRole("link", { name: "查看" }).click();
   await expect(page.getByRole("log")).toContainText(
     "已保存 2 条待评审测试用例",
   );
-  await page.getByRole("button", { name: "查看生成结果" }).click();
+  await page.getByRole("link", { name: "查看生成结果" }).click();
   await expect(page).toHaveURL(
     /\/test-cases\/pending-review\?batch=e2e-test-case-draft-batch$/,
   );
@@ -802,7 +822,7 @@ test("AI 生成的测试用例支持逐条评审并关联唯一 US", async ({ pa
   await expect(
     page.getByRole("link", { name: /US-20260730190000000/ }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "返回列表" }).click();
+  await page.getByRole("link", { name: "返回列表" }).click();
 
   firstDraftRow = page
     .locator("tbody tr")
@@ -926,19 +946,21 @@ test("失败的 AI 任务可以使用原任务 ID 重新运行", async ({ page }
     );
   database.close();
 
-  await page.goto("/ai-executions");
+  await page.goto("/execution-tasks");
   await expect(page.getByRole("heading", { name: "执行任务" })).toBeVisible();
   await expect(
     page.getByText("生成一个支持失败重跑的用户故事", { exact: true }),
   ).toHaveCount(1);
-  await expect(page.getByText("e2e-retry-task", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("e2e-retry-task", { exact: true }).first(),
+  ).toBeVisible();
   await expect(page.getByText("AI辅助生成US", { exact: true })).toBeVisible();
 
   const taskRow = page
     .locator("tbody tr")
     .filter({ hasText: "生成一个支持失败重跑的用户故事" });
-  await taskRow.getByRole("button", { name: "查看" }).click();
-  await expect(page).toHaveURL(/\/ai-executions\/e2e-retry-task$/);
+  await taskRow.getByRole("link", { name: "查看" }).click();
+  await expect(page).toHaveURL(/\/execution-tasks\/e2e-retry-task$/);
   await expect(page.getByRole("heading", { name: "任务详情" })).toBeVisible();
   await expect(page.getByRole("log")).toContainText("旧日志：初次执行失败。");
 
@@ -946,18 +968,20 @@ test("失败的 AI 任务可以使用原任务 ID 重新运行", async ({ page }
   await expect(
     page.getByText("任务已重新进入队列", { exact: true }),
   ).toBeVisible();
-  await expect(page).toHaveURL(/\/ai-executions\/e2e-retry-task$/);
+  await expect(page).toHaveURL(/\/execution-tasks\/e2e-retry-task$/);
   await expect(page.getByRole("log")).toContainText("任务已重新进入队列");
   await expect(page.getByRole("log")).not.toContainText(
     "旧日志：初次执行失败。",
   );
   await expectAiWorkerIdleAfterTask(databasePath, "e2e-retry-task");
 
-  await page.goto("/ai-executions");
+  await page.goto("/execution-tasks");
   await expect(
     page.getByText("生成一个支持失败重跑的用户故事", { exact: true }),
   ).toHaveCount(1);
-  await expect(page.getByText("e2e-retry-task", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("e2e-retry-task", { exact: true }).first(),
+  ).toBeVisible();
 });
 
 test("执行任务支持筛选和逻辑删除", async ({ page }) => {
@@ -1045,9 +1069,9 @@ test("执行任务支持筛选和逻辑删除", async ({ page }) => {
     );
   database.close();
 
-  await page.goto("/ai-executions");
+  await page.goto("/execution-tasks");
   const search = page.getByRole("textbox", {
-    name: "搜索任务 ID 或需求内容",
+    name: "搜索任务 ID 或任务内容",
   });
   await search.fill("e2e-filter-success");
   await search.press("Enter");
@@ -1082,14 +1106,14 @@ test("执行任务支持筛选和逻辑删除", async ({ page }) => {
   const successRow = page
     .locator("tbody tr")
     .filter({ hasText: "生成可筛选的成功需求" });
-  await successRow.getByRole("button", { name: "查看" }).click();
-  await expect(page).toHaveURL(/\/ai-executions\/e2e-filter-success$/);
+  await successRow.getByRole("link", { name: "查看" }).click();
+  await expect(page).toHaveURL(/\/execution-tasks\/e2e-filter-success$/);
   await page.getByRole("button", { name: "删除" }).click();
   await page
     .getByRole("alertdialog")
     .getByRole("button", { name: "删除" })
     .click();
-  await expect(page).toHaveURL(/\/ai-executions$/);
+  await expect(page).toHaveURL(/\/execution-tasks$/);
   await expect(page.getByText("生成可筛选的成功需求")).toHaveCount(0);
 
   const updatedDatabase = new Database(databasePath, { readonly: true });

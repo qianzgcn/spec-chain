@@ -4,7 +4,6 @@ import { useTransition } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SparklesIcon } from "lucide-react";
-import Link from "next/link";
 import { FormProvider, useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
@@ -13,6 +12,7 @@ import {
   updateUserStoryAction,
 } from "@/app/actions/requirements";
 import { FormPage } from "@/components/layout/form-page";
+import { ButtonLink } from "@/components/navigation/button-link";
 import { UserStoryFields } from "@/components/requirements/user-story-fields";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -117,22 +117,17 @@ export function UserStoryForm({
       actions={
         <>
           {!editing ? (
-            <Button
-              variant="outline"
-              nativeButton={false}
-              render={
-                <Link
-                  href={
-                    feature
-                      ? `/user-stories/ai-generate?featureId=${feature.id}`
-                      : "/user-stories/ai-generate"
-                  }
-                />
+            <ButtonLink
+              href={
+                feature
+                  ? `/user-stories/ai-generate?featureId=${feature.id}`
+                  : "/user-stories/ai-generate"
               }
+              variant="outline"
             >
               <SparklesIcon data-icon="inline-start" />
               AI辅助生成US
-            </Button>
+            </ButtonLink>
           ) : null}
           <Button variant="outline" onClick={cancel}>
             取消

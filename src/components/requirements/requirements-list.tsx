@@ -20,6 +20,7 @@ import { DataTableRowActions } from "@/components/data-table/data-table-row-acti
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { SearchInput } from "@/components/data-table/search-input";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { ButtonLink } from "@/components/navigation/button-link";
 import { RequirementStatusBadge } from "@/components/requirements/requirement-status-badge";
 import { RequirementStatusSelectControl } from "@/components/requirements/requirement-status-select-control";
 import { Badge } from "@/components/ui/badge";
@@ -381,21 +382,14 @@ export function RequirementsList({
               </Button>
             ) : null}
             <div className="ml-auto flex items-center gap-2">
-              <Button
-                variant="outline"
-                nativeButton={false}
-                render={<Link href="/user-stories/new" />}
-              >
+              <ButtonLink href="/user-stories/new" variant="outline">
                 <PlusIcon data-icon="inline-start" />
                 新建US
-              </Button>
-              <Button
-                nativeButton={false}
-                render={<Link href="/features/new" />}
-              >
+              </ButtonLink>
+              <ButtonLink href="/features/new">
                 <PlusIcon data-icon="inline-start" />
                 新建 FE
-              </Button>
+              </ButtonLink>
             </div>
           </>
         }

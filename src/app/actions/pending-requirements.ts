@@ -262,8 +262,8 @@ export async function confirmPendingRequirementAction(
   revalidatePath("/requirements");
   revalidatePath("/requirements/pending-review");
   revalidatePath(`/requirements/pending-review/${draft.id}`);
-  revalidatePath("/ai-executions");
-  revalidatePath(`/ai-executions/${draft.sourceExecutionId}`);
+  revalidatePath("/execution-tasks");
+  revalidatePath(`/execution-tasks/${draft.sourceExecutionId}`);
   if (draft.featureId) {
     revalidatePath(`/features/${draft.featureId}`);
   }
@@ -316,7 +316,7 @@ export async function deletePendingRequirementAction(
 
   revalidatePath("/requirements/pending-review");
   revalidatePath(`/requirements/pending-review/${draft.id}`);
-  revalidatePath("/ai-executions");
-  revalidatePath(`/ai-executions/${draft.sourceExecutionId}`);
+  revalidatePath("/execution-tasks");
+  revalidatePath(`/execution-tasks/${draft.sourceExecutionId}`);
   return { ok: true, message: "待评审需求已删除" };
 }

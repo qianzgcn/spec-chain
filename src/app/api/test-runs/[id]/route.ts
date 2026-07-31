@@ -19,11 +19,13 @@ export async function GET(
   const run = await db.testRun.findFirst({
     where: {
       id,
+      deletedAt: null,
       testCase: { projectId: context.project.id },
     },
     select: {
       id: true,
       status: true,
+      stage: true,
       queuedAt: true,
       startedAt: true,
       durationMs: true,
@@ -34,6 +36,14 @@ export async function GET(
       artifactsPurgedAt: true,
       cancelRequestedAt: true,
       baseUrlSnapshot: true,
+      generatedScriptInRun: true,
+      modelProfileNameSnapshot: true,
+      modelIdSnapshot: true,
+      skillNameSnapshot: true,
+      skillVersionSnapshot: true,
+      promptTokens: true,
+      completionTokens: true,
+      totalTokens: true,
     },
   });
   if (!run) {
@@ -48,6 +58,7 @@ export async function GET(
     run: {
       id: run.id,
       status: run.status,
+      stage: run.stage,
       queuedAt: run.queuedAt.toISOString(),
       startedAt: run.startedAt?.toISOString() ?? null,
       durationMs: run.durationMs,
@@ -57,6 +68,14 @@ export async function GET(
       artifactsExpired,
       cancelRequested: Boolean(run.cancelRequestedAt),
       baseUrl: run.baseUrlSnapshot,
+      generatedScriptInRun: run.generatedScriptInRun,
+      modelProfileName: run.modelProfileNameSnapshot,
+      modelId: run.modelIdSnapshot,
+      skillName: run.skillNameSnapshot,
+      skillVersion: run.skillVersionSnapshot,
+      promptTokens: run.promptTokens,
+      completionTokens: run.completionTokens,
+      totalTokens: run.totalTokens,
     },
   });
 }

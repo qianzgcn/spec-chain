@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { RunStatus } from "@/generated/prisma/enums";
+import { createAutomationInputFingerprint } from "@/automation/fingerprint";
+import { getAutomationScriptStatus } from "@/automation/script-status";
+import { RunStatus, TestRunStage } from "@/generated/prisma/enums";
 import { getAuthenticatedApiContext } from "@/server/api/context";
 import { db } from "@/server/db";
-import { startQueueWorker } from "@/server/runner/launcher";
+import { startTaskScheduler } from "@/server/tasks/launcher";
 
 const ARTIFACT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 
@@ -36,12 +38,13 @@ export async function GET(
   }
 
   const runs = await db.testRun.findMany({
-    where: { testCaseId: id },
+    where: { testCaseId: id, deletedAt: null },
     orderBy: { queuedAt: "desc" },
     take: 50,
     select: {
       id: true,
       status: true,
+      stage: true,
       queuedAt: true,
       startedAt: true,
       durationMs: true,
@@ -53,6 +56,7 @@ export async function GET(
     runs: runs.map((run) => ({
       id: run.id,
       status: run.status,
+      stage: run.stage,
       queuedAt: run.queuedAt.toISOString(),
       startedAt: run.startedAt?.toISOString() ?? null,
       durationMs: run.durationMs,
@@ -86,6 +90,24 @@ export async function POST(
       name: true,
       enabled: true,
       script: true,
+      scriptSource: true,
+      aiScriptFingerprint: true,
+      preconditions: true,
+      steps: true,
+      project: {
+        select: {
+          automationInstructions: true,
+          variables: {
+            where: { deletedAt: null },
+            orderBy: { position: "asc" },
+            select: {
+              name: true,
+              kind: true,
+              description: true,
+            },
+          },
+        },
+      },
     },
   });
   if (!testCase) {
@@ -100,18 +122,29 @@ export async function POST(
       { status: 400 },
     );
   }
-  if (!testCase.script?.trim()) {
-    return NextResponse.json(
-      { message: "请先编写 Playwright TypeScript 脚本" },
-      { status: 400 },
-    );
-  }
   if (!context.project.baseUrl) {
     return NextResponse.json(
       { message: "请先在项目设置中配置 Base URL" },
       { status: 400 },
     );
   }
+
+  const fingerprint = createAutomationInputFingerprint({
+    testCase,
+    baseUrl: context.project.baseUrl,
+    automationInstructions: testCase.project.automationInstructions,
+    variables: testCase.project.variables,
+  });
+  const scriptStatus = getAutomationScriptStatus({
+    script: testCase.script,
+    source: testCase.scriptSource,
+    aiFingerprint: testCase.aiScriptFingerprint,
+    currentFingerprint: fingerprint,
+  });
+  const scriptSnapshot =
+    scriptStatus === "NOT_GENERATED" || scriptStatus === "STALE"
+      ? null
+      : testCase.script;
 
   const run = await db.testRun.create({
     data: {
@@ -121,23 +154,24 @@ export async function POST(
       artifactsExpireAt: new Date(Date.now() + ARTIFACT_RETENTION_MS),
       testCaseCodeSnapshot: testCase.code,
       testCaseNameSnapshot: testCase.name,
-      scriptSnapshot: testCase.script,
+      scriptSnapshot,
       baseUrlSnapshot: context.project.baseUrl,
     },
     select: { id: true, status: true },
   });
 
-  if (!startQueueWorker()) {
+  if (!startTaskScheduler()) {
     await db.testRun.update({
       where: { id: run.id },
       data: {
         status: RunStatus.FAILED,
+        stage: TestRunStage.COMPLETED,
         finishedAt: new Date(),
-        errorSummary: "无法启动运行队列子进程",
+        errorSummary: "无法启动任务调度器",
       },
     });
     return NextResponse.json(
-      { message: "无法启动运行队列，请查看服务日志" },
+      { message: "无法启动任务调度器，请查看服务日志" },
       { status: 500 },
     );
   }

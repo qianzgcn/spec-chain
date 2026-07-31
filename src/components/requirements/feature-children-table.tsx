@@ -1,7 +1,5 @@
-import Link from "next/link";
-
+import { ButtonLink } from "@/components/navigation/button-link";
 import { RequirementStatusBadge } from "@/components/requirements/requirement-status-badge";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -51,22 +49,20 @@ export function FeatureChildrenTable({ items }: { items: ChildStory[] }) {
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1">
-                  <Button
+                  <ButtonLink
+                    href={`/user-stories/${item.id}`}
                     variant="ghost"
                     size="sm"
-                    nativeButton={false}
-                    render={<Link href={`/user-stories/${item.id}`} />}
                   >
                     查看
-                  </Button>
-                  <Button
+                  </ButtonLink>
+                  <ButtonLink
+                    href={`/user-stories/${item.id}/edit`}
                     variant="ghost"
                     size="sm"
-                    nativeButton={false}
-                    render={<Link href={`/user-stories/${item.id}/edit`} />}
                   >
                     编辑
-                  </Button>
+                  </ButtonLink>
                 </div>
               </TableCell>
             </TableRow>

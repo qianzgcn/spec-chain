@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 
 import { LayersIcon } from "lucide-react";
-import Link from "next/link";
 
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
+import { ButtonLink } from "@/components/navigation/button-link";
 import { ProjectRequiredState } from "@/components/projects/project-required-state";
 import { TestCaseForm } from "@/components/test-cases/test-case-form";
-import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyContent,
@@ -74,12 +73,7 @@ export default async function NewTestCasePage() {
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button
-                nativeButton={false}
-                render={<Link href="/test-case-groups" />}
-              >
-                创建用例分组
-              </Button>
+              <ButtonLink href="/test-case-groups">创建用例分组</ButtonLink>
             </EmptyContent>
           </Empty>
         </div>
