@@ -17,6 +17,11 @@ export type AutomationFingerprintInput = {
   baseUrl: string;
   automationInstructions: string | null;
   variables: readonly AutomationVariableMetadata[];
+  authentication: {
+    profileId: string;
+    usernameVariableName: string;
+    passwordVariableName: string;
+  } | null;
 };
 
 export function createAutomationInputFingerprint(
@@ -30,6 +35,7 @@ export function createAutomationInputFingerprint(
     },
     baseUrl: input.baseUrl.trim(),
     automationInstructions: input.automationInstructions?.trim() || null,
+    authentication: input.authentication,
     variables: input.variables
       .map((variable) => ({
         name: variable.name,

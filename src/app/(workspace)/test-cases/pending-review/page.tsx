@@ -50,9 +50,14 @@ export default async function PendingReviewTestCasesPage({
       ...(batchId ? { id: batchId } : {}),
     },
   };
-  const [total, groups] = await Promise.all([
+  const [total, groups, loginProfiles] = await Promise.all([
     db.testCaseDraft.count({ where }),
     db.testCaseGroup.findMany({
+      where: { projectId: project.id, deletedAt: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    db.projectLoginProfile.findMany({
       where: { projectId: project.id, deletedAt: null },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
@@ -70,6 +75,7 @@ export default async function PendingReviewTestCasesPage({
       name: true,
       priority: true,
       groupId: true,
+      loginProfileId: true,
       createdAt: true,
       batch: {
         select: {
@@ -97,6 +103,7 @@ export default async function PendingReviewTestCasesPage({
     priority: draft.priority,
     groupId:
       draft.groupId && activeGroupIds.has(draft.groupId) ? draft.groupId : null,
+    loginProfileId: draft.loginProfileId,
     requirementText: draft.batch.sourceExecution.requirementText,
     sourceUserStory: draft.batch.sourceExecution.sourceUserStory
       ? {
@@ -118,10 +125,14 @@ export default async function PendingReviewTestCasesPage({
       />
       <PendingTestCasesList
         key={items
-          .map((item) => `${item.id}:${item.groupId ?? "none"}`)
+          .map(
+            (item) =>
+              `${item.id}:${item.groupId ?? "none"}:${item.loginProfileId ?? "none"}`,
+          )
           .join("|")}
         items={items}
         groups={groups}
+        loginProfiles={loginProfiles}
         total={total}
         page={safePage}
         batchId={batchId}

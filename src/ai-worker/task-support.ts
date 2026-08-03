@@ -2,6 +2,7 @@ import { ModelProviderError } from "@/ai/model-provider";
 import { RepositoryCodeError } from "@/ai/repository-code-source";
 import { AiWorkflowError } from "@/ai/workflow";
 import { AutomationAgentError } from "@/automation/agent";
+import { AutomationAuthenticationError } from "@/automation/authentication";
 import { PlaywrightCliError } from "@/automation/playwright-cli-session";
 import { AutomationScriptValidationError } from "@/automation/script-validator";
 import type { Prisma } from "@/generated/prisma/client";
@@ -41,6 +42,9 @@ export function getSafeTaskError(error: unknown, timeoutSignal: AbortSignal) {
   if (error instanceof AutomationAgentError) {
     return { code: error.code, message: error.message };
   }
+  if (error instanceof AutomationAuthenticationError) {
+    return { code: error.code, message: error.message };
+  }
   if (error instanceof PlaywrightCliError) {
     return { code: `PLAYWRIGHT_CLI_${error.code}`, message: error.message };
   }
@@ -68,6 +72,8 @@ function getStageStartedMessage(
         : "正在根据需求和代码生成自然语言测试用例草稿。";
     case AiExecutionStage.PROBING_PAGE:
       return "正在使用独立浏览器会话探测真实页面。";
+    case AiExecutionStage.PREPARING_AUTHENTICATION:
+      return "正在调用项目登录方法准备页面探测环境。";
     case AiExecutionStage.GENERATING_SCRIPT:
       return "模型已提交自动化脚本，正在进行安全检查。";
     case AiExecutionStage.VALIDATING_SCRIPT:

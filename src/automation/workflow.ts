@@ -3,6 +3,10 @@ import path from "node:path";
 import type { LanguageModel } from "ai";
 
 import { runAutomationScriptAgent } from "@/automation/agent";
+import {
+  prepareAuthenticationState,
+  type ResolvedAutomationAuthentication,
+} from "@/automation/authentication";
 import type { AutomationVariableMetadata } from "@/automation/fingerprint";
 import { PlaywrightCliSession } from "@/automation/playwright-cli-session";
 import {
@@ -17,7 +21,10 @@ import {
 import type { ModelUsage } from "@/ai/model-provider";
 
 export type AutomationGenerationStage =
-  "PROBING_PAGE" | "GENERATING_SCRIPT" | "VALIDATING_SCRIPT";
+  | "PREPARING_AUTHENTICATION"
+  | "PROBING_PAGE"
+  | "GENERATING_SCRIPT"
+  | "VALIDATING_SCRIPT";
 
 export type AutomationScriptWorkflowInput = {
   taskId: string;
@@ -25,6 +32,7 @@ export type AutomationScriptWorkflowInput = {
   model: LanguageModel;
   baseUrl: string;
   automationInstructions: string | null;
+  authentication: ResolvedAutomationAuthentication | null;
   variables: Array<
     AutomationVariableMetadata & {
       value: string;
@@ -55,11 +63,32 @@ export async function generateAutomationScript(
   const variableValues = Object.fromEntries(
     input.variables.map((variable) => [variable.name, variable.value]),
   );
+  let storageStatePath: string | undefined;
+  if (input.authentication) {
+    await input.onStage?.("PREPARING_AUTHENTICATION");
+    await input.onLog?.(
+      `正在使用登录身份“${input.authentication.profileName}”准备独立认证环境。`,
+    );
+    storageStatePath = await prepareAuthenticationState({
+      workDir: path.join(input.workDir, "authentication"),
+      baseUrl: input.baseUrl,
+      authentication: input.authentication,
+      environment: {
+        ...process.env,
+        BASE_URL: input.baseUrl,
+        ...variableValues,
+        PLAYWRIGHT_HTML_OPEN: "never",
+      },
+      abortSignal: input.abortSignal,
+    });
+    await input.onLog?.("登录方法执行成功，已创建本次任务的临时认证状态。");
+  }
   const session = new PlaywrightCliSession({
     taskId: input.taskId,
     workDir: path.join(input.workDir, "probe"),
     baseUrl: input.baseUrl,
     secretValues: input.variables.map((variable) => variable.value),
+    storageStatePath,
     abortSignal: input.abortSignal,
   });
 
@@ -74,6 +103,13 @@ export async function generateAutomationScript(
       prompt: buildAutomationScriptPrompt({
         baseUrl: input.baseUrl,
         automationInstructions: input.automationInstructions,
+        authentication: input.authentication
+          ? {
+              profileName: input.authentication.profileName,
+              usernameVariableName: input.authentication.usernameVariableName,
+              passwordVariableName: input.authentication.passwordVariableName,
+            }
+          : null,
         variables: variableMetadata,
         testCase: input.testCase,
       }),
@@ -87,6 +123,7 @@ export async function generateAutomationScript(
     const script = validateAutomationScriptStatic({
       script: generated.script,
       allowedVariableNames: variableMetadata.map((variable) => variable.name),
+      authentication: input.authentication,
       requiresCleanup: requiresIsolatedTestData(input.testCase),
     });
     await input.onLog?.("脚本已通过静态安全检查。");
@@ -97,6 +134,7 @@ export async function generateAutomationScript(
       baseUrl: input.baseUrl,
       workDir: path.join(input.workDir, "validation"),
       abortSignal: input.abortSignal,
+      loginMethodSource: input.authentication?.loginMethodSource,
     });
     await input.onLog?.(
       "脚本已通过 Playwright 编译与单测试发现检查，未执行业务操作。",

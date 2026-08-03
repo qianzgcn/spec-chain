@@ -67,6 +67,35 @@ const automationInstructionsSchema = z
   .trim()
   .max(20_000, "自动化约束不能超过 20000 个字符");
 
+const loginMethodSourceSchema = z
+  .string()
+  .trim()
+  .max(100_000, "登录方法不能超过 100000 个字符");
+
+const loginProfileSchema = z.object({
+  id: z.string().optional(),
+  name: z
+    .string()
+    .trim()
+    .min(1, "请输入登录身份名称")
+    .max(100, "登录身份名称不能超过 100 个字符"),
+  usernameVariableId: z.string().min(1, "请选择用户名变量"),
+  passwordVariableId: z.string().min(1, "请选择密码变量"),
+});
+
+function validateAuthenticationSettings(
+  value: { loginMethodSource: string; profiles: unknown[] },
+  context: z.core.$RefinementCtx,
+) {
+  if (value.profiles.length > 0 && !value.loginMethodSource) {
+    context.addIssue({
+      code: "custom",
+      path: ["loginMethodSource"],
+      message: "配置登录身份前需要填写登录方法",
+    });
+  }
+}
+
 const variableActionSchema = z.object({
   id: z.string().optional(),
   name: variableNameSchema,
@@ -115,6 +144,21 @@ export const projectTestingSettingsFormSchema = z.object({
   variables: z.array(variableFormSchema),
 });
 
+export const projectAuthenticationSchema = z
+  .object({
+    projectId: z.string().min(1),
+    loginMethodSource: loginMethodSourceSchema,
+    profiles: z.array(loginProfileSchema),
+  })
+  .superRefine(validateAuthenticationSettings);
+
+export const projectAuthenticationFormSchema = z
+  .object({
+    loginMethodSource: loginMethodSourceSchema,
+    profiles: z.array(loginProfileSchema),
+  })
+  .superRefine(validateAuthenticationSettings);
+
 export const projectPatSchema = z.object({
   projectId: z.string().min(1),
   provider: gitProviderSchema,
@@ -142,4 +186,7 @@ export type ProjectRepositoriesFormValues = z.infer<
 >;
 export type ProjectTestingSettingsFormValues = z.infer<
   typeof projectTestingSettingsFormSchema
+>;
+export type ProjectAuthenticationFormValues = z.infer<
+  typeof projectAuthenticationFormSchema
 >;

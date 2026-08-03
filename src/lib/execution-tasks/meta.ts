@@ -49,6 +49,7 @@ export const AI_EXECUTION_STAGE_LABELS: Record<AiExecutionStage, string> = {
   [AiExecutionStage.CHECKING_REPOSITORIES]: "检查并读取代码仓库",
   [AiExecutionStage.SELECTING_CODE]: "定位相关代码",
   [AiExecutionStage.GENERATING_DRAFT]: "生成结构化草稿",
+  [AiExecutionStage.PREPARING_AUTHENTICATION]: "准备登录环境",
   [AiExecutionStage.PROBING_PAGE]: "探测真实页面",
   [AiExecutionStage.GENERATING_SCRIPT]: "生成自动化脚本",
   [AiExecutionStage.VALIDATING_SCRIPT]: "校验自动化脚本",
@@ -58,6 +59,7 @@ export const AI_EXECUTION_STAGE_LABELS: Record<AiExecutionStage, string> = {
 export const TEST_RUN_STAGE_LABELS: Record<TestRunStage, string> = {
   [TestRunStage.QUEUED]: "等待执行",
   [TestRunStage.GENERATING_SCRIPT]: "生成自动化脚本",
+  [TestRunStage.PREPARING_AUTHENTICATION]: "准备登录环境",
   [TestRunStage.PROBING_PAGE]: "探测真实页面",
   [TestRunStage.VALIDATING_SCRIPT]: "校验自动化脚本",
   [TestRunStage.RUNNING_TEST]: "执行测试用例",

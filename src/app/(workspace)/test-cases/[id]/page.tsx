@@ -43,6 +43,15 @@ export default async function TestCaseDetailPage({
           feature: { select: { name: true } },
         },
       },
+      loginProfile: {
+        select: {
+          id: true,
+          name: true,
+          deletedAt: true,
+          usernameVariable: { select: { name: true } },
+          passwordVariable: { select: { name: true } },
+        },
+      },
       project: {
         select: {
           baseUrl: true,
@@ -80,6 +89,13 @@ export default async function TestCaseDetailPage({
     baseUrl: testCase.project.baseUrl ?? "",
     automationInstructions: testCase.project.automationInstructions,
     variables: testCase.project.variables,
+    authentication: testCase.loginProfile
+      ? {
+          profileId: testCase.loginProfile.id,
+          usernameVariableName: testCase.loginProfile.usernameVariable.name,
+          passwordVariableName: testCase.loginProfile.passwordVariable.name,
+        }
+      : null,
   });
   const scriptStatus = getAutomationScriptStatus({
     script: testCase.script,
@@ -103,6 +119,11 @@ export default async function TestCaseDetailPage({
               {testCase.enabled ? "已启用" : "已停用"}
             </Badge>
             <span>{testCase.group.name}</span>
+            <span data-testid="test-case-login-profile">
+              {testCase.loginProfile && !testCase.loginProfile.deletedAt
+                ? testCase.loginProfile.name
+                : "不预登录"}
+            </span>
           </>
         }
         actions={

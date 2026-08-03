@@ -36,7 +36,7 @@ export default async function NewTestCasePage() {
     );
   }
 
-  const [groups, userStories] = await Promise.all([
+  const [groups, userStories, loginProfiles] = await Promise.all([
     db.testCaseGroup.findMany({
       where: { projectId: project.id, deletedAt: null },
       orderBy: { name: "asc" },
@@ -51,6 +51,11 @@ export default async function NewTestCasePage() {
         title: true,
         feature: { select: { name: true } },
       },
+    }),
+    db.projectLoginProfile.findMany({
+      where: { projectId: project.id, deletedAt: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
     }),
   ]);
 
@@ -90,6 +95,7 @@ export default async function NewTestCasePage() {
         title: story.title,
         featureName: story.feature?.name ?? null,
       }))}
+      loginProfiles={loginProfiles}
     />
   );
 }

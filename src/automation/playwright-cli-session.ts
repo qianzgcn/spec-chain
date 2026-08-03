@@ -60,12 +60,12 @@ function truncateOutput(content: string) {
 }
 
 function resolveCliPath() {
-  const require = createRequire(import.meta.url);
+  const require = createRequire(path.join(process.cwd(), "package.json"));
   return require.resolve("@playwright/cli/playwright-cli.js");
 }
 
 function resolveProjectChromiumExecutablePath() {
-  const require = createRequire(import.meta.url);
+  const require = createRequire(path.join(process.cwd(), "package.json"));
   const playwright = require("playwright") as {
     chromium: { executablePath: () => string };
   };
@@ -167,6 +167,7 @@ export class PlaywrightCliSession {
       workDir: string;
       baseUrl: string;
       secretValues: readonly string[];
+      storageStatePath?: string;
       abortSignal: AbortSignal;
     },
   ) {
@@ -190,7 +191,12 @@ export class PlaywrightCliSession {
             browserName: "chromium",
             isolated: true,
             launchOptions: { executablePath, headless: true },
-            contextOptions: { viewport: { width: 1440, height: 900 } },
+            contextOptions: {
+              viewport: { width: 1440, height: 900 },
+              ...(this.input.storageStatePath
+                ? { storageState: this.input.storageStatePath }
+                : {}),
+            },
           },
           outputMode: "stdout",
           codegen: "typescript",

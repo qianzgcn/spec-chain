@@ -6,6 +6,10 @@ import {
 } from "@/ai/model-provider";
 import { builtInSkillResolver } from "@/ai/skills";
 import { AutomationAgentError } from "@/automation/agent";
+import {
+  AutomationAuthenticationError,
+  type ResolvedAutomationAuthentication,
+} from "@/automation/authentication";
 import { createAutomationInputFingerprint } from "@/automation/fingerprint";
 import { PlaywrightCliError } from "@/automation/playwright-cli-session";
 import { AutomationScriptValidationError } from "@/automation/script-validator";
@@ -42,6 +46,7 @@ export function getAutomationGenerationErrorMessage(error: unknown) {
   if (
     error instanceof ModelProviderError ||
     error instanceof AutomationAgentError ||
+    error instanceof AutomationAuthenticationError ||
     error instanceof PlaywrightCliError ||
     error instanceof AutomationScriptValidationError
   ) {
@@ -58,6 +63,11 @@ function getStageMessage(stage: AutomationGenerationStage) {
       return {
         label: "探测真实页面",
         message: "正在使用独立的无头 Chromium 会话探测真实页面。",
+      };
+    case "PREPARING_AUTHENTICATION":
+      return {
+        label: "准备登录环境",
+        message: "正在调用项目登录方法准备页面探测环境。",
       };
     case "GENERATING_SCRIPT":
       return {
@@ -76,6 +86,7 @@ export async function generateScriptForRun(input: {
   run: RunnerTestRun;
   workerId: string;
   variables: RunnerVariable[];
+  authentication: ResolvedAutomationAuthentication | null;
   workDir: string;
   stopSignal: AbortSignal;
   logger: RunLogWriter;
@@ -122,6 +133,13 @@ export async function generateScriptForRun(input: {
     baseUrl: input.run.baseUrlSnapshot,
     automationInstructions: input.run.testCase.project.automationInstructions,
     variables: input.variables,
+    authentication: input.authentication
+      ? {
+          profileId: input.authentication.profileId,
+          usernameVariableName: input.authentication.usernameVariableName,
+          passwordVariableName: input.authentication.passwordVariableName,
+        }
+      : null,
   });
   const timeoutSignal = AbortSignal.timeout(GENERATION_TIMEOUT_MS);
   const generationSignal = AbortSignal.any([input.stopSignal, timeoutSignal]);
@@ -139,6 +157,7 @@ export async function generateScriptForRun(input: {
       }),
       baseUrl: input.run.baseUrlSnapshot,
       automationInstructions: input.run.testCase.project.automationInstructions,
+      authentication: input.authentication,
       variables: input.variables,
       testCase: input.run.testCase,
       abortSignal: generationSignal,

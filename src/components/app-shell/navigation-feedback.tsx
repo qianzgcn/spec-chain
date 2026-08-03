@@ -6,10 +6,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useState,
   useTransition,
 } from "react";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Spinner } from "@/components/ui/spinner";
 import { confirmLeaveIfDirty } from "@/hooks/use-unsaved-changes";
@@ -32,7 +33,17 @@ export function NavigationFeedbackProvider({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [isNavigating, startNavigationTransition] = useTransition();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [isLinkNavigating, setIsLinkNavigating] = useState(false);
+  const [isProgrammaticNavigationPending, startNavigationTransition] =
+    useTransition();
+  const isNavigating = isLinkNavigating || isProgrammaticNavigationPending;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setIsLinkNavigating(false), 0);
+    return () => window.clearTimeout(timer);
+  }, [pathname, searchParams]);
 
   const navigate = useCallback(
     (href: string, options?: NavigateOptions) => {
@@ -98,16 +109,20 @@ export function NavigationFeedbackProvider({
         return;
       }
 
-      event.preventDefault();
-      navigate(
-        `${destination.pathname}${destination.search}${destination.hash}`,
-      );
+      if (!confirmLeaveIfDirty()) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      // 保留 Next.js Link 的预取和原生导航，只负责提供即时点击反馈。
+      setIsLinkNavigating(true);
     }
 
     document.addEventListener("click", handleInternalLink, true);
     return () =>
       document.removeEventListener("click", handleInternalLink, true);
-  }, [navigate]);
+  }, []);
 
   const contextValue = useMemo(
     () => ({ isNavigating, navigate }),

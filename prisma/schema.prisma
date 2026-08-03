@@ -63,6 +63,7 @@ enum AiExecutionStage {
   CHECKING_REPOSITORIES
   SELECTING_CODE
   GENERATING_DRAFT
+  PREPARING_AUTHENTICATION
   PROBING_PAGE
   GENERATING_SCRIPT
   VALIDATING_SCRIPT
@@ -88,6 +89,7 @@ enum TestCaseScriptSource {
 enum TestRunStage {
   QUEUED
   GENERATING_SCRIPT
+  PREPARING_AUTHENTICATION
   PROBING_PAGE
   VALIDATING_SCRIPT
   RUNNING_TEST
@@ -133,6 +135,7 @@ model Project {
   giteePatEncrypted      String?
   giteePatAccount        String?
   automationInstructions String?
+  loginMethodSource      String?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
   deletedAt              DateTime?
@@ -143,6 +146,7 @@ model Project {
   userStories          UserStory[]
   testGroups           TestCaseGroup[]
   testCases            TestCase[]
+  loginProfiles        ProjectLoginProfile[]
   aiExecutions         AiExecution[]
   aiDrafts             UserStoryDraft[]
   testCaseDraftBatches TestCaseDraftBatch[]
@@ -178,9 +182,32 @@ model ProjectVariable {
   updatedAt   DateTime     @updatedAt
   deletedAt   DateTime?
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  project               Project               @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  usernameLoginProfiles ProjectLoginProfile[] @relation("LoginProfileUsernameVariable")
+  passwordLoginProfiles ProjectLoginProfile[] @relation("LoginProfilePasswordVariable")
 
   @@index([projectId, deletedAt])
+}
+
+model ProjectLoginProfile {
+  id                 String    @id @default(cuid())
+  projectId          String
+  name               String
+  usernameVariableId String
+  passwordVariableId String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  project          Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  usernameVariable ProjectVariable @relation("LoginProfileUsernameVariable", fields: [usernameVariableId], references: [id], onDelete: Restrict)
+  passwordVariable ProjectVariable @relation("LoginProfilePasswordVariable", fields: [passwordVariableId], references: [id], onDelete: Restrict)
+  testCases        TestCase[]
+  testCaseDrafts   TestCaseDraft[]
+
+  @@index([projectId, deletedAt, name])
+  @@index([usernameVariableId])
+  @@index([passwordVariableId])
 }
 
 model Feature {
@@ -265,6 +292,7 @@ model TestCase {
   projectId           String
   groupId             String
   userStoryId         String?
+  loginProfileId      String?
   code                String                @unique
   name                String
   priority            TestPriority          @default(P2)
@@ -279,16 +307,18 @@ model TestCase {
   updatedAt           DateTime              @updatedAt
   deletedAt           DateTime?
 
-  project      Project        @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  group        TestCaseGroup  @relation(fields: [groupId], references: [id], onDelete: Restrict)
-  userStory    UserStory?     @relation(fields: [userStoryId], references: [id], onDelete: Restrict)
+  project      Project              @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  group        TestCaseGroup        @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  userStory    UserStory?           @relation(fields: [userStoryId], references: [id], onDelete: Restrict)
+  loginProfile ProjectLoginProfile? @relation(fields: [loginProfileId], references: [id], onDelete: Restrict)
   runs         TestRun[]
   aiExecutions AiExecution[]
-  sourceDraft  TestCaseDraft? @relation("ConfirmedTestCase")
+  sourceDraft  TestCaseDraft?       @relation("ConfirmedTestCase")
 
   @@index([projectId, deletedAt, updatedAt])
   @@index([groupId, deletedAt])
   @@index([userStoryId, deletedAt])
+  @@index([loginProfileId, deletedAt])
 }
 
 model TestRun {
@@ -489,6 +519,7 @@ model TestCaseDraft {
   id                  String        @id @default(cuid())
   batchId             String
   groupId             String?
+  loginProfileId      String?
   confirmedTestCaseId String?       @unique
   position            Int
   name                String
@@ -501,12 +532,14 @@ model TestCaseDraft {
   updatedAt           DateTime      @updatedAt
   deletedAt           DateTime?
 
-  batch             TestCaseDraftBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
-  group             TestCaseGroup?     @relation(fields: [groupId], references: [id], onDelete: Restrict)
-  confirmedTestCase TestCase?          @relation("ConfirmedTestCase", fields: [confirmedTestCaseId], references: [id], onDelete: Restrict)
+  batch             TestCaseDraftBatch   @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  group             TestCaseGroup?       @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  loginProfile      ProjectLoginProfile? @relation(fields: [loginProfileId], references: [id], onDelete: Restrict)
+  confirmedTestCase TestCase?            @relation("ConfirmedTestCase", fields: [confirmedTestCaseId], references: [id], onDelete: Restrict)
 
   @@index([batchId, deletedAt, position])
   @@index([groupId, deletedAt])
+  @@index([loginProfileId, deletedAt])
   @@index([status, deletedAt])
 }
 

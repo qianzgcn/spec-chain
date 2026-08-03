@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
+import {
+  AutomationAuthenticationError,
+  validateLoginMethodCompilation,
+} from "@/automation/authentication";
 import { VariableKind } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
 import {
@@ -11,6 +15,7 @@ import {
 } from "@/lib/git/repository-url";
 import {
   deleteProjectPatSchema,
+  projectAuthenticationSchema,
   projectBasicSettingsSchema,
   projectPatSchema,
   projectRepositoriesSchema,
@@ -294,6 +299,51 @@ export async function updateProjectTestingSettingsAction(
     return { ok: false, message: "项目变量中包含无效数据" };
   }
 
+  const removedVariableIds = project.variables
+    .filter((variable) => !variableIds.has(variable.id))
+    .map((variable) => variable.id);
+  const referencedProfile = await db.projectLoginProfile.findFirst({
+    where: {
+      projectId: project.id,
+      deletedAt: null,
+      OR: [
+        { usernameVariableId: { in: removedVariableIds } },
+        { passwordVariableId: { in: removedVariableIds } },
+      ],
+    },
+    select: { name: true },
+  });
+  if (referencedProfile) {
+    return {
+      ok: false,
+      message: `登录身份“${referencedProfile.name}”仍在使用待删除的项目变量`,
+    };
+  }
+
+  const nextVariableKinds = new Map(
+    parsed.data.variables.flatMap((variable) =>
+      variable.id ? [[variable.id, variable.kind] as const] : [],
+    ),
+  );
+  const invalidPasswordProfile = await db.projectLoginProfile.findFirst({
+    where: {
+      projectId: project.id,
+      deletedAt: null,
+      passwordVariableId: {
+        in: [...nextVariableKinds]
+          .filter(([, kind]) => kind !== VariableKind.SECRET)
+          .map(([id]) => id),
+      },
+    },
+    select: { name: true },
+  });
+  if (invalidPasswordProfile) {
+    return {
+      ok: false,
+      message: `登录身份“${invalidPasswordProfile.name}”的密码变量必须保持为敏感变量`,
+    };
+  }
+
   for (const variable of parsed.data.variables) {
     const existing = variable.id
       ? existingVariables.get(variable.id)
@@ -386,6 +436,179 @@ export async function updateProjectTestingSettingsAction(
         value: variable.kind === VariableKind.SECRET ? "" : variable.value,
         description: variable.description ?? "",
       })),
+    },
+  };
+}
+
+export async function updateProjectAuthenticationAction(
+  input: unknown,
+): Promise<
+  ActionResult<{
+    loginMethodSource: string;
+    profiles: Array<{
+      id: string;
+      name: string;
+      usernameVariableId: string;
+      passwordVariableId: string;
+    }>;
+  }>
+> {
+  await requireUser();
+  const parsed = projectAuthenticationSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: "请检查登录配置",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const profileNames = parsed.data.profiles.map((profile) => profile.name);
+  if (new Set(profileNames).size !== profileNames.length) {
+    return { ok: false, message: "登录身份名称不能重复" };
+  }
+
+  const project = await db.project.findFirst({
+    where: { id: parsed.data.projectId, deletedAt: null },
+    select: {
+      id: true,
+      variables: {
+        where: { deletedAt: null },
+        select: { id: true, kind: true },
+      },
+      loginProfiles: {
+        where: { deletedAt: null },
+        select: { id: true },
+      },
+    },
+  });
+  if (!project) {
+    return { ok: false, message: "项目不存在或已删除" };
+  }
+
+  const variables = new Map(
+    project.variables.map((variable) => [variable.id, variable]),
+  );
+  const existingProfileIds = new Set(
+    project.loginProfiles.map((profile) => profile.id),
+  );
+  const submittedProfileIds = new Set(
+    parsed.data.profiles.flatMap((profile) => (profile.id ? [profile.id] : [])),
+  );
+  if ([...submittedProfileIds].some((id) => !existingProfileIds.has(id))) {
+    return { ok: false, message: "登录配置中包含无效数据" };
+  }
+
+  for (const profile of parsed.data.profiles) {
+    const usernameVariable = variables.get(profile.usernameVariableId);
+    const passwordVariable = variables.get(profile.passwordVariableId);
+    if (!usernameVariable || !passwordVariable) {
+      return {
+        ok: false,
+        message: `登录身份“${profile.name}”引用的项目变量不存在`,
+      };
+    }
+    if (passwordVariable.kind !== VariableKind.SECRET) {
+      return {
+        ok: false,
+        message: `登录身份“${profile.name}”的密码必须使用敏感变量`,
+      };
+    }
+  }
+
+  const removedProfileIds = [...existingProfileIds].filter(
+    (id) => !submittedProfileIds.has(id),
+  );
+  if (removedProfileIds.length > 0) {
+    const referenced = await db.projectLoginProfile.findFirst({
+      where: {
+        id: { in: removedProfileIds },
+        OR: [
+          { testCases: { some: { deletedAt: null } } },
+          {
+            testCaseDrafts: {
+              some: { deletedAt: null, status: "PENDING" },
+            },
+          },
+        ],
+      },
+      select: { name: true },
+    });
+    if (referenced) {
+      return {
+        ok: false,
+        message: `登录身份“${referenced.name}”仍被测试用例使用，不能删除`,
+      };
+    }
+  }
+
+  if (parsed.data.loginMethodSource) {
+    try {
+      await validateLoginMethodCompilation(parsed.data.loginMethodSource);
+    } catch (error) {
+      if (error instanceof AutomationAuthenticationError) {
+        return { ok: false, message: error.message };
+      }
+      return { ok: false, message: "登录方法编译检查失败" };
+    }
+  }
+
+  const profiles = await db.$transaction(async (transaction) => {
+    await transaction.project.update({
+      where: { id: project.id },
+      data: {
+        loginMethodSource: parsed.data.loginMethodSource || null,
+      },
+    });
+    if (removedProfileIds.length > 0) {
+      await transaction.projectLoginProfile.updateMany({
+        where: { id: { in: removedProfileIds }, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+    }
+
+    for (const profile of parsed.data.profiles) {
+      if (profile.id) {
+        await transaction.projectLoginProfile.update({
+          where: { id: profile.id },
+          data: {
+            name: profile.name,
+            usernameVariableId: profile.usernameVariableId,
+            passwordVariableId: profile.passwordVariableId,
+          },
+        });
+      } else {
+        await transaction.projectLoginProfile.create({
+          data: {
+            projectId: project.id,
+            name: profile.name,
+            usernameVariableId: profile.usernameVariableId,
+            passwordVariableId: profile.passwordVariableId,
+          },
+        });
+      }
+    }
+
+    return transaction.projectLoginProfile.findMany({
+      where: { projectId: project.id, deletedAt: null },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        name: true,
+        usernameVariableId: true,
+        passwordVariableId: true,
+      },
+    });
+  });
+
+  revalidatePath("/project-settings/authentication");
+  revalidatePath("/test-cases");
+  return {
+    ok: true,
+    message: "登录配置已保存",
+    data: {
+      loginMethodSource: parsed.data.loginMethodSource,
+      profiles,
     },
   };
 }
@@ -719,15 +942,23 @@ export async function deleteProjectAction(
     };
   }
 
-  await db.project.update({
-    where: { id: projectId },
-    data: {
-      deletedAt: new Date(),
-      githubPatEncrypted: null,
-      githubPatAccount: null,
-      giteePatEncrypted: null,
-      giteePatAccount: null,
-    },
+  const deletedAt = new Date();
+  await db.$transaction(async (transaction) => {
+    await transaction.projectLoginProfile.updateMany({
+      where: { projectId, deletedAt: null },
+      data: { deletedAt },
+    });
+    await transaction.project.update({
+      where: { id: projectId },
+      data: {
+        deletedAt,
+        githubPatEncrypted: null,
+        githubPatAccount: null,
+        giteePatEncrypted: null,
+        giteePatAccount: null,
+        loginMethodSource: null,
+      },
+    });
   });
 
   const cookieStore = await cookies();

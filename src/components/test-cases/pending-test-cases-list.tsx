@@ -10,6 +10,7 @@ import {
   confirmPendingTestCaseDraftAction,
   deletePendingTestCaseDraftAction,
   updatePendingTestCaseDraftGroupAction,
+  updatePendingTestCaseDraftLoginProfileAction,
 } from "@/app/actions/pending-test-cases";
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
 import { DataTable } from "@/components/data-table/data-table";
@@ -32,12 +33,14 @@ import { formatDetailedDateTime } from "@/lib/date-time";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
 
 const UNASSIGNED_GROUP = "__unassigned__";
+const NO_LOGIN_PROFILE = "__no_login_profile__";
 
 export type PendingTestCaseListItem = {
   id: string;
   name: string;
   priority: TestPriority;
   groupId: string | null;
+  loginProfileId: string | null;
   sourceUserStory: {
     code: string;
     title: string;
@@ -55,12 +58,14 @@ type GroupOption = {
 export function PendingTestCasesList({
   items,
   groups,
+  loginProfiles,
   total,
   page,
   batchId,
 }: {
   items: PendingTestCaseListItem[];
   groups: GroupOption[];
+  loginProfiles: Array<{ id: string; name: string }>;
   total: number;
   page: number;
   batchId?: string;
@@ -76,9 +81,23 @@ export function PendingTestCasesList({
       items.map((item) => [item.id, item.groupId ?? UNASSIGNED_GROUP]),
     ),
   );
+  const [loginProfileValues, setLoginProfileValues] = useState<
+    Record<string, string>
+  >(() =>
+    Object.fromEntries(
+      items.map((item) => [item.id, item.loginProfileId ?? NO_LOGIN_PROFILE]),
+    ),
+  );
   const groupSelectOptions = [
     { value: UNASSIGNED_GROUP, label: "未分组" },
     ...groups.map((group) => ({ value: group.id, label: group.name })),
+  ];
+  const loginProfileOptions = [
+    { value: NO_LOGIN_PROFILE, label: "不预登录" },
+    ...loginProfiles.map((profile) => ({
+      value: profile.id,
+      label: profile.name,
+    })),
   ];
 
   function changePage(nextPage: number) {
@@ -139,6 +158,49 @@ export function PendingTestCasesList({
         router.refresh();
       } catch {
         toast.add({ type: "error", description: "评审测试用例失败" });
+      } finally {
+        setPendingAction(null);
+      }
+    });
+  }
+
+  function changeLoginProfile(
+    item: PendingTestCaseListItem,
+    value: string | null,
+  ) {
+    if (!value) return;
+
+    const previousValue = loginProfileValues[item.id] ?? NO_LOGIN_PROFILE;
+    const nextLoginProfileId = value === NO_LOGIN_PROFILE ? null : value;
+    setLoginProfileValues((current) => ({
+      ...current,
+      [item.id]: value,
+    }));
+    setPendingAction(`login:${item.id}`);
+
+    startTransition(async () => {
+      try {
+        const result = await updatePendingTestCaseDraftLoginProfileAction({
+          draftId: item.id,
+          loginProfileId: nextLoginProfileId,
+        });
+        if (!result.ok) {
+          setLoginProfileValues((current) => ({
+            ...current,
+            [item.id]: previousValue,
+          }));
+          toast.add({ type: "error", description: result.message });
+          return;
+        }
+
+        toast.add({ type: "success", description: result.message });
+        router.refresh();
+      } catch {
+        setLoginProfileValues((current) => ({
+          ...current,
+          [item.id]: previousValue,
+        }));
+        toast.add({ type: "error", description: "更新登录身份失败" });
       } finally {
         setPendingAction(null);
       }
@@ -231,6 +293,40 @@ export function PendingTestCasesList({
             <SelectContent align="start">
               <SelectGroup>
                 {groupSelectOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        );
+      },
+    },
+    {
+      id: "loginProfile",
+      header: "登录身份",
+      size: 148,
+      meta: { cellClassName: "overflow-visible" },
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <Select
+            items={loginProfileOptions}
+            value={loginProfileValues[item.id] ?? NO_LOGIN_PROFILE}
+            disabled={isPending}
+            onValueChange={(value) => changeLoginProfile(item, value)}
+          >
+            <SelectTrigger
+              size="sm"
+              className="w-full"
+              aria-label={`设置“${item.name}”的登录身份`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="start">
+              <SelectGroup>
+                {loginProfileOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>

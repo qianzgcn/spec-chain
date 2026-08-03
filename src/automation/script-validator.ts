@@ -2,6 +2,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 
+import {
+  LOGIN_MODULE_IMPORT,
+  writeLoginMethodModule,
+} from "@/automation/authentication";
 import { buildPlaywrightConfig } from "@/runner/playwright-config";
 import { runChildProcess } from "@/task-runtime/child-process";
 
@@ -27,7 +31,13 @@ export function requiresIsolatedTestData(testCase: {
   );
 }
 
-function assertScriptStructure(script: string) {
+function assertScriptStructure(
+  script: string,
+  authentication: {
+    usernameVariableName: string;
+    passwordVariableName: string;
+  } | null,
+) {
   const firstLine = script.split(/\r?\n/, 1)[0]?.trim();
   if (firstLine !== REQUIRED_IMPORT) {
     throw new AutomationScriptValidationError(
@@ -35,10 +45,20 @@ function assertScriptStructure(script: string) {
     );
   }
 
-  const importCount = (script.match(/\bimport\s/g) ?? []).length;
-  if (importCount !== 1 || /\b(?:require|export)\s*(?:\(|\{|\*)/.test(script)) {
+  const imports = script.match(/^\s*import\b.*$/gm)?.map((line) => line.trim());
+  const expectedImports = authentication
+    ? [REQUIRED_IMPORT, LOGIN_MODULE_IMPORT]
+    : [REQUIRED_IMPORT];
+  if (
+    !imports ||
+    imports.length !== expectedImports.length ||
+    imports.some((line, index) => line !== expectedImports[index]) ||
+    /\b(?:require|export)\s*(?:\(|\{|\*)/.test(script)
+  ) {
     throw new AutomationScriptValidationError(
-      "脚本只能导入 @playwright/test，不能加载或导出其他模块",
+      authentication
+        ? "账号用例只能导入 @playwright/test 和平台登录方法"
+        : "脚本只能导入 @playwright/test，不能加载或导出其他模块",
     );
   }
 
@@ -46,6 +66,61 @@ function assertScriptStructure(script: string) {
   if (testCount !== 1) {
     throw new AutomationScriptValidationError(
       "每个自动化脚本必须且只能包含一个 test",
+    );
+  }
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function assertAuthenticationUsage(
+  script: string,
+  authentication: {
+    usernameVariableName: string;
+    passwordVariableName: string;
+  } | null,
+) {
+  if (!authentication) {
+    if (
+      script.includes(LOGIN_MODULE_IMPORT) ||
+      /\bawait\s+login\s*\(/.test(script)
+    ) {
+      throw new AutomationScriptValidationError(
+        "不预登录的用例不能引用项目登录方法",
+      );
+    }
+    return;
+  }
+
+  const calls = [...script.matchAll(/\bawait\s+login\s*\(/g)];
+  if (calls.length !== 1) {
+    throw new AutomationScriptValidationError(
+      "账号用例必须且只能调用一次项目登录方法",
+    );
+  }
+  const loginCall = script.match(
+    /\bawait\s+login\s*\(\s*page\s*,\s*\{([\s\S]*?)\}\s*\)\s*;/,
+  );
+  if (!loginCall) {
+    throw new AutomationScriptValidationError(
+      "项目登录方法必须接收 page 和固定的账号参数",
+    );
+  }
+
+  const argumentsSource = loginCall[1];
+  const usernamePattern = new RegExp(
+    `\\busername\\s*:\\s*process\\.env\\.${escapeRegExp(authentication.usernameVariableName)}!`,
+  );
+  const passwordPattern = new RegExp(
+    `\\bpassword\\s*:\\s*process\\.env\\.${escapeRegExp(authentication.passwordVariableName)}!`,
+  );
+  if (
+    !usernamePattern.test(argumentsSource) ||
+    !passwordPattern.test(argumentsSource)
+  ) {
+    throw new AutomationScriptValidationError(
+      "项目登录方法必须使用当前登录身份绑定的用户名和密码变量",
     );
   }
 }
@@ -102,12 +177,17 @@ function assertConfiguredVariables(
 export function validateAutomationScriptStatic(input: {
   script: string;
   allowedVariableNames: readonly string[];
+  authentication: {
+    usernameVariableName: string;
+    passwordVariableName: string;
+  } | null;
   requiresCleanup: boolean;
 }) {
   const script = input.script.trim();
-  assertScriptStructure(script);
+  assertScriptStructure(script, input.authentication);
   assertSafeScriptOperations(script);
   assertConfiguredVariables(script, input.allowedVariableNames);
+  assertAuthenticationUsage(script, input.authentication);
 
   if (
     input.requiresCleanup &&
@@ -126,6 +206,7 @@ export async function validateAutomationScriptCompilation(input: {
   baseUrl: string;
   workDir: string;
   abortSignal: AbortSignal;
+  loginMethodSource?: string;
 }) {
   await mkdir(input.workDir, { recursive: true });
   const specPath = path.join(input.workDir, "generated.spec.ts");
@@ -133,9 +214,12 @@ export async function validateAutomationScriptCompilation(input: {
   await Promise.all([
     writeFile(specPath, input.script, "utf8"),
     writeFile(configPath, buildPlaywrightConfig(input.baseUrl), "utf8"),
+    ...(input.loginMethodSource
+      ? [writeLoginMethodModule(input.workDir, input.loginMethodSource)]
+      : []),
   ]);
 
-  const require = createRequire(import.meta.url);
+  const require = createRequire(path.join(process.cwd(), "package.json"));
   const playwrightCli = require.resolve("@playwright/test/cli");
   const result = await runChildProcess({
     command: process.execPath,

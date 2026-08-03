@@ -94,6 +94,13 @@ export async function POST(
       aiScriptFingerprint: true,
       preconditions: true,
       steps: true,
+      loginProfile: {
+        select: {
+          id: true,
+          usernameVariable: { select: { name: true } },
+          passwordVariable: { select: { name: true } },
+        },
+      },
       project: {
         select: {
           automationInstructions: true,
@@ -134,6 +141,13 @@ export async function POST(
     baseUrl: context.project.baseUrl,
     automationInstructions: testCase.project.automationInstructions,
     variables: testCase.project.variables,
+    authentication: testCase.loginProfile
+      ? {
+          profileId: testCase.loginProfile.id,
+          usernameVariableName: testCase.loginProfile.usernameVariable.name,
+          passwordVariableName: testCase.loginProfile.passwordVariable.name,
+        }
+      : null,
   });
   const scriptStatus = getAutomationScriptStatus({
     script: testCase.script,

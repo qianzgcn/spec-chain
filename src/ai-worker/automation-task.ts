@@ -11,6 +11,7 @@ import {
   type AiTaskReporter,
   TaskOwnershipLostError,
 } from "@/ai-worker/task-support";
+import { resolveAutomationAuthentication } from "@/automation/authentication";
 import { createAutomationInputFingerprint } from "@/automation/fingerprint";
 import {
   generateAutomationScript,
@@ -50,6 +51,7 @@ export async function executeAutomationScriptTask(input: {
   const variables = execution.project.variables.map((variable) => {
     try {
       return {
+        id: variable.id,
         name: variable.name,
         kind: variable.kind,
         description: variable.description,
@@ -64,11 +66,23 @@ export async function executeAutomationScriptTask(input: {
       );
     }
   });
+  const authentication = resolveAutomationAuthentication({
+    loginMethodSource: execution.project.loginMethodSource,
+    loginProfile: testCase.loginProfile,
+    variables,
+  });
   const fingerprint = createAutomationInputFingerprint({
     testCase,
     baseUrl,
     automationInstructions: execution.project.automationInstructions,
     variables,
+    authentication: authentication
+      ? {
+          profileId: authentication.profileId,
+          usernameVariableName: authentication.usernameVariableName,
+          passwordVariableName: authentication.passwordVariableName,
+        }
+      : null,
   });
   const workDir = path.join(taskRuntime.dataDir, "automation", execution.id);
   await rm(workDir, { recursive: true, force: true });
@@ -86,6 +100,7 @@ export async function executeAutomationScriptTask(input: {
       }),
       baseUrl,
       automationInstructions: execution.project.automationInstructions,
+      authentication,
       variables,
       testCase,
       abortSignal: input.abortSignal,

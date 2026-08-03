@@ -1,7 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
+import { prepareAuthenticationState } from "@/automation/authentication";
+import { PlaywrightCliSession } from "@/automation/playwright-cli-session";
+import { LOGIN_METHOD_TEMPLATE } from "@/lib/automation/login-contract";
 import { encryptAesGcm } from "@/lib/security/aes-gcm";
 
 async function expectTablePageFillsWorkspace(page: Page) {
@@ -638,6 +642,268 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   }
 });
 
+test("项目登录方法和账号身份可在探测、用例及评审中复用", async ({ page }) => {
+  const databasePath = path.resolve(process.cwd(), "data", "e2e.db");
+  const baseUrl = "http://127.0.0.1:3100";
+
+  await page.goto("/login");
+  await page.getByRole("textbox", { name: "用户名" }).fill("admin");
+  await page.getByRole("textbox", { name: "密码" }).fill("admin12345");
+  await page.getByRole("button", { name: "登录" }).click();
+  await page.waitForURL(
+    (url) => url.pathname !== "/login" && url.pathname !== "/",
+  );
+
+  await page.goto("/projects");
+  await page.getByRole("button", { name: "新建项目" }).click();
+  await page
+    .getByRole("textbox", { name: "项目名称" })
+    .fill("E2E 登录复用项目");
+  await page.getByRole("button", { name: "创建项目", exact: true }).click();
+  await expect(page).toHaveURL(/\/project-settings$/);
+
+  await page.goto("/project-settings/testing");
+  await page.getByRole("textbox", { name: "Base URL" }).fill(baseUrl);
+  await page.getByRole("button", { name: "添加变量" }).click();
+  await page
+    .getByRole("textbox", { name: "变量名" })
+    .fill("E2E_LOGIN_USERNAME");
+  await page.getByLabel("值").fill("admin");
+  await page.getByRole("button", { name: "添加变量" }).click();
+  await page
+    .getByRole("textbox", { name: "变量名" })
+    .nth(1)
+    .fill("E2E_LOGIN_PASSWORD");
+  await page.getByRole("combobox", { name: "类型" }).nth(1).click();
+  await page.getByRole("option", { name: "敏感变量" }).click();
+  await page.getByLabel("值").nth(1).fill("admin12345");
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page.getByRole("button", { name: "保存" })).toBeDisabled();
+
+  await page.goto("/project-settings/authentication");
+  await expect(
+    page.getByRole("heading", { name: "登录配置", level: 1 }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "载入示例" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "登录方法源码" }),
+  ).toContainText("export async function login");
+
+  await page.getByRole("button", { name: "添加身份" }).click();
+  let profileRows = page.getByTestId("login-profile-row");
+  await profileRows
+    .nth(0)
+    .getByRole("textbox", { name: "身份名称" })
+    .fill("管理员");
+  await profileRows
+    .nth(0)
+    .getByRole("combobox", { name: "用户名变量" })
+    .click();
+  await page.getByRole("option", { name: "E2E_LOGIN_USERNAME" }).click();
+  await profileRows.nth(0).getByRole("combobox", { name: "密码变量" }).click();
+  await page.getByRole("option", { name: "E2E_LOGIN_PASSWORD" }).click();
+
+  await page.getByRole("button", { name: "添加身份" }).click();
+  profileRows = page.getByTestId("login-profile-row");
+  await profileRows
+    .nth(1)
+    .getByRole("textbox", { name: "身份名称" })
+    .fill("普通用户");
+  await profileRows
+    .nth(1)
+    .getByRole("combobox", { name: "用户名变量" })
+    .click();
+  await page.getByRole("option", { name: "E2E_LOGIN_USERNAME" }).click();
+  await profileRows.nth(1).getByRole("combobox", { name: "密码变量" }).click();
+  await page.getByRole("option", { name: "E2E_LOGIN_PASSWORD" }).click();
+
+  const saveAuthenticationButton = page.getByRole("button", {
+    name: "保存",
+  });
+  await saveAuthenticationButton.click();
+  await expect(saveAuthenticationButton).toBeDisabled();
+
+  const authenticationWorkDir = await mkdtemp(
+    path.join(process.cwd(), "data", "e2e-authentication-"),
+  );
+  const abortController = new AbortController();
+  let authenticatedSession: PlaywrightCliSession | null = null;
+  try {
+    const storageStatePath = await prepareAuthenticationState({
+      workDir: path.join(authenticationWorkDir, "setup"),
+      baseUrl,
+      authentication: {
+        profileId: "e2e-profile",
+        profileName: "管理员",
+        loginMethodSource: LOGIN_METHOD_TEMPLATE,
+        usernameVariableName: "E2E_LOGIN_USERNAME",
+        passwordVariableName: "E2E_LOGIN_PASSWORD",
+        username: "admin",
+        password: "admin12345",
+      },
+      environment: {
+        ...process.env,
+        E2E_LOGIN_USERNAME: "admin",
+        E2E_LOGIN_PASSWORD: "admin12345",
+      },
+      abortSignal: abortController.signal,
+    });
+    const storageState = await readFile(storageStatePath, "utf8");
+    expect(storageState).not.toContain("admin12345");
+
+    authenticatedSession = new PlaywrightCliSession({
+      taskId: "e2e-authentication-reuse",
+      workDir: path.join(authenticationWorkDir, "probe"),
+      baseUrl,
+      secretValues: ["admin", "admin12345"],
+      storageStatePath,
+      abortSignal: abortController.signal,
+    });
+    await authenticatedSession.initialize();
+    const openResult = await authenticatedSession.open("/requirements");
+    expect(openResult).toContain("/requirements");
+    expect(openResult).not.toContain("/login");
+  } finally {
+    await authenticatedSession?.close();
+    await rm(authenticationWorkDir, { recursive: true, force: true });
+  }
+  await expect(access(authenticationWorkDir)).rejects.toThrow();
+
+  await page.goto("/test-case-groups");
+  await page.getByRole("button", { name: "新建分组" }).click();
+  await page.getByRole("textbox", { name: "分组名称" }).fill("登录后业务");
+  await page.getByRole("button", { name: "保存" }).click();
+
+  await page.goto("/test-cases/new");
+  await page
+    .getByRole("textbox", { name: "用例名称" })
+    .fill("管理员查看需求列表");
+  await page
+    .getByRole("textbox", { name: "测试步骤" })
+    .fill("1. 打开需求列表。\n2. 验证页面展示当前项目的需求。");
+  await page.getByRole("combobox", { name: "登录身份" }).click();
+  await page.getByRole("option", { name: "管理员" }).click();
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page.getByTestId("test-case-login-profile")).toHaveText(
+    "管理员",
+  );
+
+  const testCaseId = new URL(page.url()).pathname.split("/").at(-1);
+  expect(testCaseId).toBeTruthy();
+  await page.goto(`/test-cases/${testCaseId}/edit`);
+  await page.getByRole("combobox", { name: "登录身份" }).click();
+  await page.getByRole("option", { name: "普通用户" }).click();
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page.getByTestId("test-case-login-profile")).toHaveText(
+    "普通用户",
+  );
+
+  const database = new Database(databasePath);
+  const context = database
+    .prepare(
+      `SELECT p."id" AS "projectId", u."id" AS "userId",
+              g."id" AS "groupId", lp."id" AS "loginProfileId"
+       FROM "Project" p
+       JOIN "User" u ON u."username" = 'admin'
+       JOIN "TestCaseGroup" g ON g."projectId" = p."id"
+       JOIN "ProjectLoginProfile" lp ON lp."projectId" = p."id"
+       WHERE p."name" = ? AND g."name" = ? AND lp."name" = ?`,
+    )
+    .get("E2E 登录复用项目", "登录后业务", "普通用户") as {
+    projectId: string;
+    userId: string;
+    groupId: string;
+    loginProfileId: string;
+  };
+  const now = new Date().toISOString();
+  database
+    .prepare(
+      `INSERT INTO "AiExecution" (
+        "id", "projectId", "requestedById", "capability", "status", "stage",
+        "requirementText", "queuedAt", "startedAt", "finishedAt",
+        "durationMs", "createdAt", "updatedAt"
+      ) VALUES (
+        ?, ?, ?, 'GENERATE_TEST_CASES', 'SUCCEEDED', 'COMPLETED',
+        ?, ?, ?, ?, 1000, ?, ?
+      )`,
+    )
+    .run(
+      "e2e-authentication-draft-task",
+      context.projectId,
+      context.userId,
+      "登录后查看项目需求",
+      now,
+      now,
+      now,
+      now,
+      now,
+    );
+  database
+    .prepare(
+      `INSERT INTO "TestCaseDraftBatch" (
+        "id", "projectId", "sourceExecutionId", "createdAt", "updatedAt"
+      ) VALUES (?, ?, ?, ?, ?)`,
+    )
+    .run(
+      "e2e-authentication-draft-batch",
+      context.projectId,
+      "e2e-authentication-draft-task",
+      now,
+      now,
+    );
+  database
+    .prepare(
+      `INSERT INTO "TestCaseDraft" (
+        "id", "batchId", "position", "name", "priority", "preconditions",
+        "steps", "status", "createdAt", "updatedAt"
+      ) VALUES (?, ?, 0, ?, 'P1', ?, ?, 'PENDING', ?, ?)`,
+    )
+    .run(
+      "e2e-authentication-draft",
+      "e2e-authentication-draft-batch",
+      "普通用户查看需求列表",
+      "普通用户账号可登录。",
+      "1. 打开需求列表。\n2. 验证页面展示当前项目的需求。",
+      now,
+      now,
+    );
+  database.close();
+
+  await page.goto("/test-cases/pending-review");
+  const draftRow = page
+    .locator("tbody tr")
+    .filter({ hasText: "普通用户查看需求列表" });
+  await draftRow
+    .getByRole("combobox", { name: "设置“普通用户查看需求列表”的分组" })
+    .click();
+  await page.getByRole("option", { name: "登录后业务" }).click();
+  await draftRow
+    .getByRole("combobox", {
+      name: "设置“普通用户查看需求列表”的登录身份",
+    })
+    .click();
+  await page.getByRole("option", { name: "普通用户" }).click();
+  await draftRow.getByRole("button", { name: "评审通过" }).click();
+  await expect(page.getByText("普通用户查看需求列表")).toHaveCount(0);
+
+  const verificationDatabase = new Database(databasePath, { readonly: true });
+  const confirmed = verificationDatabase
+    .prepare(
+      `SELECT "groupId", "loginProfileId"
+       FROM "TestCase"
+       WHERE "name" = ? AND "projectId" = ? AND "deletedAt" IS NULL`,
+    )
+    .get("普通用户查看需求列表", context.projectId) as {
+    groupId: string;
+    loginProfileId: string;
+  };
+  verificationDatabase.close();
+  expect(confirmed).toEqual({
+    groupId: context.groupId,
+    loginProfileId: context.loginProfileId,
+  });
+});
+
 test("AI 生成的测试用例支持逐条评审并关联唯一 US", async ({ page }) => {
   const databasePath = path.resolve(process.cwd(), "data", "e2e.db");
 
@@ -956,11 +1222,8 @@ test("失败的 AI 任务可以使用原任务 ID 重新运行", async ({ page }
   ).toBeVisible();
   await expect(page.getByText("AI辅助生成US", { exact: true })).toBeVisible();
 
-  const taskRow = page
-    .locator("tbody tr")
-    .filter({ hasText: "生成一个支持失败重跑的用户故事" });
-  await taskRow.getByRole("link", { name: "查看" }).click();
-  await expect(page).toHaveURL(/\/execution-tasks\/e2e-retry-task$/);
+  // 该用例只验证原任务 ID 重跑；列表“查看”导航已由核心流程覆盖。
+  await page.goto("/execution-tasks/e2e-retry-task");
   await expect(page.getByRole("heading", { name: "任务详情" })).toBeVisible();
   await expect(page.getByRole("log")).toContainText("旧日志：初次执行失败。");
 

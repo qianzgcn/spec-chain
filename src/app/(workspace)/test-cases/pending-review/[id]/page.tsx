@@ -49,6 +49,12 @@ export default async function PendingReviewTestCasePage({
           deletedAt: true,
         },
       },
+      loginProfile: {
+        select: {
+          name: true,
+          deletedAt: true,
+        },
+      },
       batch: {
         select: {
           sourceExecution: {
@@ -86,6 +92,11 @@ export default async function PendingReviewTestCasePage({
               {priorityMeta.label}
             </Badge>
             <span>{activeGroup?.name ?? "未分组"}</span>
+            <span>
+              {draft.loginProfile && !draft.loginProfile.deletedAt
+                ? draft.loginProfile.name
+                : "不预登录"}
+            </span>
             <span>{formatDetailedDateTime(draft.createdAt.toISOString())}</span>
           </>
         }

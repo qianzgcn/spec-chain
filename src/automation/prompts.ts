@@ -44,6 +44,11 @@ function formatVariables(variables: readonly AutomationVariableMetadata[]) {
 export function buildAutomationScriptPrompt(input: {
   baseUrl: string;
   automationInstructions: string | null;
+  authentication: {
+    profileName: string;
+    usernameVariableName: string;
+    passwordVariableName: string;
+  } | null;
   variables: readonly AutomationVariableMetadata[];
   testCase: {
     code: string;
@@ -52,10 +57,28 @@ export function buildAutomationScriptPrompt(input: {
     steps: string;
   };
 }) {
+  const authentication = input.authentication
+    ? `本次任务已使用登录身份“${input.authentication.profileName}”完成页面登录，探测会话打开后已经处于登录状态。
+最终脚本必须在第一行导入 @playwright/test 后，紧接着添加：
+import { login } from "./specchain/login";
+
+并在业务操作前调用一次：
+await login(page, {
+  username: process.env.${input.authentication.usernameVariableName}!,
+  password: process.env.${input.authentication.passwordVariableName}!,
+});
+
+不得探测、复制或重新实现登录页面操作。`
+    : `本用例配置为“不预登录”，不得导入或调用项目登录方法。
+只有测试用例本身明确验证登录、退出或认证失败时，才探测并实现相应认证步骤；如果当前用例并非认证场景但页面要求登录，请调用 reportFailure，并建议为用例选择登录身份。`;
+
   return `请为下列单条测试用例探测真实页面并生成可直接运行的 Playwright Test TypeScript 脚本。
 
 Base URL：
 ${input.baseUrl}
+
+登录复用：
+${authentication}
 
 项目自动化约束：
 ${input.automationInstructions?.trim() || "无"}

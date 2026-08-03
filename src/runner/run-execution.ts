@@ -2,6 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 
+import { writeLoginMethodModule } from "@/automation/authentication";
 import { RunStatus, TestRunStage } from "@/generated/prisma/enums";
 import { persistFailureScreenshot } from "@/runner/artifacts";
 import {
@@ -27,6 +28,7 @@ export async function executePlaywrightTest(input: {
   script: string;
   baseUrl: string;
   environment: NodeJS.ProcessEnv;
+  loginMethodSource?: string;
   abortSignal: AbortSignal;
   logger: RunLogWriter;
 }) {
@@ -37,9 +39,12 @@ export async function executePlaywrightTest(input: {
       buildPlaywrightConfig(input.baseUrl),
       "utf8",
     ),
+    ...(input.loginMethodSource
+      ? [writeLoginMethodModule(input.workDir, input.loginMethodSource)]
+      : []),
   ]);
 
-  const require = createRequire(import.meta.url);
+  const require = createRequire(path.join(process.cwd(), "package.json"));
   const playwrightCli = require.resolve("@playwright/test/cli");
   const result = await runChildProcess({
     command: process.execPath,

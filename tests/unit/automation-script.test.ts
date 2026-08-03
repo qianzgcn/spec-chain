@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { AUTOMATION_AGENT_TOOL_NAMES } from "@/automation/agent-tools";
 import {
+  AutomationAuthenticationError,
+  resolveAutomationAuthentication,
+  validateLoginMethodCompilation,
+  validateLoginMethodSource,
+} from "@/automation/authentication";
+import {
   createAutomationInputFingerprint,
   type AutomationVariableMetadata,
 } from "@/automation/fingerprint";
@@ -19,6 +25,10 @@ import {
   validateAutomationScriptStatic,
 } from "@/automation/script-validator";
 import { TestCaseScriptSource, VariableKind } from "@/generated/prisma/enums";
+import {
+  LOGIN_METHOD_TEMPLATE,
+  LOGIN_MODULE_IMPORT,
+} from "@/lib/automation/login-contract";
 
 const validScript = `import { test, expect } from "@playwright/test";
 
@@ -38,6 +48,7 @@ describe("自动化输入指纹", () => {
       },
       baseUrl: "https://specchain.example.com",
       automationInstructions: "使用管理员账号",
+      authentication: null,
     };
     const firstVariables = [
       {
@@ -65,6 +76,37 @@ describe("自动化输入指纹", () => {
     });
 
     expect(first).toBe(second);
+  });
+
+  it("登录身份或变量映射改变后指纹失效", () => {
+    const common = {
+      testCase: {
+        name: "查看项目",
+        preconditions: "管理员已登录",
+        steps: "1. 打开项目列表",
+      },
+      baseUrl: "https://specchain.example.com",
+      automationInstructions: null,
+      variables: [],
+    };
+    const first = createAutomationInputFingerprint({
+      ...common,
+      authentication: {
+        profileId: "profile-1",
+        usernameVariableName: "ADMIN_USERNAME",
+        passwordVariableName: "ADMIN_PASSWORD",
+      },
+    });
+    const second = createAutomationInputFingerprint({
+      ...common,
+      authentication: {
+        profileId: "profile-2",
+        usernameVariableName: "MEMBER_USERNAME",
+        passwordVariableName: "MEMBER_PASSWORD",
+      },
+    });
+
+    expect(first).not.toBe(second);
   });
 });
 
@@ -183,6 +225,7 @@ describe("自动化提示词", () => {
     const prompt = buildAutomationScriptPrompt({
       baseUrl: "https://example.com",
       automationInstructions: "从登录页开始",
+      authentication: null,
       variables,
       testCase: {
         code: "TC-001",
@@ -195,6 +238,107 @@ describe("自动化提示词", () => {
     expect(prompt).toContain("ADMIN_PASSWORD（敏感）");
     expect(prompt).not.toContain("never-send-this-value");
   });
+
+  it("账号用例只向模型提供公共登录契约和变量名", () => {
+    const prompt = buildAutomationScriptPrompt({
+      baseUrl: "https://example.com",
+      automationInstructions: null,
+      authentication: {
+        profileName: "管理员",
+        usernameVariableName: "ADMIN_USERNAME",
+        passwordVariableName: "ADMIN_PASSWORD",
+      },
+      variables: [],
+      testCase: {
+        code: "TC-002",
+        name: "查看项目列表",
+        preconditions: "管理员账号可用",
+        steps: "1. 打开项目列表",
+      },
+    });
+
+    expect(prompt).toContain(LOGIN_MODULE_IMPORT);
+    expect(prompt).toContain("process.env.ADMIN_USERNAME");
+    expect(prompt).toContain("不得探测、复制或重新实现登录页面操作");
+  });
+});
+
+describe("项目登录方法", () => {
+  it("接受固定登录接口", () => {
+    expect(validateLoginMethodSource(LOGIN_METHOD_TEMPLATE)).toBe(
+      LOGIN_METHOD_TEMPLATE.trim(),
+    );
+  });
+
+  it("通过 Playwright 编译与测试发现检查", async () => {
+    await expect(
+      validateLoginMethodCompilation(LOGIN_METHOD_TEMPLATE),
+    ).resolves.toBeUndefined();
+  });
+
+  it("只在服务端解析账号变量值", () => {
+    expect(
+      resolveAutomationAuthentication({
+        loginMethodSource: LOGIN_METHOD_TEMPLATE,
+        loginProfile: {
+          id: "profile-1",
+          name: "管理员",
+          deletedAt: null,
+          usernameVariable: {
+            id: "username-variable",
+            name: "ADMIN_USERNAME",
+            kind: VariableKind.PLAIN,
+            deletedAt: null,
+          },
+          passwordVariable: {
+            id: "password-variable",
+            name: "ADMIN_PASSWORD",
+            kind: VariableKind.SECRET,
+            deletedAt: null,
+          },
+        },
+        variables: [
+          { id: "username-variable", value: "admin" },
+          { id: "password-variable", value: "secret" },
+        ],
+      }),
+    ).toMatchObject({
+      profileName: "管理员",
+      usernameVariableName: "ADMIN_USERNAME",
+      passwordVariableName: "ADMIN_PASSWORD",
+      username: "admin",
+      password: "secret",
+    });
+  });
+
+  it.each([
+    [
+      LOGIN_METHOD_TEMPLATE.replace(
+        'import { expect, type Page } from "@playwright/test";',
+        'import fs from "node:fs";',
+      ),
+      "固定导入",
+    ],
+    [
+      LOGIN_METHOD_TEMPLATE.replace(
+        'await page.goto("/login");',
+        "const password = process.env.PASSWORD;",
+      ),
+      "读取进程环境",
+    ],
+    [
+      LOGIN_METHOD_TEMPLATE.replace(
+        'await page.goto("/login");',
+        'await page.goto("https://accounts.example.com");',
+      ),
+      "跨域或绝对地址",
+    ],
+  ])("拒绝超出固定边界的登录方法", (source, message) => {
+    expect(() => validateLoginMethodSource(source)).toThrowError(message);
+    expect(() => validateLoginMethodSource(source)).toThrowError(
+      AutomationAuthenticationError,
+    );
+  });
 });
 
 describe("自动化脚本静态校验", () => {
@@ -203,13 +347,14 @@ describe("自动化脚本静态校验", () => {
       validateAutomationScriptStatic({
         script: validScript,
         allowedVariableNames: ["ADMIN_USERNAME"],
+        authentication: null,
         requiresCleanup: false,
       }),
     ).toBe(validScript);
   });
 
   it.each([
-    [`${validScript}\nimport path from "node:path";`, "不能加载或导出其他模块"],
+    [`${validScript}\nimport path from "node:path";`, "只能导入"],
     [validScript.replace("page.goto", "page.evaluate"), "页面动态执行"],
     [
       validScript.replace(
@@ -227,6 +372,7 @@ describe("自动化脚本静态校验", () => {
       validateAutomationScriptStatic({
         script,
         allowedVariableNames: ["ADMIN_USERNAME"],
+        authentication: null,
         requiresCleanup: false,
       }),
     ).toThrowError(message);
@@ -244,8 +390,45 @@ describe("自动化脚本静态校验", () => {
       validateAutomationScriptStatic({
         script: validScript,
         allowedVariableNames: ["ADMIN_USERNAME"],
+        authentication: null,
         requiresCleanup: true,
       }),
     ).toThrowError(AutomationScriptValidationError);
+  });
+
+  it("账号用例必须使用公共登录方法和绑定变量", () => {
+    const script = `import { test, expect } from "@playwright/test";
+${LOGIN_MODULE_IMPORT}
+
+test("查看项目", async ({ page }) => {
+  await login(page, {
+    username: process.env.ADMIN_USERNAME!,
+    password: process.env.ADMIN_PASSWORD!,
+  });
+  await expect(page).toHaveURL(/projects/);
+});`;
+
+    expect(
+      validateAutomationScriptStatic({
+        script,
+        allowedVariableNames: ["ADMIN_USERNAME", "ADMIN_PASSWORD"],
+        authentication: {
+          usernameVariableName: "ADMIN_USERNAME",
+          passwordVariableName: "ADMIN_PASSWORD",
+        },
+        requiresCleanup: false,
+      }),
+    ).toBe(script);
+    expect(() =>
+      validateAutomationScriptStatic({
+        script: validScript,
+        allowedVariableNames: ["ADMIN_USERNAME", "ADMIN_PASSWORD"],
+        authentication: {
+          usernameVariableName: "ADMIN_USERNAME",
+          passwordVariableName: "ADMIN_PASSWORD",
+        },
+        requiresCleanup: false,
+      }),
+    ).toThrowError("登录方法");
   });
 });

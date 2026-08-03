@@ -16,6 +16,10 @@ const updateGroupSchema = z.object({
   draftId: idSchema,
   groupId: idSchema.nullable(),
 });
+const updateLoginProfileSchema = z.object({
+  draftId: idSchema,
+  loginProfileId: idSchema.nullable(),
+});
 
 class DraftStateChangedError extends Error {}
 
@@ -100,6 +104,71 @@ export async function updatePendingTestCaseDraftGroupAction(
   return { ok: true, message: "用例分组已更新" };
 }
 
+export async function updatePendingTestCaseDraftLoginProfileAction(
+  input: unknown,
+): Promise<ActionResult> {
+  const project = await requireCurrentProjectForAction();
+  if (!project) {
+    return { ok: false, message: "请先创建项目" };
+  }
+
+  const parsed = updateLoginProfileSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: "请选择有效的登录身份" };
+  }
+
+  const [draft, loginProfile] = await Promise.all([
+    db.testCaseDraft.findFirst({
+      where: {
+        id: parsed.data.draftId,
+        status: AiDraftStatus.PENDING,
+        deletedAt: null,
+        batch: { projectId: project.id, deletedAt: null },
+      },
+      select: {
+        id: true,
+        batch: { select: { sourceExecutionId: true } },
+      },
+    }),
+    parsed.data.loginProfileId
+      ? db.projectLoginProfile.findFirst({
+          where: {
+            id: parsed.data.loginProfileId,
+            projectId: project.id,
+            deletedAt: null,
+            usernameVariable: { deletedAt: null },
+            passwordVariable: { deletedAt: null, kind: "SECRET" },
+          },
+          select: { id: true },
+        })
+      : null,
+  ]);
+  if (!draft) {
+    return { ok: false, message: "待评审用例不存在或状态已发生变化" };
+  }
+  if (parsed.data.loginProfileId && !loginProfile) {
+    return { ok: false, message: "所选登录身份不存在或配置已失效" };
+  }
+
+  const updated = await db.testCaseDraft.updateMany({
+    where: {
+      id: draft.id,
+      status: AiDraftStatus.PENDING,
+      deletedAt: null,
+    },
+    data: { loginProfileId: parsed.data.loginProfileId },
+  });
+  if (updated.count !== 1) {
+    return { ok: false, message: "待评审用例状态已发生变化，请刷新后重试" };
+  }
+
+  revalidateDraftPages({
+    draftId: draft.id,
+    executionId: draft.batch.sourceExecutionId,
+  });
+  return { ok: true, message: "登录身份已更新" };
+}
+
 export async function confirmPendingTestCaseDraftAction(
   draftId: string,
 ): Promise<ActionResult<{ id: string }>> {
@@ -128,6 +197,7 @@ export async function confirmPendingTestCaseDraftAction(
         select: {
           id: true,
           groupId: true,
+          loginProfileId: true,
           name: true,
           priority: true,
           preconditions: true,
@@ -136,6 +206,16 @@ export async function confirmPendingTestCaseDraftAction(
             select: {
               projectId: true,
               deletedAt: true,
+            },
+          },
+          loginProfile: {
+            select: {
+              projectId: true,
+              deletedAt: true,
+              usernameVariable: { select: { deletedAt: true } },
+              passwordVariable: {
+                select: { deletedAt: true, kind: true },
+              },
             },
           },
           batch: {
@@ -167,12 +247,27 @@ export async function confirmPendingTestCaseDraftAction(
           message: "所选用例分组不存在或已删除",
         };
       }
+      if (
+        draft.loginProfileId &&
+        (!draft.loginProfile ||
+          draft.loginProfile.projectId !== project.id ||
+          draft.loginProfile.deletedAt ||
+          draft.loginProfile.usernameVariable.deletedAt ||
+          draft.loginProfile.passwordVariable.deletedAt ||
+          draft.loginProfile.passwordVariable.kind !== "SECRET")
+      ) {
+        return {
+          ok: false as const,
+          message: "所选登录身份不存在或配置已失效",
+        };
+      }
 
       const testCase = await transaction.testCase.create({
         data: {
           projectId: project.id,
           groupId: draft.groupId,
           userStoryId: draft.batch.sourceExecution.sourceUserStoryId,
+          loginProfileId: draft.loginProfileId,
           code: await generateBusinessCodeInTransaction(transaction, "TC"),
           name: draft.name,
           priority: draft.priority,

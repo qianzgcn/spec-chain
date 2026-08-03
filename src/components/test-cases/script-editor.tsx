@@ -1,7 +1,6 @@
 "use client";
 
-import { javascript } from "@codemirror/lang-javascript";
-import CodeMirror from "@uiw/react-codemirror";
+import { TypeScriptEditor } from "@/components/editors/typescript-editor";
 
 export type ScriptEditorProps = {
   value?: string;
@@ -13,26 +12,15 @@ export function ScriptEditor({
   onChange = () => undefined,
 }: ScriptEditorProps) {
   return (
-    <div className="bg-background overflow-hidden rounded-lg border">
-      <CodeMirror
-        value={value}
-        height="420px"
-        extensions={[javascript({ typescript: true })]}
-        onChange={onChange}
-        basicSetup={{
-          lineNumbers: true,
-          foldGutter: true,
-          highlightActiveLine: true,
-          autocompletion: true,
-          bracketMatching: true,
-        }}
-        placeholder={`import { test, expect } from "@playwright/test";
+    <TypeScriptEditor
+      value={value}
+      onChange={onChange}
+      placeholder={`import { test, expect } from "@playwright/test";
 
 test("用例名称", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/系统名称/);
 });`}
-      />
-    </div>
+    />
   );
 }

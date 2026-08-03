@@ -12,13 +12,38 @@ const TEST_RUN_INCLUDE = {
       script: true,
       updatedAt: true,
       deletedAt: true,
+      loginProfile: {
+        select: {
+          id: true,
+          name: true,
+          deletedAt: true,
+          usernameVariable: {
+            select: {
+              id: true,
+              name: true,
+              kind: true,
+              deletedAt: true,
+            },
+          },
+          passwordVariable: {
+            select: {
+              id: true,
+              name: true,
+              kind: true,
+              deletedAt: true,
+            },
+          },
+        },
+      },
       project: {
         select: {
           automationInstructions: true,
+          loginMethodSource: true,
           variables: {
             where: { deletedAt: null },
             orderBy: { position: "asc" },
             select: {
+              id: true,
               name: true,
               value: true,
               description: true,
