@@ -8,6 +8,7 @@ import {
   cleanupPlaywrightCliSession,
   cleanupSpecChainPlaywrightCliSessions,
 } from "@/automation/playwright-cli-session";
+import { failPendingScriptGenerationRun } from "@/automation/script-generation-run";
 import {
   AiCapability,
   AiExecutionLogLevel,
@@ -59,6 +60,7 @@ export async function recoverExecutionTaskState() {
       select: {
         id: true,
         capability: true,
+        testCaseId: true,
         logs: {
           orderBy: { position: "desc" },
           take: 1,
@@ -106,6 +108,16 @@ export async function recoverExecutionTaskState() {
           workerId: null,
         },
       });
+      if (
+        task.capability === AiCapability.GENERATE_AUTOMATION_SCRIPT &&
+        task.testCaseId
+      ) {
+        await failPendingScriptGenerationRun(
+          transaction,
+          task.testCaseId,
+          "服务重启导致任务中断",
+        );
+      }
       await transaction.aiExecutionLog.create({
         data: {
           executionId: task.id,

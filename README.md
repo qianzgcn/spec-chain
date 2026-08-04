@@ -242,6 +242,8 @@ sequenceDiagram
 
 每个任务拥有独立 Worker ID、AbortSignal、临时目录、日志流和浏览器会话。数据库条件更新保证只有当前 Worker 能写入终态；单个任务失败、停止或超时不会终止其他任务。
 
+运行没有自动化脚本的测试用例时，系统会在同一事务中创建 `TestRun` 和一条 `GENERATE_AUTOMATION_SCRIPT` AI 任务。调度器先执行 AI 任务，成功后把脚本快照交给 TestRun，再领取测试执行；因此 AI 生成记录会出现在“执行任务”列表中，且不会重复启动脚本生成。
+
 服务重启时，`instrumentation.ts` 会清理遗留 Playwright CLI 会话，将遗留运行中任务标记为失败，释放调度租约，并在存在排队任务时重新启动调度器。
 
 ### 三类 AI 工作流

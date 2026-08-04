@@ -19,6 +19,10 @@ import {
 import { formatUserStoryForTestCaseGeneration } from "@/ai/test-case-requirement";
 import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
+import {
+  createQueuedAiExecutionRecord,
+  formatAutomationScriptRequirement,
+} from "@/server/tasks/ai-execution-record";
 import { startTaskScheduler } from "@/server/tasks/launcher";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -28,21 +32,6 @@ async function getCurrentActionContext() {
     getCurrentProject(),
   ]);
   return { user, project };
-}
-
-function formatAutomationScriptRequirement(testCase: {
-  code: string;
-  name: string;
-  preconditions: string | null;
-  steps: string;
-}) {
-  return `${testCase.code} ${testCase.name}
-
-前置条件：
-${testCase.preconditions?.trim() || "无"}
-
-测试步骤：
-${testCase.steps}`;
 }
 
 async function markWorkerStartFailure(
@@ -88,27 +77,7 @@ async function createQueuedExecution(input: {
   sourceUserStoryId?: string | null;
   testCaseId?: string | null;
 }) {
-  const execution = await db.aiExecution.create({
-    data: {
-      projectId: input.projectId,
-      requestedById: input.requestedById,
-      featureId: input.featureId ?? null,
-      sourceUserStoryId: input.sourceUserStoryId ?? null,
-      testCaseId: input.testCaseId ?? null,
-      capability: input.capability,
-      status: AiExecutionStatus.QUEUED,
-      requirementText: input.requirementText,
-      logs: {
-        create: {
-          position: 0,
-          level: AiExecutionLogLevel.INFO,
-          stage: AiExecutionStage.QUEUED,
-          message: "任务已进入队列，等待 AI 执行器处理。",
-        },
-      },
-    },
-    select: { id: true },
-  });
+  const execution = await createQueuedAiExecutionRecord(db, input);
 
   if (!startTaskScheduler()) {
     await markWorkerStartFailure(execution.id, 1);

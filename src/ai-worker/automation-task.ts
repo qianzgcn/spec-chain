@@ -42,6 +42,7 @@ import {
   VariableReferenceError,
   type ValidatedVariableReferences,
 } from "@/lib/project-variables/references";
+import { attachGeneratedScriptToPendingRun } from "@/automation/script-generation-run";
 import { decryptTaskSecret, taskDb, taskRuntime } from "@/task-runtime/runtime";
 
 export async function executeAutomationScriptTask(input: {
@@ -193,6 +194,14 @@ export async function executeAutomationScriptTask(input: {
           "生成期间测试用例或脚本已被修改，未覆盖现有内容，请重新发起",
         );
       }
+
+      await attachGeneratedScriptToPendingRun(transaction, {
+        testCaseId: testCase.id,
+        script: result.script,
+        promptTokens: result.usage.inputTokens,
+        completionTokens: result.usage.outputTokens,
+        totalTokens: result.usage.totalTokens,
+      });
 
       const completed = await transaction.aiExecution.updateMany({
         where: {

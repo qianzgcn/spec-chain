@@ -19,6 +19,7 @@ import {
   AiExecutionLogLevel,
   AiExecutionStatus,
 } from "@/generated/prisma/enums";
+import { failPendingScriptGenerationRun } from "@/automation/script-generation-run";
 import { decryptTaskSecret, taskDb } from "@/task-runtime/runtime";
 
 const TASK_TIMEOUT_MS = 10 * 60 * 1_000;
@@ -151,19 +152,32 @@ async function executeTask(executionId: string, ownerId: string) {
         `任务失败（${safeError.code}）：${safeError.message}`,
       )
       .catch(() => undefined);
-    await taskDb.aiExecution.updateMany({
-      where: {
-        id: execution.id,
-        status: AiExecutionStatus.RUNNING,
-        workerId: ownerId,
-      },
-      data: {
-        status: AiExecutionStatus.FAILED,
-        errorMessage: safeError.message,
-        finishedAt,
-        durationMs: finishedAt.getTime() - startedAt.getTime(),
-        workerId: null,
-      },
+    await taskDb.$transaction(async (transaction) => {
+      const failed = await transaction.aiExecution.updateMany({
+        where: {
+          id: execution.id,
+          status: AiExecutionStatus.RUNNING,
+          workerId: ownerId,
+        },
+        data: {
+          status: AiExecutionStatus.FAILED,
+          errorMessage: safeError.message,
+          finishedAt,
+          durationMs: finishedAt.getTime() - startedAt.getTime(),
+          workerId: null,
+        },
+      });
+      if (
+        failed.count === 1 &&
+        execution.capability === AiCapability.GENERATE_AUTOMATION_SCRIPT &&
+        execution.testCaseId
+      ) {
+        await failPendingScriptGenerationRun(
+          transaction,
+          execution.testCaseId,
+          safeError.message,
+        );
+      }
     });
   } finally {
     ownership.stop();

@@ -160,31 +160,40 @@ function TestRunPanelContent({
     : !hasBaseUrl
       ? "项目尚未配置 Base URL"
       : null;
+  const hasActiveRun = runsQuery.data.runs.some((run) =>
+    ACTIVE_STATUSES.has(run.status),
+  );
   const detail = detailQuery.data?.run;
 
   return (
     <PageSection
       title="自动化运行"
-      description="无可用脚本时会先生成并校验脚本；原始日志和失败截图保留 30 天。"
+      description="无可用脚本时会先创建 AI 脚本任务并校验脚本；原始日志和失败截图保留 30 天。"
       contentClassName="p-0"
       actions={
         <div className="flex items-center gap-3">
-          {cannotRunReason ? (
+          {hasActiveRun ? (
+            <span className="text-muted-foreground text-xs">
+              当前用例正在执行
+            </span>
+          ) : cannotRunReason ? (
             <span className="text-muted-foreground text-xs">
               {cannotRunReason}
             </span>
           ) : null}
-          <Button
-            disabled={Boolean(cannotRunReason) || createRun.isPending}
-            onClick={() => createRun.mutate()}
-          >
-            {createRun.isPending ? (
-              <Spinner data-icon="inline-start" />
-            ) : (
-              <PlayIcon data-icon="inline-start" />
-            )}
-            运行
-          </Button>
+          {!hasActiveRun && !cannotRunReason ? (
+            <Button
+              disabled={createRun.isPending}
+              onClick={() => createRun.mutate()}
+            >
+              {createRun.isPending ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <PlayIcon data-icon="inline-start" />
+              )}
+              运行
+            </Button>
+          ) : null}
         </div>
       }
     >

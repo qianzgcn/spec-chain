@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 
+import type { Prisma } from "@/generated/prisma/client";
 import {
   AiCapability,
   AiExecutionLogLevel,
@@ -10,6 +11,7 @@ import {
   RunStatus,
   TestRunStage,
 } from "@/generated/prisma/enums";
+import { failPendingScriptGenerationRun } from "@/automation/script-generation-run";
 import {
   chooseNextBrowserTask,
   getAvailableTaskSlots,
@@ -75,13 +77,17 @@ async function releaseLease(ownerId: string) {
   });
 }
 
-async function appendAiFailureLog(executionId: string, message: string) {
-  const latest = await taskDb.aiExecutionLog.findFirst({
+async function appendAiFailureLog(
+  transaction: Prisma.TransactionClient,
+  executionId: string,
+  message: string,
+) {
+  const latest = await transaction.aiExecutionLog.findFirst({
     where: { executionId },
     orderBy: { position: "desc" },
     select: { position: true },
   });
-  await taskDb.aiExecutionLog.create({
+  await transaction.aiExecutionLog.create({
     data: {
       executionId,
       position: (latest?.position ?? -1) + 1,
@@ -95,25 +101,43 @@ async function appendAiFailureLog(executionId: string, message: string) {
 async function markWorkerFailure(task: ClaimedTask, reason: string) {
   const finishedAt = new Date();
   if (task.kind === "AI") {
-    const updated = await taskDb.aiExecution.updateMany({
-      where: {
-        id: task.id,
-        status: AiExecutionStatus.RUNNING,
-        workerId: task.workerId,
-      },
-      data: {
-        status: AiExecutionStatus.FAILED,
-        finishedAt,
-        errorMessage: reason,
-        workerId: null,
-      },
+    const execution = await taskDb.aiExecution.findUnique({
+      where: { id: task.id },
+      select: { capability: true, testCaseId: true },
     });
-    if (updated.count === 1) {
-      await appendAiFailureLog(
-        task.id,
-        `任务失败（WORKER_EXIT）：${reason}。`,
-      ).catch(() => undefined);
-    }
+    await taskDb
+      .$transaction(async (transaction) => {
+        const updated = await transaction.aiExecution.updateMany({
+          where: {
+            id: task.id,
+            status: AiExecutionStatus.RUNNING,
+            workerId: task.workerId,
+          },
+          data: {
+            status: AiExecutionStatus.FAILED,
+            finishedAt,
+            errorMessage: reason,
+            workerId: null,
+          },
+        });
+        if (updated.count !== 1) return;
+        if (
+          execution?.capability === AiCapability.GENERATE_AUTOMATION_SCRIPT &&
+          execution.testCaseId
+        ) {
+          await failPendingScriptGenerationRun(
+            transaction,
+            execution.testCaseId,
+            reason,
+          );
+        }
+        await appendAiFailureLog(
+          transaction,
+          task.id,
+          `任务失败（WORKER_EXIT）：${reason}。`,
+        );
+      })
+      .catch(() => undefined);
     return;
   }
 
@@ -225,8 +249,29 @@ async function claimNextBrowserTask(): Promise<ClaimedTask | null> {
       orderBy: { queuedAt: "asc" },
       select: { id: true, queuedAt: true },
     }),
+    // 脚本生成任务完成前，不能让同一用例的 TestRun 绕过 AI 流程直接执行。
     taskDb.testRun.findFirst({
-      where: { status: RunStatus.QUEUED, deletedAt: null },
+      where: {
+        status: RunStatus.QUEUED,
+        deletedAt: null,
+        OR: [
+          { scriptSnapshot: { not: null } },
+          {
+            scriptSnapshot: null,
+            testCase: {
+              aiExecutions: {
+                none: {
+                  capability: AiCapability.GENERATE_AUTOMATION_SCRIPT,
+                  status: {
+                    in: [AiExecutionStatus.QUEUED, AiExecutionStatus.RUNNING],
+                  },
+                  deletedAt: null,
+                },
+              },
+            },
+          },
+        ],
+      },
       orderBy: { queuedAt: "asc" },
       select: { id: true, queuedAt: true },
     }),
