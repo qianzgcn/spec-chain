@@ -8,8 +8,10 @@ import { useRouter } from "next/navigation";
 
 import {
   confirmPendingTestCaseDraftAction,
+  confirmPendingTestCaseDraftsAction,
   deletePendingTestCaseDraftAction,
   updatePendingTestCaseDraftGroupAction,
+  updatePendingTestCaseDraftPriorityAction,
 } from "@/app/actions/pending-test-cases";
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
 import { DataTable } from "@/components/data-table/data-table";
@@ -17,7 +19,8 @@ import { DataTablePagination } from "@/components/data-table/data-table-paginati
 import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -27,11 +30,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
-import type { TestPriority } from "@/generated/prisma/enums";
+import { TestPriority } from "@/generated/prisma/enums";
 import { formatDetailedDateTime } from "@/lib/date-time";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
 
 const UNASSIGNED_GROUP = "__unassigned__";
+const PRIORITY_OPTIONS = Object.values(TestPriority).map((priority) => ({
+  value: priority,
+  label: TEST_PRIORITY_META[priority].label,
+}));
 
 export type PendingTestCaseListItem = {
   id: string;
@@ -71,11 +78,15 @@ export function PendingTestCasesList({
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] =
     useState<PendingTestCaseListItem | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [groupValues, setGroupValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       items.map((item) => [item.id, item.groupId ?? UNASSIGNED_GROUP]),
     ),
   );
+  const [priorityValues, setPriorityValues] = useState<
+    Record<string, TestPriority>
+  >(() => Object.fromEntries(items.map((item) => [item.id, item.priority])));
   const groupSelectOptions = [
     { value: UNASSIGNED_GROUP, label: "未分组" },
     ...groups.map((group) => ({ value: group.id, label: group.name })),
@@ -125,6 +136,61 @@ export function PendingTestCasesList({
     });
   }
 
+  function changePriority(item: PendingTestCaseListItem, value: string | null) {
+    if (
+      !value ||
+      !Object.values(TestPriority).includes(value as TestPriority)
+    ) {
+      return;
+    }
+
+    const previousValue = priorityValues[item.id] ?? item.priority;
+    const nextPriority = value as TestPriority;
+    setPriorityValues((current) => ({ ...current, [item.id]: nextPriority }));
+    setPendingAction(`priority:${item.id}`);
+
+    startTransition(async () => {
+      try {
+        const result = await updatePendingTestCaseDraftPriorityAction({
+          draftId: item.id,
+          priority: nextPriority,
+        });
+        if (!result.ok) {
+          setPriorityValues((current) => ({
+            ...current,
+            [item.id]: previousValue,
+          }));
+          toast.add({ type: "error", description: result.message });
+          return;
+        }
+
+        toast.add({ type: "success", description: result.message });
+        router.refresh();
+      } catch {
+        setPriorityValues((current) => ({
+          ...current,
+          [item.id]: previousValue,
+        }));
+        toast.add({ type: "error", description: "更新用例优先级失败" });
+      } finally {
+        setPendingAction(null);
+      }
+    });
+  }
+
+  function toggleSelected(id: string, checked: boolean) {
+    setSelectedIds((current) => {
+      if (checked) {
+        return current.includes(id) ? current : [...current, id];
+      }
+      return current.filter((selectedId) => selectedId !== id);
+    });
+  }
+
+  function toggleAllSelected(checked: boolean) {
+    setSelectedIds(checked ? items.map((item) => item.id) : []);
+  }
+
   function confirm(item: PendingTestCaseListItem) {
     setPendingAction(`confirm:${item.id}`);
     startTransition(async () => {
@@ -139,6 +205,42 @@ export function PendingTestCasesList({
         router.refresh();
       } catch {
         toast.add({ type: "error", description: "评审测试用例失败" });
+      } finally {
+        setPendingAction(null);
+      }
+    });
+  }
+
+  function confirmSelected() {
+    const selectedItems = items.filter((item) => selectedIds.includes(item.id));
+    if (selectedItems.length === 0) return;
+
+    if (
+      selectedItems.some(
+        (item) =>
+          (groupValues[item.id] ?? UNASSIGNED_GROUP) === UNASSIGNED_GROUP,
+      )
+    ) {
+      toast.add({ type: "warning", description: "请先为选中的用例选择分组" });
+      return;
+    }
+
+    setPendingAction("confirm:batch");
+    startTransition(async () => {
+      try {
+        const result = await confirmPendingTestCaseDraftsAction({
+          draftIds: selectedItems.map((item) => item.id),
+        });
+        if (!result.ok) {
+          toast.add({ type: "error", description: result.message });
+          return;
+        }
+
+        setSelectedIds([]);
+        toast.add({ type: "success", description: result.message });
+        router.refresh();
+      } catch {
+        toast.add({ type: "error", description: "批量评审测试用例失败" });
       } finally {
         setPendingAction(null);
       }
@@ -170,12 +272,43 @@ export function PendingTestCasesList({
 
   const columns: ColumnDef<PendingTestCaseListItem>[] = [
     {
+      id: "selection",
+      header: () => {
+        const selectedOnPage = items.filter((item) =>
+          selectedIds.includes(item.id),
+        ).length;
+        const allSelected = items.length > 0 && selectedOnPage === items.length;
+        const someSelected = selectedOnPage > 0 && !allSelected;
+        return (
+          <Checkbox
+            checked={allSelected}
+            indeterminate={someSelected}
+            disabled={isPending || items.length === 0}
+            aria-label="选择当前页全部待评审用例"
+            onCheckedChange={(checked) => toggleAllSelected(checked === true)}
+          />
+        );
+      },
+      size: 44,
+      meta: { headerClassName: "text-center", cellClassName: "text-center" },
+      cell: ({ row }) => (
+        <Checkbox
+          checked={selectedIds.includes(row.original.id)}
+          disabled={isPending}
+          aria-label={`选择“${row.original.name}”`}
+          onCheckedChange={(checked) =>
+            toggleSelected(row.original.id, checked === true)
+          }
+        />
+      ),
+    },
+    {
       accessorKey: "name",
       header: "用例名称",
       cell: ({ row }) => (
         <Link
           href={`/test-cases/pending-review/${row.original.id}`}
-          className="block truncate font-medium underline-offset-4 hover:underline"
+          className="text-link block truncate font-medium underline-offset-4 hover:underline"
           title={row.original.name}
         >
           {row.original.name}
@@ -202,9 +335,35 @@ export function PendingTestCasesList({
       accessorKey: "priority",
       header: "优先级",
       size: 76,
+      meta: { cellClassName: "overflow-visible" },
       cell: ({ row }) => {
-        const meta = TEST_PRIORITY_META[row.original.priority];
-        return <Badge variant={meta.badgeVariant}>{meta.label}</Badge>;
+        const item = row.original;
+        const priority = priorityValues[item.id] ?? item.priority;
+        return (
+          <Select
+            items={PRIORITY_OPTIONS}
+            value={priority}
+            disabled={isPending}
+            onValueChange={(value) => changePriority(item, value)}
+          >
+            <SelectTrigger
+              size="sm"
+              className="w-16"
+              aria-label={`设置“${item.name}”的优先级`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="start">
+              <SelectGroup>
+                {PRIORITY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        );
       },
     },
     {
@@ -283,9 +442,27 @@ export function PendingTestCasesList({
     <>
       <DataTableShell
         toolbar={
-          <span className="text-muted-foreground text-xs">
-            共 {total} 条待评审用例
-          </span>
+          <>
+            <span className="text-muted-foreground text-xs">
+              共 {total} 条待评审用例
+            </span>
+            <Button
+              className="ml-auto"
+              size="sm"
+              disabled={
+                isPending ||
+                selectedIds.length === 0 ||
+                selectedIds.some(
+                  (id) =>
+                    (groupValues[id] ?? UNASSIGNED_GROUP) === UNASSIGNED_GROUP,
+                )
+              }
+              onClick={confirmSelected}
+            >
+              批量通过
+              {selectedIds.length > 0 ? `（${selectedIds.length}）` : ""}
+            </Button>
+          </>
         }
         footer={
           <DataTablePagination

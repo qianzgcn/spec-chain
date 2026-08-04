@@ -95,7 +95,7 @@ export function DataTable<TData>({
   const rows = table.getRowModel().rows;
   const fluidColumnId = table
     .getVisibleLeafColumns()
-    .find((column) => column.id !== "actions")?.id;
+    .find((column) => column.id !== "actions" && column.id !== "selection")?.id;
 
   return (
     <div className="relative min-h-0 flex-1">

@@ -118,7 +118,9 @@ export default async function PendingReviewTestCasesPage({
       />
       <PendingTestCasesList
         key={items
-          .map((item) => `${item.id}:${item.groupId ?? "none"}`)
+          .map(
+            (item) => `${item.id}:${item.groupId ?? "none"}:${item.priority}`,
+          )
           .join("|")}
         items={items}
         groups={groups}
