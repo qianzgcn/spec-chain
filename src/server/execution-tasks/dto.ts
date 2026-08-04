@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
-import { AiCapability } from "@/generated/prisma/enums";
+import { AiCapability, AiExecutionOrigin } from "@/generated/prisma/enums";
 import {
   getAiExecutionStageLabel,
   mapAiExecutionStatus,
@@ -33,7 +33,11 @@ export async function getExecutionTaskSummaries(
   projectId: string,
 ): Promise<ExecutionTaskSummary[]> {
   const aiExecutions = await db.aiExecution.findMany({
-    where: { projectId, deletedAt: null },
+    where: {
+      projectId,
+      deletedAt: null,
+      origin: AiExecutionOrigin.USER,
+    },
     orderBy: { queuedAt: "desc" },
     take: SUMMARY_LIMIT,
     select: {
@@ -220,7 +224,12 @@ export async function getExecutionTaskDetail(
   taskId: string,
 ): Promise<AiExecutionTaskDetail | null> {
   const execution = await db.aiExecution.findFirst({
-    where: { id: taskId, projectId, deletedAt: null },
+    where: {
+      id: taskId,
+      projectId,
+      deletedAt: null,
+      origin: AiExecutionOrigin.USER,
+    },
     select: AI_EXECUTION_DETAIL_SELECT,
   });
   return execution ? toAiExecutionTaskDetail(execution) : null;

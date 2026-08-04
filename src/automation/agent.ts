@@ -12,7 +12,7 @@ import {
 } from "@/automation/agent-tools";
 import { PlaywrightCliSession } from "@/automation/playwright-cli-session";
 
-const MAX_AGENT_STEPS = 30;
+const MAX_AGENT_STEPS = 60;
 const MAX_OUTPUT_TOKENS = 32_768;
 
 export class AutomationAgentError extends Error {
@@ -82,7 +82,7 @@ export async function runAutomationScriptAgent(input: {
   if (result.steps.length >= MAX_AGENT_STEPS) {
     throw new AutomationAgentError(
       "STEP_LIMIT",
-      "页面探测达到 30 个工具步骤，仍无法可靠生成脚本",
+      "页面探测达到 60 个工具步骤，仍无法可靠生成脚本",
     );
   }
   throw new AutomationAgentError(

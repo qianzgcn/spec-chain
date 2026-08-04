@@ -64,6 +64,11 @@ enum AiExecutionStatus {
   FAILED
 }
 
+enum AiExecutionOrigin {
+  USER
+  TEST_RUN
+}
+
 enum AiExecutionStage {
   QUEUED
   CHECKING_REPOSITORIES
@@ -410,6 +415,7 @@ model AiExecution {
   sourceUserStoryId        String?
   testCaseId               String?
   capability               AiCapability
+  origin                   AiExecutionOrigin @default(USER)
   status                   AiExecutionStatus @default(QUEUED)
   stage                    AiExecutionStage  @default(QUEUED)
   requirementText          String
@@ -446,6 +452,7 @@ model AiExecution {
   @@index([featureId])
   @@index([sourceUserStoryId])
   @@index([testCaseId])
+  @@index([origin])
 }
 
 model AiExecutionLog {

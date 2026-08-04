@@ -1,10 +1,10 @@
-import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { createAutomationInputFingerprint } from "@/automation/fingerprint";
 import { getAutomationScriptStatus } from "@/automation/script-status";
 import {
   AiCapability,
+  AiExecutionOrigin,
   AiExecutionLogLevel,
   AiExecutionStage,
   AiExecutionStatus,
@@ -264,6 +264,7 @@ export async function POST(
           requestedById: context.user.id,
           testCaseId: testCase.id,
           capability: AiCapability.GENERATE_AUTOMATION_SCRIPT,
+          origin: AiExecutionOrigin.TEST_RUN,
           requirementText: formatAutomationScriptRequirement(testCase),
         })
       : null;
@@ -334,14 +335,11 @@ export async function POST(
         });
       }
     });
-    revalidatePath("/execution-tasks");
     return NextResponse.json(
       { message: "无法启动任务调度器，请查看服务日志" },
       { status: 500 },
     );
   }
-
-  if (created.scriptTaskId) revalidatePath("/execution-tasks");
 
   return NextResponse.json(
     { run: { id: created.run.id, status: created.run.status } },

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import {
   AiCapability,
+  AiExecutionOrigin,
   AiExecutionLogLevel,
   AiExecutionStage,
   AiExecutionStatus,
@@ -291,6 +292,7 @@ export async function retryExecutionTaskAction(
       where: {
         id: parsed.data.taskId,
         projectId: project.id,
+        origin: AiExecutionOrigin.USER,
         deletedAt: null,
       },
       select: {
@@ -325,6 +327,7 @@ export async function retryExecutionTaskAction(
       where: {
         id: parsed.data.taskId,
         projectId: project.id,
+        origin: AiExecutionOrigin.USER,
         status: AiExecutionStatus.FAILED,
         deletedAt: null,
       },
@@ -421,6 +424,7 @@ export async function deleteExecutionTaskAction(
     where: {
       id: parsed.data.taskId,
       projectId: project.id,
+      origin: AiExecutionOrigin.USER,
       deletedAt: null,
     },
     select: { status: true },
@@ -439,6 +443,7 @@ export async function deleteExecutionTaskAction(
     where: {
       id: parsed.data.taskId,
       projectId: project.id,
+      origin: AiExecutionOrigin.USER,
       deletedAt: null,
       status: {
         in: [AiExecutionStatus.SUCCEEDED, AiExecutionStatus.FAILED],

@@ -3,6 +3,7 @@ import "server-only";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import {
   AiCapability,
+  AiExecutionOrigin,
   AiExecutionLogLevel,
   AiExecutionStage,
   AiExecutionStatus,
@@ -35,6 +36,7 @@ export function createQueuedAiExecutionRecord(
     featureId?: string | null;
     sourceUserStoryId?: string | null;
     testCaseId?: string | null;
+    origin?: AiExecutionOrigin;
   },
 ) {
   return database.aiExecution.create({
@@ -45,6 +47,7 @@ export function createQueuedAiExecutionRecord(
       sourceUserStoryId: input.sourceUserStoryId ?? null,
       testCaseId: input.testCaseId ?? null,
       capability: input.capability,
+      origin: input.origin ?? AiExecutionOrigin.USER,
       status: AiExecutionStatus.QUEUED,
       requirementText: input.requirementText,
       logs: {

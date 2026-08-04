@@ -13,7 +13,11 @@ import { PageHeader } from "@/components/layout/page-header";
 import { PageSection } from "@/components/layout/page-section";
 import { TestCaseDetailActions } from "@/components/test-cases/test-case-detail-actions";
 import { Badge } from "@/components/ui/badge";
-import { AiCapability, AiExecutionStatus } from "@/generated/prisma/enums";
+import {
+  AiCapability,
+  AiExecutionOrigin,
+  AiExecutionStatus,
+} from "@/generated/prisma/enums";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
@@ -71,6 +75,7 @@ export default async function TestCaseDetailPage({
       aiExecutions: {
         where: {
           capability: AiCapability.GENERATE_AUTOMATION_SCRIPT,
+          origin: AiExecutionOrigin.USER,
           status: {
             in: [AiExecutionStatus.QUEUED, AiExecutionStatus.RUNNING],
           },
