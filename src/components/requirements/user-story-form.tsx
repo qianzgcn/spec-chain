@@ -40,16 +40,18 @@ type UserStoryFormProps = {
   initialValues?: UserStoryFormValues;
 };
 
-const emptyUserStory: UserStoryFormValues = {
-  title: "",
-  asA: "",
-  iWant: "",
-  soThat: "",
-  status: RequirementStatus.DESIGN,
-  acceptanceCriteria: [{ given: "", when: "", then: "" }],
-  businessRules: "",
-  nonFunctionalRequirements: "",
-};
+function createEmptyUserStory(): UserStoryFormValues {
+  return {
+    title: "",
+    asA: "",
+    iWant: "",
+    soThat: "",
+    status: RequirementStatus.DESIGN,
+    acceptanceCriteria: [{ given: "", when: "", then: "" }],
+    businessRules: "",
+    nonFunctionalRequirements: "",
+  };
+}
 
 export function UserStoryForm({
   userStoryId,
@@ -61,7 +63,7 @@ export function UserStoryForm({
   const [isPending, startTransition] = useTransition();
   const form = useForm<UserStoryFormValues>({
     resolver: zodResolver(userStoryFormSchema),
-    defaultValues: initialValues ?? emptyUserStory,
+    defaultValues: initialValues ?? createEmptyUserStory(),
   });
   const dirty = form.formState.isDirty;
   useUnsavedChanges(dirty);

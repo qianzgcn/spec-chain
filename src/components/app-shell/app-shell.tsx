@@ -124,11 +124,9 @@ function NavigationGroup({
   const Icon = group.icon;
   const active =
     group.children?.some((item) => isPathActive(pathname, item.href)) ?? false;
-  const [openState, setOpenState] = useState<{
-    pathname: string;
-    open: boolean;
-  } | null>(null);
-  const open = openState?.pathname === pathname ? openState.open : active;
+  const [openOverride, setOpenOverride] = useState<boolean | null>(null);
+  // 每个菜单组独立维护展开状态；路由变化只负责自动打开当前分组，不关闭其他分组。
+  const open = openOverride ?? active;
 
   if (group.href) {
     return (
@@ -146,10 +144,7 @@ function NavigationGroup({
   }
 
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={(nextOpen) => setOpenState({ pathname, open: nextOpen })}
-    >
+    <Collapsible open={open} onOpenChange={setOpenOverride}>
       <SidebarMenuItem>
         <CollapsibleTrigger
           render={<SidebarMenuButton tooltip={group.label} />}
@@ -367,14 +362,18 @@ export function AppShell({
                     align="end"
                     className="w-56"
                   >
-                    <DropdownMenuLabel>
-                      <div className="flex flex-col gap-1">
-                        <span>{user.username}</span>
-                        <span className="text-muted-foreground text-xs font-normal">
-                          {user.role === UserRole.ADMIN ? "管理员" : "普通用户"}
-                        </span>
-                      </div>
-                    </DropdownMenuLabel>
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>
+                        <div className="flex flex-col gap-1">
+                          <span>{user.username}</span>
+                          <span className="text-muted-foreground text-xs font-normal">
+                            {user.role === UserRole.ADMIN
+                              ? "管理员"
+                              : "普通用户"}
+                          </span>
+                        </div>
+                      </DropdownMenuLabel>
+                    </DropdownMenuGroup>
                     <DropdownMenuSeparator />
                     <DropdownMenuGroup>
                       <DropdownMenuItem

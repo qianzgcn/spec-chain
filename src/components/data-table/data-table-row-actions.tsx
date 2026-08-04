@@ -94,7 +94,10 @@ export function DataTableRowActions({
   const overflowActions = actions.slice(MAX_VISIBLE_ACTIONS);
 
   return (
-    <div className="flex items-center justify-start gap-1" data-testid={testId}>
+    <div
+      className="flex min-w-max items-center justify-start gap-1"
+      data-testid={testId}
+    >
       {visibleActions.map((action) => (
         <DirectAction key={action.label} action={action} />
       ))}

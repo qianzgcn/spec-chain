@@ -206,7 +206,6 @@ export default async function RequirementsPage({
     <PageContainer table className="gap-5">
       <PageHeader
         title="需求列表"
-        description="展开 FE 即可查看其中的 US，独立 US 直接显示在列表中。"
       />
 
       <RequirementsList

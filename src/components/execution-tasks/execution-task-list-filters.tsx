@@ -17,6 +17,7 @@ import type {
   ExecutionTaskStatus,
   ExecutionTaskType,
 } from "@/lib/execution-tasks/types";
+import { cn } from "@/lib/utils";
 
 const TASK_TYPE_OPTIONS: Array<{
   label: string;
@@ -114,15 +115,19 @@ export function ExecutionTaskListFilters({
           重置筛选
         </Button>
       ) : null}
-      <span className="text-muted-foreground ml-auto text-sm">
+      <span className="text-muted-foreground ml-auto shrink-0 text-sm">
         共 {resultCount} 个任务
       </span>
-      {fetching ? (
-        <span className="text-muted-foreground flex items-center gap-2 text-xs">
-          <Spinner />
-          正在更新状态…
-        </span>
-      ) : null}
+      <span
+        className={cn(
+          "text-muted-foreground flex min-w-28 shrink-0 items-center gap-2 text-xs",
+          !fetching && "invisible",
+        )}
+        aria-hidden={!fetching}
+      >
+        <Spinner />
+        正在更新状态…
+      </span>
     </>
   );
 }

@@ -5,6 +5,7 @@ import { useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
+import { CircleHelpIcon } from "lucide-react";
 
 import {
   createFeatureAction,
@@ -23,6 +24,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   confirmLeaveIfDirty,
   useUnsavedChanges,
@@ -112,7 +118,7 @@ export function FeatureForm({
         onSubmit={form.handleSubmit(submit)}
       >
         <PageSection title="基本信息">
-          <FieldGroup className="grid grid-cols-[5fr_7fr] gap-5">
+          <FieldGroup>
             <Field data-invalid={Boolean(form.formState.errors.name)}>
               <FieldLabel htmlFor="feature-name">FE 名称</FieldLabel>
               <Input
@@ -139,8 +145,29 @@ export function FeatureForm({
         </PageSection>
 
         <PageSection
-          title="业务背景与目标"
-          description="说明为什么要做、解决什么业务问题，以及期望达到的结果。支持 Markdown。"
+          title={
+            <div className="flex items-center gap-1.5">
+              <span>业务背景与目标</span>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label="查看业务背景与目标说明"
+                    />
+                  }
+                >
+                  <CircleHelpIcon />
+                </TooltipTrigger>
+                <TooltipContent>
+                  说明为什么要做、解决什么业务问题，以及期望达到的结果。支持
+                  Markdown。
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          }
         >
           <Controller
             control={form.control}

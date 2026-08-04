@@ -42,10 +42,12 @@ export function AcceptanceCriteriaEditor() {
                 className="bg-muted/40 grid min-w-0 grid-cols-[2rem_repeat(3,minmax(0,1fr))_2rem] items-start gap-3 rounded-lg p-2"
                 key={field.fieldKey}
               >
-                <input
-                  type="hidden"
-                  {...form.register(`acceptanceCriteria.${index}.id`)}
-                />
+                {field.id ? (
+                  <input
+                    type="hidden"
+                    {...form.register(`acceptanceCriteria.${index}.id`)}
+                  />
+                ) : null}
                 <span className="text-muted-foreground grid h-8 place-items-center text-xs font-medium">
                   {index + 1}
                 </span>

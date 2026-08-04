@@ -126,7 +126,7 @@ export async function generateScriptForRun(input: {
   input.logger.appendTaskLog(
     "INFO",
     "生成自动化脚本",
-    `已加载模型配置“${binding.modelProfile.name}”（${binding.modelProfile.modelId}）。`,
+    `已加载模型 ${binding.modelProfile.modelId}。`,
   );
 
   const fingerprint = createAutomationInputFingerprint({

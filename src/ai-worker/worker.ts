@@ -84,7 +84,7 @@ async function loadTaskModelContext(input: {
   await input.reporter.writeLog(
     AiExecutionLogLevel.INFO,
     input.reporter.currentStage,
-    `已加载模型配置“${binding.modelProfile.name}”（${binding.modelProfile.modelId}）。`,
+    `已加载模型 ${binding.modelProfile.modelId}。`,
   );
   return { binding, modelApiKey };
 }

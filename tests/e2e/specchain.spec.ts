@@ -414,18 +414,14 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   await expect(page.getByText("未检查", { exact: true })).toBeVisible();
 
   await page.getByRole("combobox", { name: "生成 US 默认模型" }).click();
-  await page.getByRole("option", { name: /E2E OpenAI 兼容模型/ }).click();
-  await expect(page.getByText("生成 US 默认", { exact: true })).toBeVisible();
+  await page.getByRole("option", { name: "e2e-structured-model" }).click();
+  await expect(page.getByText("生成 US", { exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "生成测试用例默认模型" }).click();
-  await page.getByRole("option", { name: /E2E OpenAI 兼容模型/ }).click();
-  await expect(
-    page.getByText("生成测试用例默认", { exact: true }),
-  ).toBeVisible();
+  await page.getByRole("option", { name: "e2e-structured-model" }).click();
+  await expect(page.getByText("生成测试用例", { exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "生成自动化脚本默认模型" }).click();
-  await page.getByRole("option", { name: /E2E OpenAI 兼容模型/ }).click();
-  await expect(
-    page.getByText("生成自动化脚本默认", { exact: true }),
-  ).toBeVisible();
+  await page.getByRole("option", { name: "e2e-structured-model" }).click();
+  await expect(page.getByText("生成自动化脚本", { exact: true })).toBeVisible();
 
   const encryptedModelDatabase = new Database(databasePath, {
     readonly: true,

@@ -133,8 +133,7 @@ function ExecutionInformation({ task }: { task: AiExecutionTaskDetail }) {
     { label: "发起用户", value: task.requestedBy },
     { label: "发起时间", value: formatDetailedDateTime(task.queuedAt) },
     { label: "耗时", value: formatDuration(task.durationMs) },
-    { label: "模型配置", value: task.modelProfileNameSnapshot ?? "—" },
-    { label: "模型 ID", value: task.modelIdSnapshot ?? "—" },
+    { label: "模型", value: task.modelIdSnapshot ?? "—" },
     {
       label: "Skill",
       value: task.skillNameSnapshot

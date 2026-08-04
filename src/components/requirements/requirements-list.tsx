@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 
 import type { ColumnDef, ExpandedState, Updater } from "@tanstack/react-table";
-import { ChevronRightIcon, CopyIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ChevronRightIcon, CopyIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -382,12 +382,8 @@ export function RequirementsList({
               </Button>
             ) : null}
             <div className="ml-auto flex items-center gap-2">
-              <ButtonLink href="/user-stories/new" variant="outline">
-                <PlusIcon data-icon="inline-start" />
-                新建US
-              </ButtonLink>
-              <ButtonLink href="/features/new">
-                <PlusIcon data-icon="inline-start" />
+              <ButtonLink href="/user-stories/new">新建US</ButtonLink>
+              <ButtonLink href="/features/new" variant="outline">
                 新建 FE
               </ButtonLink>
             </div>

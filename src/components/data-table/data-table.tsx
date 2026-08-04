@@ -152,7 +152,7 @@ export function DataTable<TData>({
                     className={cn(
                       "h-12",
                       cell.column.id === "actions"
-                        ? "overflow-hidden"
+                        ? "overflow-visible"
                         : "truncate",
                       cell.column.columnDef.meta?.cellClassName,
                     )}

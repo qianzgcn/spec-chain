@@ -20,6 +20,7 @@ import { DataTablePagination } from "@/components/data-table/data-table-paginati
 import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { PageSection } from "@/components/layout/page-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -87,6 +88,24 @@ const MODEL_CHECK_STATUS_META: Record<
   },
 };
 
+const DEFAULT_MODEL_CONFIGS = [
+  {
+    capability: AiCapability.GENERATE_USER_STORY,
+    label: "生成 US",
+    ariaLabel: "生成 US 默认模型",
+  },
+  {
+    capability: AiCapability.GENERATE_TEST_CASES,
+    label: "生成测试用例",
+    ariaLabel: "生成测试用例默认模型",
+  },
+  {
+    capability: AiCapability.GENERATE_AUTOMATION_SCRIPT,
+    label: "生成自动化脚本",
+    ariaLabel: "生成自动化脚本默认模型",
+  },
+] as const;
+
 export function AiSettingsManagement({
   profiles,
   defaultProfileIds,
@@ -122,7 +141,7 @@ export function AiSettingsManagement({
     { value: null, label: "请选择默认模型" },
     ...profiles.map((profile) => ({
       value: profile.id,
-      label: `${profile.name} · ${profile.modelId}`,
+      label: profile.modelId,
     })),
   ];
   const pageCount = Math.max(1, Math.ceil(profiles.length / PAGE_SIZE));
@@ -253,15 +272,15 @@ export function AiSettingsManagement({
           <span className="truncate font-medium">{row.original.name}</span>
           {row.original.id ===
           defaultProfileIds[AiCapability.GENERATE_USER_STORY] ? (
-            <Badge variant="secondary">生成 US 默认</Badge>
+            <Badge variant="secondary">生成 US</Badge>
           ) : null}
           {row.original.id ===
           defaultProfileIds[AiCapability.GENERATE_TEST_CASES] ? (
-            <Badge variant="secondary">生成测试用例默认</Badge>
+            <Badge variant="secondary">生成测试用例</Badge>
           ) : null}
           {row.original.id ===
           defaultProfileIds[AiCapability.GENERATE_AUTOMATION_SCRIPT] ? (
-            <Badge variant="secondary">生成自动化脚本默认</Badge>
+            <Badge variant="secondary">生成自动化脚本</Badge>
           ) : null}
         </div>
       ),
@@ -321,7 +340,7 @@ export function AiSettingsManagement({
     {
       id: "actions",
       header: () => <span className="sr-only">操作</span>,
-      size: 136,
+      size: 176,
       meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => (
         <DataTableRowActions
@@ -352,107 +371,67 @@ export function AiSettingsManagement({
   ];
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col gap-5">
+      <PageSection
+        className="shrink-0"
+        title="默认模型"
+        description="为每项 AI 能力指定使用的模型。"
+      >
+        <FieldGroup className="max-w-3xl gap-3">
+          {DEFAULT_MODEL_CONFIGS.map((config) => (
+            <Field
+              key={config.capability}
+              orientation="horizontal"
+              className="items-center"
+            >
+              <FieldLabel
+                className="w-44 shrink-0"
+                htmlFor={`default-model-${config.capability}`}
+              >
+                {config.label}
+              </FieldLabel>
+              <Select
+                items={profileOptions}
+                value={defaultProfileIds[config.capability]}
+                disabled={!profiles.length || isPending}
+                onValueChange={(profileId) =>
+                  bindDefaultModel(config.capability, profileId)
+                }
+              >
+                <SelectTrigger
+                  id={`default-model-${config.capability}`}
+                  className="w-full max-w-md"
+                  aria-label={config.ariaLabel}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {profileOptions.map((option) => (
+                      <SelectItem
+                        key={option.value ?? `${config.capability}-placeholder`}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+          ))}
+        </FieldGroup>
+      </PageSection>
+
       <DataTableShell
+        className="min-h-0"
         toolbar={
-          <>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">生成 US</span>
-              <Select
-                items={profileOptions}
-                value={defaultProfileIds[AiCapability.GENERATE_USER_STORY]}
-                disabled={!profiles.length || isPending}
-                onValueChange={(profileId) =>
-                  bindDefaultModel(AiCapability.GENERATE_USER_STORY, profileId)
-                }
-              >
-                <SelectTrigger className="w-64" aria-label="生成 US 默认模型">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {profileOptions.map((option) => (
-                      <SelectItem
-                        key={option.value ?? "user-story-placeholder"}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">生成测试用例</span>
-              <Select
-                items={profileOptions}
-                value={defaultProfileIds[AiCapability.GENERATE_TEST_CASES]}
-                disabled={!profiles.length || isPending}
-                onValueChange={(profileId) =>
-                  bindDefaultModel(AiCapability.GENERATE_TEST_CASES, profileId)
-                }
-              >
-                <SelectTrigger
-                  className="w-64"
-                  aria-label="生成测试用例默认模型"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {profileOptions.map((option) => (
-                      <SelectItem
-                        key={option.value ?? "test-case-placeholder"}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">生成自动化脚本</span>
-              <Select
-                items={profileOptions}
-                value={
-                  defaultProfileIds[AiCapability.GENERATE_AUTOMATION_SCRIPT]
-                }
-                disabled={!profiles.length || isPending}
-                onValueChange={(profileId) =>
-                  bindDefaultModel(
-                    AiCapability.GENERATE_AUTOMATION_SCRIPT,
-                    profileId,
-                  )
-                }
-              >
-                <SelectTrigger
-                  className="w-64"
-                  aria-label="生成自动化脚本默认模型"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {profileOptions.map((option) => (
-                      <SelectItem
-                        key={option.value ?? "automation-placeholder"}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button className="ml-auto" onClick={openCreate}>
+          <div className="flex w-full justify-end">
+            <Button onClick={openCreate}>
               <PlusIcon data-icon="inline-start" />
               新建模型
             </Button>
-          </>
+          </div>
         }
         footer={
           <DataTablePagination
@@ -578,6 +557,6 @@ export function AiSettingsManagement({
         }}
         onConfirm={deleteProfile}
       />
-    </>
+    </div>
   );
 }
