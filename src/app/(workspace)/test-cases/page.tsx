@@ -100,24 +100,38 @@ export default async function TestCasesPage({
       updatedAt: true,
       group: { select: { name: true } },
       runs: {
+        where: { deletedAt: null },
         orderBy: { queuedAt: "desc" },
         take: 1,
-        select: { status: true },
+        select: {
+          status: true,
+          queuedAt: true,
+          startedAt: true,
+          finishedAt: true,
+        },
       },
     },
   });
 
-  const items: TestCaseListItem[] = testCases.map((testCase) => ({
-    id: testCase.id,
-    code: testCase.code,
-    name: testCase.name,
-    groupName: testCase.group.name,
-    priority: testCase.priority,
-    enabled: testCase.enabled,
-    hasScript: Boolean(testCase.script?.trim()),
-    lastRunStatus: testCase.runs[0]?.status ?? null,
-    updatedAt: testCase.updatedAt.toISOString(),
-  }));
+  const items: TestCaseListItem[] = testCases.map((testCase) => {
+    const lastRun = testCase.runs[0];
+    const lastRunAt = lastRun
+      ? (lastRun.finishedAt ?? lastRun.startedAt ?? lastRun.queuedAt)
+      : null;
+
+    return {
+      id: testCase.id,
+      code: testCase.code,
+      name: testCase.name,
+      groupName: testCase.group.name,
+      priority: testCase.priority,
+      enabled: testCase.enabled,
+      hasScript: Boolean(testCase.script?.trim()),
+      lastRunStatus: lastRun?.status ?? null,
+      lastEditedAt: testCase.updatedAt.toISOString(),
+      lastRunAt: lastRunAt?.toISOString() ?? null,
+    };
+  });
 
   return (
     <PageContainer table className="gap-5">

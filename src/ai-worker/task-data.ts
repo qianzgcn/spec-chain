@@ -19,6 +19,17 @@ const AI_TASK_INCLUDE = {
           value: true,
           description: true,
           kind: true,
+          encrypted: true,
+          fields: {
+            orderBy: { position: "asc" },
+            select: {
+              name: true,
+              value: true,
+              description: true,
+              kind: true,
+              encrypted: true,
+            },
+          },
         },
       },
       repositories: {
@@ -70,29 +81,6 @@ const AI_TASK_INCLUDE = {
       script: true,
       updatedAt: true,
       deletedAt: true,
-      loginProfile: {
-        select: {
-          id: true,
-          name: true,
-          deletedAt: true,
-          usernameVariable: {
-            select: {
-              id: true,
-              name: true,
-              kind: true,
-              deletedAt: true,
-            },
-          },
-          passwordVariable: {
-            select: {
-              id: true,
-              name: true,
-              kind: true,
-              deletedAt: true,
-            },
-          },
-        },
-      },
     },
   },
 } satisfies Prisma.AiExecutionInclude;

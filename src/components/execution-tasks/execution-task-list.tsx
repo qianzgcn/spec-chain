@@ -214,7 +214,7 @@ function ExecutionTaskTable({
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title="删除执行任务"
-        description="删除后不能恢复，该任务将不再出现在执行任务和用例执行历史中。"
+        description="删除后不能恢复，该任务将不再出现在执行任务中。"
         confirmLabel="删除"
         destructive
         pending={isDeletePending}

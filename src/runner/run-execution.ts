@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 import { writeLoginMethodModule } from "@/automation/authentication";
+import { writeVariableModule } from "@/automation/variable-runtime";
 import { RunStatus, TestRunStage } from "@/generated/prisma/enums";
 import { persistFailureScreenshot } from "@/runner/artifacts";
 import {
@@ -29,6 +30,7 @@ export async function executePlaywrightTest(input: {
   baseUrl: string;
   environment: NodeJS.ProcessEnv;
   loginMethodSource?: string;
+  variableModuleSource: string;
   abortSignal: AbortSignal;
   logger: RunLogWriter;
 }) {
@@ -42,6 +44,7 @@ export async function executePlaywrightTest(input: {
     ...(input.loginMethodSource
       ? [writeLoginMethodModule(input.workDir, input.loginMethodSource)]
       : []),
+    writeVariableModule(input.workDir, input.variableModuleSource),
   ]);
 
   const require = createRequire(path.join(process.cwd(), "package.json"));

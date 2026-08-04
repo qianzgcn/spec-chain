@@ -78,11 +78,8 @@ type TestCaseFormProps = {
     featureName: string | null;
     deleted?: boolean;
   }>;
-  loginProfiles: Array<{ id: string; name: string }>;
   initialValues?: TestCaseFormValues;
 };
-
-const NO_LOGIN_PROFILE = "__no_login_profile__";
 
 const PRIORITY_OPTIONS = Object.values(TestPriority).map((priority) => ({
   value: priority,
@@ -94,7 +91,6 @@ export function TestCaseForm({
   code,
   groups,
   userStories,
-  loginProfiles,
   initialValues,
 }: TestCaseFormProps) {
   const router = useRouter();
@@ -110,7 +106,6 @@ export function TestCaseForm({
       script: "",
       steps: "",
       userStoryId: null,
-      loginProfileId: null,
     },
   });
   const dirty = form.formState.isDirty;
@@ -130,13 +125,6 @@ export function TestCaseForm({
   const deletedStoryIds = new Set(
     userStories.filter((story) => story.deleted).map((story) => story.id),
   );
-  const loginProfileOptions = [
-    { value: NO_LOGIN_PROFILE, label: "不预登录" },
-    ...loginProfiles.map((profile) => ({
-      value: profile.id,
-      label: profile.name,
-    })),
-  ];
 
   function submit(values: TestCaseFormValues) {
     startTransition(async () => {
@@ -302,7 +290,10 @@ export function TestCaseForm({
               control={form.control}
               name="userStoryId"
               render={({ field, fieldState }) => (
-                <Field className="col-span-8" data-invalid={fieldState.invalid}>
+                <Field
+                  className="col-span-12"
+                  data-invalid={fieldState.invalid}
+                >
                   <FieldLabel htmlFor="test-case-user-story">
                     关联 US（可选）
                   </FieldLabel>
@@ -336,42 +327,6 @@ export function TestCaseForm({
                       </ComboboxList>
                     </ComboboxContent>
                   </Combobox>
-                  <FieldError errors={[fieldState.error]} />
-                </Field>
-              )}
-            />
-
-            <Controller
-              control={form.control}
-              name="loginProfileId"
-              render={({ field, fieldState }) => (
-                <Field className="col-span-4" data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="test-case-login-profile">
-                    登录身份
-                  </FieldLabel>
-                  <Select
-                    items={loginProfileOptions}
-                    value={field.value ?? NO_LOGIN_PROFILE}
-                    onValueChange={(value) =>
-                      field.onChange(value === NO_LOGIN_PROFILE ? null : value)
-                    }
-                  >
-                    <SelectTrigger
-                      id="test-case-login-profile"
-                      aria-invalid={fieldState.invalid}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {loginProfileOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
                   <FieldError errors={[fieldState.error]} />
                 </Field>
               )}

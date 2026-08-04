@@ -26,6 +26,11 @@ import {
   AiExecutionStage,
   TestPriority,
 } from "@/generated/prisma/enums";
+import {
+  validateTestCaseVariableReferences,
+  VariableReferenceError,
+  type ProjectVariableMetadata,
+} from "@/lib/project-variables/references";
 
 export const generatedTestCaseSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -37,6 +42,7 @@ export const generatedTestCaseSchema = z.object({
 
 export function createGeneratedTestCasesDecisionSchema(
   groupIds: readonly string[],
+  variables: readonly ProjectVariableMetadata[],
 ) {
   const validGroupIds = new Set(groupIds);
 
@@ -90,6 +96,20 @@ export function createGeneratedTestCasesDecisionSchema(
             message: "用例分组不在当前项目的可选范围内",
           });
         }
+        try {
+          validateTestCaseVariableReferences({
+            preconditions: testCase.preconditions || null,
+            steps: testCase.steps,
+            variables,
+          });
+        } catch (error) {
+          if (!(error instanceof VariableReferenceError)) throw error;
+          context.addIssue({
+            code: "custom",
+            path: ["testCases", index, "steps"],
+            message: error.message,
+          });
+        }
       }
     });
 }
@@ -100,6 +120,7 @@ export type GenerateTestCasesWorkflowInput = {
   requirementText: string;
   repositories: RepositoryAccess[];
   groups: Array<{ id: string; name: string }>;
+  variables: ProjectVariableMetadata[];
   abortSignal?: AbortSignal;
   onStage?: (stage: AiExecutionStage) => Promise<void>;
   onLog?: (event: WorkflowLogEvent) => Promise<void>;
@@ -136,6 +157,7 @@ export function createGenerateTestCasesWorkflow({
       requirementText,
       repositories,
       groups,
+      variables,
       abortSignal,
       onStage,
       onLog,
@@ -169,12 +191,14 @@ export function createGenerateTestCasesWorkflow({
       const generation = await modelProvider.generateStructured({
         schema: createGeneratedTestCasesDecisionSchema(
           groups.map((group) => group.id),
+          variables,
         ),
         system: skill.instructions,
         prompt: buildTestCaseDraftsPrompt({
           requirementText,
           codeEvidence: relevantCode.codeEvidence,
           groups,
+          variables,
         }),
         abortSignal,
         onRetry: ({ nextAttempt, maxAttempts, reason }) =>

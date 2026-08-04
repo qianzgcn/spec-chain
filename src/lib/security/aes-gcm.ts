@@ -38,7 +38,7 @@ export function decryptAesGcm(payload: string, key: Buffer) {
     !authTagText ||
     encryptedText === undefined
   ) {
-    throw new Error("敏感变量密文格式无效。");
+    throw new Error("加密数据的密文格式无效。");
   }
 
   const decipher = createDecipheriv(

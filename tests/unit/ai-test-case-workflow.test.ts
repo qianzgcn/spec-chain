@@ -11,6 +11,7 @@ import {
   createGenerateTestCasesWorkflow,
 } from "@/ai/test-case-workflow";
 import type { WorkflowLogEvent } from "@/ai/workflow";
+import { VariableFieldKind, VariableKind } from "@/generated/prisma/enums";
 
 const snapshot: RepositoryTreeSnapshot = {
   repositoryId: "repo-1",
@@ -65,7 +66,7 @@ function createFakeProvider({
                     preconditions:
                       "1. 系统中存在可登录的管理员账号 A。\n2. 当前用户未登录。",
                     steps:
-                      "1. 访问登录入口。\n2. 使用账号 A 和错误密码提交登录。\n3. 验证系统拒绝登录，用户仍处于未登录状态。",
+                      "1. 访问登录入口。\n2. 使用 ${ADMIN.username} 和错误密码提交登录。\n3. 验证系统拒绝登录，用户仍处于未登录状态。",
                   },
                   {
                     name: "管理员使用正确密码登录成功",
@@ -74,7 +75,7 @@ function createFakeProvider({
                     preconditions:
                       "1. 系统中存在可登录的管理员账号 A。\n2. 当前用户未登录。",
                     steps:
-                      "1. 访问登录入口。\n2. 使用账号 A 和正确密码提交登录。\n3. 验证用户进入已登录状态。",
+                      "1. 使用 ${ADMIN} 登录。\n2. 访问业务入口。\n3. 验证用户处于已登录状态。",
                   },
                 ]
               : [],
@@ -107,6 +108,28 @@ const workflowInput = {
     },
   ],
   groups: [{ id: "group-auth", name: "认证与会话" }],
+  variables: [
+    {
+      name: "ADMIN",
+      kind: VariableKind.OBJECT,
+      encrypted: false,
+      description: "管理员账号",
+      fields: [
+        {
+          name: "username",
+          kind: VariableFieldKind.STRING,
+          encrypted: false,
+          description: "用户名",
+        },
+        {
+          name: "password",
+          kind: VariableFieldKind.STRING,
+          encrypted: true,
+          description: "密码",
+        },
+      ],
+    },
+  ],
 };
 
 describe("AI 生成测试用例工作流", () => {
@@ -171,9 +194,10 @@ describe("AI 生成测试用例工作流", () => {
   });
 
   it("拒绝空结果、超过 20 条和重复用例", () => {
-    const decisionSchema = createGeneratedTestCasesDecisionSchema([
-      "group-auth",
-    ]);
+    const decisionSchema = createGeneratedTestCasesDecisionSchema(
+      ["group-auth"],
+      workflowInput.variables,
+    );
     expect(
       decisionSchema.safeParse({
         sufficient: true,

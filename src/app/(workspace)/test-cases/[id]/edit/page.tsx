@@ -21,7 +21,7 @@ export default async function EditTestCasePage({
   const [{ id }, project] = await Promise.all([params, getCurrentProject()]);
   if (!project) notFound();
 
-  const [testCase, groups, userStories, loginProfiles] = await Promise.all([
+  const [testCase, groups, userStories] = await Promise.all([
     db.testCase.findFirst({
       where: { id, projectId: project.id, deletedAt: null },
       include: {
@@ -51,11 +51,6 @@ export default async function EditTestCasePage({
         feature: { select: { name: true } },
       },
     }),
-    db.projectLoginProfile.findMany({
-      where: { projectId: project.id, deletedAt: null },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
   ]);
   if (!testCase) notFound();
 
@@ -68,7 +63,6 @@ export default async function EditTestCasePage({
     script: testCase.script ?? "",
     steps: testCase.steps,
     userStoryId: testCase.userStoryId,
-    loginProfileId: testCase.loginProfileId,
   };
   const selectableStories = userStories.map((story) => ({
     id: story.id,
@@ -96,7 +90,6 @@ export default async function EditTestCasePage({
       code={testCase.code}
       groups={groups}
       userStories={selectableStories}
-      loginProfiles={loginProfiles}
       initialValues={initialValues}
     />
   );

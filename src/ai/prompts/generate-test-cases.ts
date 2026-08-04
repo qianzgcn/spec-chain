@@ -1,5 +1,6 @@
 import { readPromptFile, renderPromptTemplate } from "@/ai/prompts/template";
 import type { CodeEvidence } from "@/ai/relevant-code";
+import type { ProjectVariableMetadata } from "@/lib/project-variables/references";
 
 export const generateTestCasesSystemPrompt = readPromptFile(
   new URL("./generate-test-cases/skill.md", import.meta.url),
@@ -47,6 +48,31 @@ function formatAvailableGroups(
     .join("\n");
 }
 
+function formatAvailableVariables(
+  variables: readonly ProjectVariableMetadata[],
+) {
+  if (variables.length === 0) return "当前项目没有可用变量，不得生成变量引用。";
+
+  return variables
+    .map((variable) => {
+      const description = variable.description
+        ? `，描述=${JSON.stringify(variable.description)}`
+        : "";
+      if (variable.kind !== "OBJECT") {
+        const kind = variable.kind === "NUMBER" ? "数字" : "字符串";
+        return `- ${variable.name}：${kind}变量${variable.encrypted ? "（已加密）" : ""}${description}`;
+      }
+      const fields = variable.fields
+        .map(
+          (field) =>
+            `  - ${variable.name}.${field.name}：${field.kind === "NUMBER" ? "数字" : "字符串"}字段${field.encrypted ? "（已加密）" : ""}${field.description ? `，描述=${JSON.stringify(field.description)}` : ""}`,
+        )
+        .join("\n");
+      return `- ${variable.name}：对象${description}\n${fields}`;
+    })
+    .join("\n");
+}
+
 export function buildTestCaseCodeSelectionPrompt(input: {
   requirementText: string;
   repository: string;
@@ -67,10 +93,12 @@ export function buildTestCaseDraftsPrompt(input: {
   requirementText: string;
   codeEvidence: readonly CodeEvidence[];
   groups: readonly { id: string; name: string }[];
+  variables: readonly ProjectVariableMetadata[];
 }) {
   return renderPromptTemplate(generateDraftsPromptTemplate, {
     REQUIREMENT_TEXT: input.requirementText,
     CODE_EVIDENCE: formatCodeEvidence(input.codeEvidence),
     AVAILABLE_GROUPS: formatAvailableGroups(input.groups),
+    AVAILABLE_VARIABLES: formatAvailableVariables(input.variables),
   });
 }

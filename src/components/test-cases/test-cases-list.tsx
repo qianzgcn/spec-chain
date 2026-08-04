@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { PlusIcon, SparklesIcon, Trash2Icon } from "lucide-react";
+import { HistoryIcon, PlusIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -44,7 +44,8 @@ export type TestCaseListItem = {
   enabled: boolean;
   hasScript: boolean;
   lastRunStatus: RunStatus | null;
-  updatedAt: string;
+  lastEditedAt: string;
+  lastRunAt: string | null;
 };
 
 type TestCaseFilters = {
@@ -149,7 +150,7 @@ export function TestCasesList({
       }
 
       toast.add({ type: "success", description: "运行任务已进入队列" });
-      navigate(`/execution-tasks/${payload.run.id}`);
+      navigate(`/test-cases/${testCase.id}/runs`);
     } catch (error) {
       toast.add({
         type: "error",
@@ -205,8 +206,8 @@ export function TestCasesList({
       header: "脚本状态",
       size: 96,
       meta: {
-        headerClassName: "max-[1500px]:hidden",
-        cellClassName: "max-[1500px]:hidden",
+        headerClassName: "max-[1599px]:hidden",
+        cellClassName: "max-[1599px]:hidden",
       },
       cell: ({ row }) =>
         row.original.hasScript ? (
@@ -217,7 +218,7 @@ export function TestCasesList({
     },
     {
       accessorKey: "lastRunStatus",
-      header: "最近运行",
+      header: "运行状态",
       size: 96,
       cell: ({ row }) => {
         const status = row.original.lastRunStatus;
@@ -243,20 +244,30 @@ export function TestCasesList({
       ),
     },
     {
-      accessorKey: "updatedAt",
-      header: "更新时间",
+      accessorKey: "lastEditedAt",
+      header: "最后编辑时间",
       size: 138,
-      meta: {
-        headerClassName: "max-[1680px]:hidden",
-        cellClassName: "max-[1680px]:hidden text-muted-foreground",
-      },
-      cell: ({ row }) => formatCompactDateTime(row.original.updatedAt),
+      meta: { cellClassName: "text-muted-foreground" },
+      cell: ({ row }) => formatCompactDateTime(row.original.lastEditedAt),
+    },
+    {
+      accessorKey: "lastRunAt",
+      header: "最新运行时间",
+      size: 138,
+      meta: { cellClassName: "text-muted-foreground" },
+      cell: ({ row }) =>
+        row.original.lastRunAt
+          ? formatCompactDateTime(row.original.lastRunAt)
+          : "—",
     },
     {
       id: "actions",
       header: () => <span className="sr-only">操作</span>,
-      size: 128,
-      meta: { headerClassName: "text-left", cellClassName: "text-left" },
+      size: 200,
+      meta: {
+        headerClassName: "text-left",
+        cellClassName: "overflow-visible text-left",
+      },
       cell: ({ row }) => (
         <DataTableRowActions
           testId="test-case-actions"
@@ -273,6 +284,12 @@ export function TestCasesList({
             {
               label: "编辑",
               href: `/test-cases/${row.original.id}/edit`,
+              disabled: runningId !== null,
+            },
+            {
+              label: "执行记录",
+              icon: <HistoryIcon />,
+              href: `/test-cases/${row.original.id}/runs`,
               disabled: runningId !== null,
             },
             {

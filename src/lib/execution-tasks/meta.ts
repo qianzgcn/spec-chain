@@ -2,11 +2,9 @@ import {
   AiCapability,
   AiExecutionStage,
   AiExecutionStatus,
-  RunStatus,
   TestRunStage,
 } from "@/generated/prisma/enums";
 import {
-  TEST_CASE_RUN_TASK_TYPE,
   type ExecutionTaskStatus,
   type ExecutionTaskType,
 } from "@/lib/execution-tasks/types";
@@ -17,7 +15,6 @@ export const EXECUTION_TASK_TYPE_LABELS: Record<ExecutionTaskType, string> = {
   [AiCapability.GENERATE_USER_STORY]: "AI辅助生成US",
   [AiCapability.GENERATE_TEST_CASES]: "AI辅助生成测试用例",
   [AiCapability.GENERATE_AUTOMATION_SCRIPT]: "AI辅助生成自动化脚本",
-  [TEST_CASE_RUN_TASK_TYPE]: "测试用例执行",
 };
 
 export const EXECUTION_TASK_STATUS_META: Record<
@@ -28,8 +25,6 @@ export const EXECUTION_TASK_STATUS_META: Record<
   RUNNING: { label: "运行中", badgeVariant: "info" },
   SUCCEEDED: { label: "成功", badgeVariant: "success" },
   FAILED: { label: "失败", badgeVariant: "destructive" },
-  TIMED_OUT: { label: "超时", badgeVariant: "warning" },
-  STOPPED: { label: "已停止", badgeVariant: "outline" },
 };
 
 export const ACTIVE_EXECUTION_TASK_STATUSES = new Set<ExecutionTaskStatus>([
@@ -40,8 +35,6 @@ export const ACTIVE_EXECUTION_TASK_STATUSES = new Set<ExecutionTaskStatus>([
 export const TERMINAL_EXECUTION_TASK_STATUSES = new Set<ExecutionTaskStatus>([
   "SUCCEEDED",
   "FAILED",
-  "TIMED_OUT",
-  "STOPPED",
 ]);
 
 export const AI_EXECUTION_STAGE_LABELS: Record<AiExecutionStage, string> = {
@@ -93,22 +86,5 @@ export function mapAiExecutionStatus(
       return "SUCCEEDED";
     case AiExecutionStatus.FAILED:
       return "FAILED";
-  }
-}
-
-export function mapTestRunStatus(status: RunStatus): ExecutionTaskStatus {
-  switch (status) {
-    case RunStatus.QUEUED:
-      return "QUEUED";
-    case RunStatus.RUNNING:
-      return "RUNNING";
-    case RunStatus.PASSED:
-      return "SUCCEEDED";
-    case RunStatus.FAILED:
-      return "FAILED";
-    case RunStatus.TIMED_OUT:
-      return "TIMED_OUT";
-    case RunStatus.STOPPED:
-      return "STOPPED";
   }
 }

@@ -1,5 +1,9 @@
-import { RunStatus, VariableKind } from "@/generated/prisma/enums";
-import type { RunnerTestRun, RunnerVariable } from "@/runner/run-data";
+import {
+  createVariableRuntimeBundle,
+  resolveProjectVariables,
+} from "@/automation/variable-runtime";
+import { RunStatus } from "@/generated/prisma/enums";
+import type { RunnerTestRun } from "@/runner/run-data";
 import type { RunLogWriter } from "@/runner/run-log-writer";
 import { decryptTaskSecret, taskDb } from "@/task-runtime/runtime";
 
@@ -14,25 +18,15 @@ export function prepareRunEnvironment(
     BASE_URL: run.baseUrlSnapshot,
     PLAYWRIGHT_HTML_OPEN: "never",
   };
-  const variables: RunnerVariable[] = run.testCase.project.variables.map(
-    (variable) => {
-      let value: string;
-      try {
-        value =
-          variable.kind === VariableKind.SECRET
-            ? decryptTaskSecret(variable.value)
-            : variable.value;
-      } catch {
-        throw new Error(`项目变量 ${variable.name} 无法读取，请重新配置`);
-      }
-
-      environment[variable.name] = value;
-      if (variable.kind === VariableKind.SECRET) logger.addSecret(value);
-      return { ...variable, value };
-    },
+  const variables = resolveProjectVariables(
+    run.testCase.project.variables,
+    decryptTaskSecret,
   );
+  const runtime = createVariableRuntimeBundle(variables);
+  Object.assign(environment, runtime.environment);
+  for (const value of variables.secretValues) logger.addSecret(value);
 
-  return { environment, variables };
+  return { environment, variables, variableModuleSource: runtime.source };
 }
 
 /**

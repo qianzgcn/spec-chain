@@ -18,6 +18,7 @@ import {
   validateAutomationScriptCompilation,
   validateAutomationScriptStatic,
 } from "@/automation/script-validator";
+import { createVariableRuntimeBundle } from "@/automation/variable-runtime";
 import type { ModelUsage } from "@/ai/model-provider";
 
 export type AutomationGenerationStage =
@@ -33,11 +34,8 @@ export type AutomationScriptWorkflowInput = {
   baseUrl: string;
   automationInstructions: string | null;
   authentication: ResolvedAutomationAuthentication | null;
-  variables: Array<
-    AutomationVariableMetadata & {
-      value: string;
-    }
-  >;
+  variableMetadata: AutomationVariableMetadata[];
+  variableValues: Readonly<Record<string, string>>;
   testCase: {
     code: string;
     name: string;
@@ -57,26 +55,25 @@ export type AutomationScriptWorkflowResult = {
 export async function generateAutomationScript(
   input: AutomationScriptWorkflowInput,
 ): Promise<AutomationScriptWorkflowResult> {
-  const variableMetadata = input.variables.map(
-    ({ name, kind, description }) => ({ name, kind, description }),
-  );
-  const variableValues = Object.fromEntries(
-    input.variables.map((variable) => [variable.name, variable.value]),
-  );
+  const variableRuntime = createVariableRuntimeBundle({
+    metadata: input.variableMetadata,
+    values: input.variableValues,
+  });
   let storageStatePath: string | undefined;
   if (input.authentication) {
     await input.onStage?.("PREPARING_AUTHENTICATION");
     await input.onLog?.(
-      `正在使用登录身份“${input.authentication.profileName}”准备独立认证环境。`,
+      `正在使用账号对象“${input.authentication.variableName}”准备独立认证环境。`,
     );
     storageStatePath = await prepareAuthenticationState({
       workDir: path.join(input.workDir, "authentication"),
       baseUrl: input.baseUrl,
       authentication: input.authentication,
+      variableModuleSource: variableRuntime.source,
       environment: {
         ...process.env,
         BASE_URL: input.baseUrl,
-        ...variableValues,
+        ...variableRuntime.environment,
         PLAYWRIGHT_HTML_OPEN: "never",
       },
       abortSignal: input.abortSignal,
@@ -87,7 +84,7 @@ export async function generateAutomationScript(
     taskId: input.taskId,
     workDir: path.join(input.workDir, "probe"),
     baseUrl: input.baseUrl,
-    secretValues: input.variables.map((variable) => variable.value),
+    secretValues: Object.values(input.variableValues),
     storageStatePath,
     abortSignal: input.abortSignal,
   });
@@ -105,16 +102,14 @@ export async function generateAutomationScript(
         automationInstructions: input.automationInstructions,
         authentication: input.authentication
           ? {
-              profileName: input.authentication.profileName,
-              usernameVariableName: input.authentication.usernameVariableName,
-              passwordVariableName: input.authentication.passwordVariableName,
+              variableName: input.authentication.variableName,
             }
           : null,
-        variables: variableMetadata,
+        variables: input.variableMetadata,
         testCase: input.testCase,
       }),
       session,
-      variables: variableValues,
+      variables: input.variableValues,
       abortSignal: input.abortSignal,
       onLog: input.onLog,
       onScriptSubmitted: () => input.onStage?.("GENERATING_SCRIPT"),
@@ -122,7 +117,7 @@ export async function generateAutomationScript(
 
     const script = validateAutomationScriptStatic({
       script: generated.script,
-      allowedVariableNames: variableMetadata.map((variable) => variable.name),
+      variables: input.variableMetadata,
       authentication: input.authentication,
       requiresCleanup: requiresIsolatedTestData(input.testCase),
     });
@@ -135,6 +130,7 @@ export async function generateAutomationScript(
       workDir: path.join(input.workDir, "validation"),
       abortSignal: input.abortSignal,
       loginMethodSource: input.authentication?.loginMethodSource,
+      variableModuleSource: variableRuntime.source,
     });
     await input.onLog?.(
       "脚本已通过 Playwright 编译与单测试发现检查，未执行业务操作。",

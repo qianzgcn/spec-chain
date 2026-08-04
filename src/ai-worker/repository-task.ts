@@ -312,6 +312,18 @@ export async function executeRepositoryTask(input: {
     requirementText: input.execution.requirementText,
     repositories,
     groups: input.execution.project.testGroups,
+    variables: input.execution.project.variables.map((variable) => ({
+      name: variable.name,
+      kind: variable.kind,
+      encrypted: variable.encrypted,
+      description: variable.description,
+      fields: variable.fields.map((field) => ({
+        name: field.name,
+        kind: field.kind,
+        encrypted: field.encrypted,
+        description: field.description,
+      })),
+    })),
     ...callbacks,
   });
   await saveTestCaseDrafts({ ...input, result });

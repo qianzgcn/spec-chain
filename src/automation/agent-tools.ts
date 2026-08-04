@@ -29,19 +29,22 @@ export type AutomationAgentTerminalResult =
 const elementReferenceSchema = z
   .string()
   .regex(/^e\d+$/, "请使用最新页面快照中的元素编号");
-const variableNameSchema = z
+const variablePathSchema = z
   .string()
-  .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "变量名格式不正确");
+  .regex(
+    /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/,
+    "变量路径格式不正确",
+  );
 const toolValueSchema = z
   .object({
     literal: z.string().max(2_000).optional(),
-    variableName: variableNameSchema.optional(),
+    variablePath: variablePathSchema.optional(),
   })
   .superRefine((value, context) => {
-    if ((value.literal === undefined) === (value.variableName === undefined)) {
+    if ((value.literal === undefined) === (value.variablePath === undefined)) {
       context.addIssue({
         code: "custom",
-        message: "literal 和 variableName 必须且只能提供一个",
+        message: "literal 和 variablePath 必须且只能提供一个",
       });
     }
   });
@@ -53,11 +56,11 @@ function resolveToolValue(
   input: z.infer<typeof toolValueSchema>,
   variables: Readonly<Record<string, string>>,
 ) {
-  if (!input.variableName) return input.literal ?? "";
-  if (!Object.hasOwn(variables, input.variableName)) {
-    throw new Error(`项目变量 ${input.variableName} 不存在`);
+  if (!input.variablePath) return input.literal ?? "";
+  if (!Object.hasOwn(variables, input.variablePath)) {
+    throw new Error(`项目变量 ${input.variablePath} 不存在`);
   }
-  return variables[input.variableName];
+  return variables[input.variablePath];
 }
 
 function commandResult(observation: string) {
@@ -124,7 +127,7 @@ export function createAutomationAgentTools(input: {
     }),
     fillField: tool({
       description:
-        "填写最新页面快照中的输入框。项目变量只能通过 variableName 引用，普通临时输入使用 literal。",
+        "填写最新页面快照中的输入框。项目变量只能通过 variablePath 引用，普通临时输入使用 literal。",
       inputSchema: z
         .object({ target: elementReferenceSchema })
         .and(toolValueSchema),
@@ -139,7 +142,7 @@ export function createAutomationAgentTools(input: {
     }),
     selectOption: tool({
       description:
-        "选择最新页面快照中的下拉选项。项目变量只能通过 variableName 引用，普通选项值使用 literal。",
+        "选择最新页面快照中的下拉选项。项目变量只能通过 variablePath 引用，普通选项值使用 literal。",
       inputSchema: z
         .object({ target: elementReferenceSchema })
         .and(toolValueSchema),

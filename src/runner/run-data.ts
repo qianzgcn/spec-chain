@@ -12,29 +12,6 @@ const TEST_RUN_INCLUDE = {
       script: true,
       updatedAt: true,
       deletedAt: true,
-      loginProfile: {
-        select: {
-          id: true,
-          name: true,
-          deletedAt: true,
-          usernameVariable: {
-            select: {
-              id: true,
-              name: true,
-              kind: true,
-              deletedAt: true,
-            },
-          },
-          passwordVariable: {
-            select: {
-              id: true,
-              name: true,
-              kind: true,
-              deletedAt: true,
-            },
-          },
-        },
-      },
       project: {
         select: {
           automationInstructions: true,
@@ -48,6 +25,17 @@ const TEST_RUN_INCLUDE = {
               value: true,
               description: true,
               kind: true,
+              encrypted: true,
+              fields: {
+                orderBy: { position: "asc" },
+                select: {
+                  name: true,
+                  value: true,
+                  description: true,
+                  kind: true,
+                  encrypted: true,
+                },
+              },
             },
           },
         },
@@ -59,11 +47,6 @@ const TEST_RUN_INCLUDE = {
 export type RunnerTestRun = Prisma.TestRunGetPayload<{
   include: typeof TEST_RUN_INCLUDE;
 }>;
-
-export type RunnerVariable =
-  RunnerTestRun["testCase"]["project"]["variables"][number] & {
-    value: string;
-  };
 
 export function findRunnerTestRun(runId: string) {
   return taskDb.testRun.findFirst({

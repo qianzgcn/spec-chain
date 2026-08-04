@@ -7,7 +7,6 @@ import {
   AiExecutionLogLevel,
   AiExecutionStage,
   AiExecutionStatus,
-  RunStatus,
 } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
 import {
@@ -457,62 +456,29 @@ export async function deleteExecutionTaskAction(
     },
     select: { status: true },
   });
-  if (execution) {
-    if (
-      execution.status === AiExecutionStatus.QUEUED ||
-      execution.status === AiExecutionStatus.RUNNING
-    ) {
-      return { ok: false, message: "排队中或运行中的任务不能删除" };
-    }
+  if (!execution) {
+    return { ok: false, message: "执行任务不存在或已删除" };
+  }
+  if (
+    execution.status === AiExecutionStatus.QUEUED ||
+    execution.status === AiExecutionStatus.RUNNING
+  ) {
+    return { ok: false, message: "排队中或运行中的任务不能删除" };
+  }
 
-    const deleted = await db.aiExecution.updateMany({
-      where: {
-        id: parsed.data.taskId,
-        projectId: project.id,
-        deletedAt: null,
-        status: {
-          in: [AiExecutionStatus.SUCCEEDED, AiExecutionStatus.FAILED],
-        },
+  const deleted = await db.aiExecution.updateMany({
+    where: {
+      id: parsed.data.taskId,
+      projectId: project.id,
+      deletedAt: null,
+      status: {
+        in: [AiExecutionStatus.SUCCEEDED, AiExecutionStatus.FAILED],
       },
-      data: { deletedAt: new Date() },
-    });
-    if (deleted.count === 0) {
-      return { ok: false, message: "任务状态已发生变化，请刷新后重试" };
-    }
-  } else {
-    const run = await db.testRun.findFirst({
-      where: {
-        id: parsed.data.taskId,
-        deletedAt: null,
-        testCase: { projectId: project.id },
-      },
-      select: { status: true },
-    });
-    if (!run) {
-      return { ok: false, message: "执行任务不存在或已删除" };
-    }
-    if (run.status === RunStatus.QUEUED || run.status === RunStatus.RUNNING) {
-      return { ok: false, message: "排队中或运行中的任务不能删除" };
-    }
-
-    const deleted = await db.testRun.updateMany({
-      where: {
-        id: parsed.data.taskId,
-        deletedAt: null,
-        status: {
-          in: [
-            RunStatus.PASSED,
-            RunStatus.FAILED,
-            RunStatus.TIMED_OUT,
-            RunStatus.STOPPED,
-          ],
-        },
-      },
-      data: { deletedAt: new Date() },
-    });
-    if (deleted.count === 0) {
-      return { ok: false, message: "任务状态已发生变化，请刷新后重试" };
-    }
+    },
+    data: { deletedAt: new Date() },
+  });
+  if (deleted.count === 0) {
+    return { ok: false, message: "任务状态已发生变化，请刷新后重试" };
   }
 
   revalidatePath("/execution-tasks");

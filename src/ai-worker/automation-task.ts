@@ -14,15 +14,21 @@ import {
 import { resolveAutomationAuthentication } from "@/automation/authentication";
 import { createAutomationInputFingerprint } from "@/automation/fingerprint";
 import {
+  ProjectVariableRuntimeError,
+  resolveProjectVariables,
+  type ResolvedProjectVariables,
+} from "@/automation/variable-runtime";
+import {
   generateAutomationScript,
   type AutomationGenerationStage,
 } from "@/automation/workflow";
-import {
-  AiExecutionStage,
-  AiExecutionStatus,
-  VariableKind,
-} from "@/generated/prisma/enums";
+import { AiExecutionStage, AiExecutionStatus } from "@/generated/prisma/enums";
 import { AiWorkflowError } from "@/ai/workflow";
+import {
+  validateTestCaseVariableReferences,
+  VariableReferenceError,
+  type ValidatedVariableReferences,
+} from "@/lib/project-variables/references";
 import { decryptTaskSecret, taskDb, taskRuntime } from "@/task-runtime/runtime";
 
 export async function executeAutomationScriptTask(input: {
@@ -48,41 +54,41 @@ export async function executeAutomationScriptTask(input: {
     throw new AiWorkflowError("当前项目尚未配置 Base URL");
   }
 
-  const variables = execution.project.variables.map((variable) => {
-    try {
-      return {
-        id: variable.id,
-        name: variable.name,
-        kind: variable.kind,
-        description: variable.description,
-        value:
-          variable.kind === VariableKind.SECRET
-            ? decryptTaskSecret(variable.value)
-            : variable.value,
-      };
-    } catch {
-      throw new AiWorkflowError(
-        `项目变量 ${variable.name} 无法读取，请重新配置`,
-      );
+  let variables: ResolvedProjectVariables;
+  try {
+    variables = resolveProjectVariables(
+      execution.project.variables,
+      decryptTaskSecret,
+    );
+  } catch (error) {
+    if (error instanceof ProjectVariableRuntimeError) {
+      throw new AiWorkflowError(error.message);
     }
-  });
+    throw error;
+  }
+  let references: ValidatedVariableReferences;
+  try {
+    references = validateTestCaseVariableReferences({
+      preconditions: testCase.preconditions,
+      steps: testCase.steps,
+      variables: variables.metadata,
+    });
+  } catch (error) {
+    if (error instanceof VariableReferenceError) {
+      throw new AiWorkflowError(`测试用例变量引用无效：${error.message}`);
+    }
+    throw error;
+  }
   const authentication = resolveAutomationAuthentication({
     loginMethodSource: execution.project.loginMethodSource,
-    loginProfile: testCase.loginProfile,
-    variables,
+    credentialVariableName: references.credentialVariableName,
+    variableValues: variables.values,
   });
   const fingerprint = createAutomationInputFingerprint({
     testCase,
     baseUrl,
     automationInstructions: execution.project.automationInstructions,
-    variables,
-    authentication: authentication
-      ? {
-          profileId: authentication.profileId,
-          usernameVariableName: authentication.usernameVariableName,
-          passwordVariableName: authentication.passwordVariableName,
-        }
-      : null,
+    variables: variables.metadata,
   });
   const workDir = path.join(taskRuntime.dataDir, "automation", execution.id);
   await rm(workDir, { recursive: true, force: true });
@@ -101,7 +107,8 @@ export async function executeAutomationScriptTask(input: {
       baseUrl,
       automationInstructions: execution.project.automationInstructions,
       authentication,
-      variables,
+      variableMetadata: variables.metadata,
+      variableValues: variables.values,
       testCase,
       abortSignal: input.abortSignal,
       onStage: (stage: AutomationGenerationStage) =>

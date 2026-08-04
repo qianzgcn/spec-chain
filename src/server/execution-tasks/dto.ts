@@ -5,16 +5,11 @@ import { AiCapability } from "@/generated/prisma/enums";
 import {
   getAiExecutionStageLabel,
   mapAiExecutionStatus,
-  mapTestRunStatus,
-  TEST_RUN_STAGE_LABELS,
 } from "@/lib/execution-tasks/meta";
 import {
-  TEST_CASE_RUN_TASK_TYPE,
   type AiExecutionTaskDetail,
   type AiExecutionResult,
-  type ExecutionTaskDetail,
   type ExecutionTaskSummary,
-  type TestRunExecutionTaskDetail,
 } from "@/lib/execution-tasks/types";
 import { db } from "@/server/db";
 
@@ -37,83 +32,37 @@ function toAiTaskContent(execution: {
 export async function getExecutionTaskSummaries(
   projectId: string,
 ): Promise<ExecutionTaskSummary[]> {
-  const [aiExecutions, testRuns] = await Promise.all([
-    db.aiExecution.findMany({
-      where: { projectId, deletedAt: null },
-      orderBy: { queuedAt: "desc" },
-      take: SUMMARY_LIMIT,
-      select: {
-        id: true,
-        capability: true,
-        status: true,
-        stage: true,
-        requirementText: true,
-        queuedAt: true,
-        startedAt: true,
-        finishedAt: true,
-        durationMs: true,
-        requestedBy: { select: { username: true } },
-        testCase: { select: { code: true, name: true } },
-      },
-    }),
-    db.testRun.findMany({
-      where: {
-        deletedAt: null,
-        testCase: { projectId },
-      },
-      orderBy: { queuedAt: "desc" },
-      take: SUMMARY_LIMIT,
-      select: {
-        id: true,
-        status: true,
-        stage: true,
-        queuedAt: true,
-        startedAt: true,
-        finishedAt: true,
-        durationMs: true,
-        testCaseCodeSnapshot: true,
-        testCaseNameSnapshot: true,
-        requestedBy: { select: { username: true } },
-      },
-    }),
-  ]);
+  const aiExecutions = await db.aiExecution.findMany({
+    where: { projectId, deletedAt: null },
+    orderBy: { queuedAt: "desc" },
+    take: SUMMARY_LIMIT,
+    select: {
+      id: true,
+      capability: true,
+      status: true,
+      stage: true,
+      requirementText: true,
+      queuedAt: true,
+      startedAt: true,
+      finishedAt: true,
+      durationMs: true,
+      requestedBy: { select: { username: true } },
+      testCase: { select: { code: true, name: true } },
+    },
+  });
 
-  return [
-    ...aiExecutions.map((execution): ExecutionTaskSummary => ({
-      id: execution.id,
-      kind: "AI",
-      type: execution.capability,
-      status: mapAiExecutionStatus(execution.status),
-      stageLabel: getAiExecutionStageLabel(
-        execution.capability,
-        execution.stage,
-      ),
-      content: toAiTaskContent(execution),
-      queuedAt: execution.queuedAt.toISOString(),
-      startedAt: execution.startedAt?.toISOString() ?? null,
-      finishedAt: execution.finishedAt?.toISOString() ?? null,
-      durationMs: execution.durationMs,
-      requestedBy: execution.requestedBy.username,
-    })),
-    ...testRuns.map((run): ExecutionTaskSummary => ({
-      id: run.id,
-      kind: "TEST_RUN",
-      type: TEST_CASE_RUN_TASK_TYPE,
-      status: mapTestRunStatus(run.status),
-      stageLabel: TEST_RUN_STAGE_LABELS[run.stage],
-      content: `${run.testCaseCodeSnapshot} · ${run.testCaseNameSnapshot}`,
-      queuedAt: run.queuedAt.toISOString(),
-      startedAt: run.startedAt?.toISOString() ?? null,
-      finishedAt: run.finishedAt?.toISOString() ?? null,
-      durationMs: run.durationMs,
-      requestedBy: run.requestedBy.username,
-    })),
-  ]
-    .toSorted(
-      (left, right) =>
-        new Date(right.queuedAt).getTime() - new Date(left.queuedAt).getTime(),
-    )
-    .slice(0, SUMMARY_LIMIT);
+  return aiExecutions.map((execution): ExecutionTaskSummary => ({
+    id: execution.id,
+    type: execution.capability,
+    status: mapAiExecutionStatus(execution.status),
+    stageLabel: getAiExecutionStageLabel(execution.capability, execution.stage),
+    content: toAiTaskContent(execution),
+    queuedAt: execution.queuedAt.toISOString(),
+    startedAt: execution.startedAt?.toISOString() ?? null,
+    finishedAt: execution.finishedAt?.toISOString() ?? null,
+    durationMs: execution.durationMs,
+    requestedBy: execution.requestedBy.username,
+  }));
 }
 
 const AI_EXECUTION_DETAIL_SELECT = {
@@ -220,7 +169,6 @@ function toAiExecutionTaskDetail(
 ): AiExecutionTaskDetail {
   return {
     id: execution.id,
-    kind: "AI",
     type: execution.capability,
     capability: execution.capability,
     status: mapAiExecutionStatus(execution.status),
@@ -267,114 +215,13 @@ function toAiExecutionTaskDetail(
   };
 }
 
-async function getAiExecutionTaskDetail(projectId: string, taskId: string) {
+export async function getExecutionTaskDetail(
+  projectId: string,
+  taskId: string,
+): Promise<AiExecutionTaskDetail | null> {
   const execution = await db.aiExecution.findFirst({
     where: { id: taskId, projectId, deletedAt: null },
     select: AI_EXECUTION_DETAIL_SELECT,
   });
   return execution ? toAiExecutionTaskDetail(execution) : null;
-}
-
-const TEST_RUN_DETAIL_SELECT = {
-  id: true,
-  status: true,
-  stage: true,
-  queuedAt: true,
-  startedAt: true,
-  finishedAt: true,
-  durationMs: true,
-  errorSummary: true,
-  logContent: true,
-  screenshotPath: true,
-  artifactsExpireAt: true,
-  artifactsPurgedAt: true,
-  cancelRequestedAt: true,
-  baseUrlSnapshot: true,
-  generatedScriptInRun: true,
-  modelProfileNameSnapshot: true,
-  modelIdSnapshot: true,
-  skillNameSnapshot: true,
-  skillVersionSnapshot: true,
-  promptTokens: true,
-  completionTokens: true,
-  totalTokens: true,
-  testCaseCodeSnapshot: true,
-  testCaseNameSnapshot: true,
-  requestedBy: { select: { username: true } },
-  testCase: {
-    select: { id: true, code: true, name: true, deletedAt: true },
-  },
-} satisfies Prisma.TestRunSelect;
-
-type TestRunDetailRecord = Prisma.TestRunGetPayload<{
-  select: typeof TEST_RUN_DETAIL_SELECT;
-}>;
-
-function toTestRunExecutionTaskDetail(
-  run: TestRunDetailRecord,
-): TestRunExecutionTaskDetail {
-  const artifactsExpired =
-    Boolean(run.artifactsPurgedAt) ||
-    run.artifactsExpireAt.getTime() <= Date.now();
-
-  return {
-    id: run.id,
-    kind: "TEST_RUN",
-    type: TEST_CASE_RUN_TASK_TYPE,
-    status: mapTestRunStatus(run.status),
-    runStatus: run.status,
-    stage: run.stage,
-    stageLabel: TEST_RUN_STAGE_LABELS[run.stage],
-    content: `${run.testCaseCodeSnapshot} · ${run.testCaseNameSnapshot}`,
-    queuedAt: run.queuedAt.toISOString(),
-    startedAt: run.startedAt?.toISOString() ?? null,
-    finishedAt: run.finishedAt?.toISOString() ?? null,
-    durationMs: run.durationMs,
-    requestedBy: run.requestedBy.username,
-    errorMessage: run.errorSummary,
-    modelProfileNameSnapshot: run.modelProfileNameSnapshot,
-    modelIdSnapshot: run.modelIdSnapshot,
-    skillNameSnapshot: run.skillNameSnapshot,
-    skillVersionSnapshot: run.skillVersionSnapshot,
-    promptTokens: run.promptTokens,
-    completionTokens: run.completionTokens,
-    totalTokens: run.totalTokens,
-    testCase: {
-      id: run.testCase.id,
-      code: run.testCase.code,
-      name: run.testCase.name,
-      deleted: Boolean(run.testCase.deletedAt),
-    },
-    logContent: artifactsExpired ? null : run.logContent,
-    hasScreenshot: !artifactsExpired && Boolean(run.screenshotPath),
-    artifactsExpired,
-    cancelRequested: Boolean(run.cancelRequestedAt),
-    baseUrl: run.baseUrlSnapshot,
-    generatedScriptInRun: run.generatedScriptInRun,
-  };
-}
-
-async function getTestRunExecutionTaskDetail(
-  projectId: string,
-  taskId: string,
-) {
-  const run = await db.testRun.findFirst({
-    where: {
-      id: taskId,
-      deletedAt: null,
-      testCase: { projectId },
-    },
-    select: TEST_RUN_DETAIL_SELECT,
-  });
-  return run ? toTestRunExecutionTaskDetail(run) : null;
-}
-
-export async function getExecutionTaskDetail(
-  projectId: string,
-  taskId: string,
-): Promise<ExecutionTaskDetail | null> {
-  return (
-    (await getAiExecutionTaskDetail(projectId, taskId)) ??
-    getTestRunExecutionTaskDetail(projectId, taskId)
-  );
 }

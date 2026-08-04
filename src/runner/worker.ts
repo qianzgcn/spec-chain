@@ -2,6 +2,7 @@ import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { resolveAutomationAuthentication } from "@/automation/authentication";
+import { validateTestCaseVariableReferences } from "@/lib/project-variables/references";
 import { RunStatus, TestRunStage } from "@/generated/prisma/enums";
 import { purgeExpiredArtifacts } from "@/runner/artifacts";
 import {
@@ -62,11 +63,17 @@ async function executeRun(runId: string, workerId: string) {
   });
 
   try {
-    const { environment, variables } = prepareRunEnvironment(run, logger);
+    const { environment, variables, variableModuleSource } =
+      prepareRunEnvironment(run, logger);
+    const references = validateTestCaseVariableReferences({
+      preconditions: run.testCase.preconditions,
+      steps: run.testCase.steps,
+      variables: variables.metadata,
+    });
     const authentication = resolveAutomationAuthentication({
       loginMethodSource: run.testCase.project.loginMethodSource,
-      loginProfile: run.testCase.loginProfile,
-      variables,
+      credentialVariableName: references.credentialVariableName,
+      variableValues: variables.values,
     });
     await rm(workDir, { recursive: true, force: true });
     await mkdir(workDir, { recursive: true });
@@ -113,6 +120,7 @@ async function executeRun(runId: string, workerId: string) {
       baseUrl: run.baseUrlSnapshot,
       environment,
       loginMethodSource: authentication?.loginMethodSource,
+      variableModuleSource,
       abortSignal: cancellation.signal,
       logger,
     });

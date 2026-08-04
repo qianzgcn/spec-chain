@@ -27,7 +27,7 @@ export default async function ExecutionTasksPage() {
     <PageContainer table className="gap-5">
       <PageHeader
         title="执行任务"
-        description="查看当前项目的 AI 生成任务和测试用例执行任务。"
+        description="查看当前项目的 AI 辅助生成任务。"
       />
 
       <ExecutionTaskList initialTasks={tasks} />

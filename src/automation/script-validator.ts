@@ -6,6 +6,15 @@ import {
   LOGIN_MODULE_IMPORT,
   writeLoginMethodModule,
 } from "@/automation/authentication";
+import {
+  VARIABLES_MODULE_IMPORT,
+  writeVariableModule,
+} from "@/automation/variable-runtime";
+import {
+  validateScriptVariableReferences,
+  VariableReferenceError,
+  type ProjectVariableMetadata,
+} from "@/lib/project-variables/references";
 import { buildPlaywrightConfig } from "@/runner/playwright-config";
 import { runChildProcess } from "@/task-runtime/child-process";
 
@@ -33,10 +42,7 @@ export function requiresIsolatedTestData(testCase: {
 
 function assertScriptStructure(
   script: string,
-  authentication: {
-    usernameVariableName: string;
-    passwordVariableName: string;
-  } | null,
+  authentication: { variableName: string } | null,
 ) {
   const firstLine = script.split(/\r?\n/, 1)[0]?.trim();
   if (firstLine !== REQUIRED_IMPORT) {
@@ -46,9 +52,14 @@ function assertScriptStructure(
   }
 
   const imports = script.match(/^\s*import\b.*$/gm)?.map((line) => line.trim());
-  const expectedImports = authentication
-    ? [REQUIRED_IMPORT, LOGIN_MODULE_IMPORT]
-    : [REQUIRED_IMPORT];
+  const usesVariableHelpers = /\b(?:getVariable|getCredentials)\s*\(/.test(
+    script,
+  );
+  const expectedImports = [
+    REQUIRED_IMPORT,
+    ...(authentication ? [LOGIN_MODULE_IMPORT] : []),
+    ...(usesVariableHelpers ? [VARIABLES_MODULE_IMPORT] : []),
+  ];
   if (
     !imports ||
     imports.length !== expectedImports.length ||
@@ -57,8 +68,8 @@ function assertScriptStructure(
   ) {
     throw new AutomationScriptValidationError(
       authentication
-        ? "账号用例只能导入 @playwright/test 和平台登录方法"
-        : "脚本只能导入 @playwright/test，不能加载或导出其他模块",
+        ? "账号用例只能按固定顺序导入 Playwright、平台登录方法和变量助手"
+        : "脚本只能导入 Playwright 和按需使用的平台变量助手",
     );
   }
 
@@ -76,10 +87,7 @@ function escapeRegExp(value: string) {
 
 function assertAuthenticationUsage(
   script: string,
-  authentication: {
-    usernameVariableName: string;
-    passwordVariableName: string;
-  } | null,
+  authentication: { variableName: string } | null,
 ) {
   if (!authentication) {
     if (
@@ -87,7 +95,7 @@ function assertAuthenticationUsage(
       /\bawait\s+login\s*\(/.test(script)
     ) {
       throw new AutomationScriptValidationError(
-        "不预登录的用例不能引用项目登录方法",
+        "未引用账号对象的用例不能调用项目登录方法",
       );
     }
     return;
@@ -99,28 +107,12 @@ function assertAuthenticationUsage(
       "账号用例必须且只能调用一次项目登录方法",
     );
   }
-  const loginCall = script.match(
-    /\bawait\s+login\s*\(\s*page\s*,\s*\{([\s\S]*?)\}\s*\)\s*;/,
+  const loginPattern = new RegExp(
+    `\\bawait\\s+login\\s*\\(\\s*page\\s*,\\s*getCredentials\\(\\s*["']${escapeRegExp(authentication.variableName)}["']\\s*\\)\\s*\\)\\s*;`,
   );
-  if (!loginCall) {
+  if (!loginPattern.test(script)) {
     throw new AutomationScriptValidationError(
-      "项目登录方法必须接收 page 和固定的账号参数",
-    );
-  }
-
-  const argumentsSource = loginCall[1];
-  const usernamePattern = new RegExp(
-    `\\busername\\s*:\\s*process\\.env\\.${escapeRegExp(authentication.usernameVariableName)}!`,
-  );
-  const passwordPattern = new RegExp(
-    `\\bpassword\\s*:\\s*process\\.env\\.${escapeRegExp(authentication.passwordVariableName)}!`,
-  );
-  if (
-    !usernamePattern.test(argumentsSource) ||
-    !passwordPattern.test(argumentsSource)
-  ) {
-    throw new AutomationScriptValidationError(
-      "项目登录方法必须使用当前登录身份绑定的用户名和密码变量",
+      `项目登录方法必须通过 getCredentials(${JSON.stringify(authentication.variableName)}) 读取账号对象`,
     );
   }
 }
@@ -151,42 +143,39 @@ function assertSafeScriptOperations(script: string) {
   }
 }
 
-function assertConfiguredVariables(
-  script: string,
-  allowedVariableNames: readonly string[],
-) {
-  const allowedVariables = new Set(["BASE_URL", ...allowedVariableNames]);
-  const referencedVariables = [
-    ...script.matchAll(/\bprocess\.env\.([A-Za-z_][A-Za-z0-9_]*)/g),
-  ].map((match) => match[1]);
-  const unknownVariable = referencedVariables.find(
-    (name) => !allowedVariables.has(name),
+function assertConfiguredVariables(input: {
+  script: string;
+  variables: readonly ProjectVariableMetadata[];
+}) {
+  const scriptWithoutBaseUrl = input.script.replace(
+    /\bprocess\s*\.\s*env\s*\.\s*BASE_URL\b/g,
+    "",
   );
-  if (unknownVariable) {
+  if (/\bprocess\s*(?:\?\.|\.)\s*env\b/.test(scriptWithoutBaseUrl)) {
     throw new AutomationScriptValidationError(
-      `脚本引用了未配置的项目变量 ${unknownVariable}`,
+      "脚本只能直接读取 process.env.BASE_URL，项目变量必须通过平台变量助手引用",
     );
   }
-  if (/process\.env\s*\[/.test(script)) {
-    throw new AutomationScriptValidationError(
-      "项目变量必须使用 process.env.变量名 的明确写法",
-    );
+  try {
+    validateScriptVariableReferences(input);
+  } catch (error) {
+    if (error instanceof VariableReferenceError) {
+      throw new AutomationScriptValidationError(error.message);
+    }
+    throw error;
   }
 }
 
 export function validateAutomationScriptStatic(input: {
   script: string;
-  allowedVariableNames: readonly string[];
-  authentication: {
-    usernameVariableName: string;
-    passwordVariableName: string;
-  } | null;
+  variables: readonly ProjectVariableMetadata[];
+  authentication: { variableName: string } | null;
   requiresCleanup: boolean;
 }) {
   const script = input.script.trim();
   assertScriptStructure(script, input.authentication);
   assertSafeScriptOperations(script);
-  assertConfiguredVariables(script, input.allowedVariableNames);
+  assertConfiguredVariables({ script, variables: input.variables });
   assertAuthenticationUsage(script, input.authentication);
 
   if (
@@ -207,6 +196,7 @@ export async function validateAutomationScriptCompilation(input: {
   workDir: string;
   abortSignal: AbortSignal;
   loginMethodSource?: string;
+  variableModuleSource?: string;
 }) {
   await mkdir(input.workDir, { recursive: true });
   const specPath = path.join(input.workDir, "generated.spec.ts");
@@ -216,6 +206,10 @@ export async function validateAutomationScriptCompilation(input: {
     writeFile(configPath, buildPlaywrightConfig(input.baseUrl), "utf8"),
     ...(input.loginMethodSource
       ? [writeLoginMethodModule(input.workDir, input.loginMethodSource)]
+      : []),
+    ...(input.variableModuleSource &&
+    input.script.includes(VARIABLES_MODULE_IMPORT)
+      ? [writeVariableModule(input.workDir, input.variableModuleSource)]
       : []),
   ]);
 

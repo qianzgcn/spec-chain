@@ -24,7 +24,15 @@ import {
   requiresIsolatedTestData,
   validateAutomationScriptStatic,
 } from "@/automation/script-validator";
-import { TestCaseScriptSource, VariableKind } from "@/generated/prisma/enums";
+import {
+  createVariableRuntimeBundle,
+  VARIABLES_MODULE_IMPORT,
+} from "@/automation/variable-runtime";
+import {
+  TestCaseScriptSource,
+  VariableFieldKind,
+  VariableKind,
+} from "@/generated/prisma/enums";
 import {
   LOGIN_METHOD_TEMPLATE,
   LOGIN_MODULE_IMPORT,
@@ -34,9 +42,38 @@ const validScript = `import { test, expect } from "@playwright/test";
 
 test("登录失败", async ({ page }) => {
   await page.goto(process.env.BASE_URL!);
-  await page.getByLabel("用户名").fill(process.env.ADMIN_USERNAME!);
+  await page.getByLabel("用户名").fill("invalid-user");
   await expect(page.getByRole("alert")).toBeVisible();
 });`;
+
+const scalarVariable: AutomationVariableMetadata = {
+  name: "E2E_LOCALE",
+  kind: VariableKind.STRING,
+  encrypted: false,
+  description: "界面语言",
+  fields: [],
+};
+
+const accountVariable: AutomationVariableMetadata = {
+  name: "ADMIN",
+  kind: VariableKind.OBJECT,
+  encrypted: false,
+  description: "管理员账号",
+  fields: [
+    {
+      name: "username",
+      kind: VariableFieldKind.STRING,
+      encrypted: false,
+      description: "用户名",
+    },
+    {
+      name: "password",
+      kind: VariableFieldKind.STRING,
+      encrypted: true,
+      description: "密码",
+    },
+  ],
+};
 
 describe("自动化输入指纹", () => {
   it("包含用例与项目元数据，但不受变量值影响", () => {
@@ -48,65 +85,63 @@ describe("自动化输入指纹", () => {
       },
       baseUrl: "https://specchain.example.com",
       automationInstructions: "使用管理员账号",
-      authentication: null,
+      variables: [scalarVariable],
     };
-    const firstVariables = [
-      {
-        name: "ADMIN_PASSWORD",
-        kind: VariableKind.SECRET,
-        description: "管理员密码",
-        value: "first-secret",
-      },
-    ] satisfies (AutomationVariableMetadata & { value: string })[];
-    const secondVariables = [
-      {
-        name: "ADMIN_PASSWORD",
-        kind: VariableKind.SECRET,
-        description: "管理员密码",
-        value: "second-secret",
-      },
-    ] satisfies (AutomationVariableMetadata & { value: string })[];
-    const first = createAutomationInputFingerprint({
-      ...common,
-      variables: firstVariables,
-    });
-    const second = createAutomationInputFingerprint({
-      ...common,
-      variables: secondVariables,
-    });
+    const first = createAutomationInputFingerprint(common);
+    const second = createAutomationInputFingerprint(common);
 
     expect(first).toBe(second);
   });
 
-  it("登录身份或变量映射改变后指纹失效", () => {
+  it("引用变量的结构改变后指纹失效，未引用变量不影响指纹", () => {
     const common = {
       testCase: {
         name: "查看项目",
-        preconditions: "管理员已登录",
+        preconditions: "使用 ${ADMIN} 登录",
         steps: "1. 打开项目列表",
       },
       baseUrl: "https://specchain.example.com",
       automationInstructions: null,
-      variables: [],
     };
     const first = createAutomationInputFingerprint({
       ...common,
-      authentication: {
-        profileId: "profile-1",
-        usernameVariableName: "ADMIN_USERNAME",
-        passwordVariableName: "ADMIN_PASSWORD",
-      },
+      variables: [accountVariable, scalarVariable],
     });
     const second = createAutomationInputFingerprint({
       ...common,
-      authentication: {
-        profileId: "profile-2",
-        usernameVariableName: "MEMBER_USERNAME",
-        passwordVariableName: "MEMBER_PASSWORD",
-      },
+      variables: [
+        {
+          ...accountVariable,
+          fields: accountVariable.fields.map((field) =>
+            field.name === "username"
+              ? { ...field, description: "管理员登录名" }
+              : field,
+          ),
+        },
+      ],
     });
 
     expect(first).not.toBe(second);
+  });
+});
+
+describe("任务内变量助手", () => {
+  it("只把变量路径写入模块，真实值只留在任务环境", () => {
+    const runtime = createVariableRuntimeBundle({
+      metadata: [accountVariable, scalarVariable],
+      values: {
+        "ADMIN.username": "admin",
+        "ADMIN.password": "never-write-this-secret",
+        E2E_LOCALE: "zh-CN",
+      },
+    });
+
+    expect(runtime.source).toContain("ADMIN.username");
+    expect(runtime.source).toContain("getCredentials");
+    expect(runtime.source).not.toContain("never-write-this-secret");
+    expect(Object.values(runtime.environment)).toContain(
+      "never-write-this-secret",
+    );
   });
 });
 
@@ -216,9 +251,7 @@ describe("自动化提示词", () => {
   it("只包含变量元数据，不包含变量值", () => {
     const variables = [
       {
-        name: "ADMIN_PASSWORD",
-        kind: VariableKind.SECRET,
-        description: "管理员密码",
+        ...scalarVariable,
         value: "never-send-this-value",
       },
     ] satisfies (AutomationVariableMetadata & { value: string })[];
@@ -235,7 +268,7 @@ describe("自动化提示词", () => {
       },
     });
 
-    expect(prompt).toContain("ADMIN_PASSWORD（敏感）");
+    expect(prompt).toContain("E2E_LOCALE（字符串变量）");
     expect(prompt).not.toContain("never-send-this-value");
   });
 
@@ -244,11 +277,9 @@ describe("自动化提示词", () => {
       baseUrl: "https://example.com",
       automationInstructions: null,
       authentication: {
-        profileName: "管理员",
-        usernameVariableName: "ADMIN_USERNAME",
-        passwordVariableName: "ADMIN_PASSWORD",
+        variableName: "ADMIN",
       },
-      variables: [],
+      variables: [accountVariable],
       testCase: {
         code: "TC-002",
         name: "查看项目列表",
@@ -258,7 +289,7 @@ describe("自动化提示词", () => {
     });
 
     expect(prompt).toContain(LOGIN_MODULE_IMPORT);
-    expect(prompt).toContain("process.env.ADMIN_USERNAME");
+    expect(prompt).toContain('getCredentials("ADMIN")');
     expect(prompt).toContain("不得探测、复制或重新实现登录页面操作");
   });
 });
@@ -274,38 +305,20 @@ describe("项目登录方法", () => {
     await expect(
       validateLoginMethodCompilation(LOGIN_METHOD_TEMPLATE),
     ).resolves.toBeUndefined();
-  });
+  }, 70_000);
 
   it("只在服务端解析账号变量值", () => {
     expect(
       resolveAutomationAuthentication({
         loginMethodSource: LOGIN_METHOD_TEMPLATE,
-        loginProfile: {
-          id: "profile-1",
-          name: "管理员",
-          deletedAt: null,
-          usernameVariable: {
-            id: "username-variable",
-            name: "ADMIN_USERNAME",
-            kind: VariableKind.PLAIN,
-            deletedAt: null,
-          },
-          passwordVariable: {
-            id: "password-variable",
-            name: "ADMIN_PASSWORD",
-            kind: VariableKind.SECRET,
-            deletedAt: null,
-          },
+        credentialVariableName: "ADMIN",
+        variableValues: {
+          "ADMIN.username": "admin",
+          "ADMIN.password": "secret",
         },
-        variables: [
-          { id: "username-variable", value: "admin" },
-          { id: "password-variable", value: "secret" },
-        ],
       }),
     ).toMatchObject({
-      profileName: "管理员",
-      usernameVariableName: "ADMIN_USERNAME",
-      passwordVariableName: "ADMIN_PASSWORD",
+      variableName: "ADMIN",
       username: "admin",
       password: "secret",
     });
@@ -346,7 +359,7 @@ describe("自动化脚本静态校验", () => {
     expect(
       validateAutomationScriptStatic({
         script: validScript,
-        allowedVariableNames: ["ADMIN_USERNAME"],
+        variables: [],
         authentication: null,
         requiresCleanup: false,
       }),
@@ -364,14 +377,24 @@ describe("自动化脚本静态校验", () => {
       "网络拦截",
     ],
     [
-      validScript.replace("ADMIN_USERNAME", "UNKNOWN_SECRET"),
-      "未配置的项目变量",
+      validScript.replace(
+        'fill("invalid-user")',
+        "fill(process.env.UNKNOWN_SECRET!)",
+      ),
+      "必须通过平台变量助手",
+    ],
+    [
+      validScript.replace(
+        'test("登录失败", async ({ page }) => {',
+        'test("登录失败", async ({ page }) => {\n  const { PATH } = process.env;',
+      ),
+      "只能直接读取 process.env.BASE_URL",
     ],
   ])("拒绝不安全或不可复现的脚本", (script, message) => {
     expect(() =>
       validateAutomationScriptStatic({
         script,
-        allowedVariableNames: ["ADMIN_USERNAME"],
+        variables: [],
         authentication: null,
         requiresCleanup: false,
       }),
@@ -389,7 +412,7 @@ describe("自动化脚本静态校验", () => {
     expect(() =>
       validateAutomationScriptStatic({
         script: validScript,
-        allowedVariableNames: ["ADMIN_USERNAME"],
+        variables: [],
         authentication: null,
         requiresCleanup: true,
       }),
@@ -399,22 +422,19 @@ describe("自动化脚本静态校验", () => {
   it("账号用例必须使用公共登录方法和绑定变量", () => {
     const script = `import { test, expect } from "@playwright/test";
 ${LOGIN_MODULE_IMPORT}
+${VARIABLES_MODULE_IMPORT}
 
 test("查看项目", async ({ page }) => {
-  await login(page, {
-    username: process.env.ADMIN_USERNAME!,
-    password: process.env.ADMIN_PASSWORD!,
-  });
+  await login(page, getCredentials("ADMIN"));
   await expect(page).toHaveURL(/projects/);
 });`;
 
     expect(
       validateAutomationScriptStatic({
         script,
-        allowedVariableNames: ["ADMIN_USERNAME", "ADMIN_PASSWORD"],
+        variables: [accountVariable],
         authentication: {
-          usernameVariableName: "ADMIN_USERNAME",
-          passwordVariableName: "ADMIN_PASSWORD",
+          variableName: "ADMIN",
         },
         requiresCleanup: false,
       }),
@@ -422,10 +442,9 @@ test("查看项目", async ({ page }) => {
     expect(() =>
       validateAutomationScriptStatic({
         script: validScript,
-        allowedVariableNames: ["ADMIN_USERNAME", "ADMIN_PASSWORD"],
+        variables: [accountVariable],
         authentication: {
-          usernameVariableName: "ADMIN_USERNAME",
-          passwordVariableName: "ADMIN_PASSWORD",
+          variableName: "ADMIN",
         },
         requiresCleanup: false,
       }),

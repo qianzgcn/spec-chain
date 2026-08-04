@@ -88,7 +88,7 @@ export function PendingTestCaseDetailActions({
           评审通过
         </Button>
         <Button
-          variant="outline"
+          variant="destructive"
           disabled={isPending}
           onClick={() => setDeleteDialogOpen(true)}
         >

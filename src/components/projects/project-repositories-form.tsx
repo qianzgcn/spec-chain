@@ -151,14 +151,16 @@ function RepositoryCredentialCard({
               ) : null}
               <Button
                 type="button"
-                variant="outline"
+                variant="destructive"
                 size="sm"
                 disabled={disabled}
                 onClick={onDelete}
               >
                 {pending && account ? (
                   <Spinner data-icon="inline-start" />
-                ) : null}
+                ) : (
+                  <Trash2Icon data-icon="inline-start" />
+                )}
                 删除
               </Button>
             </div>
@@ -613,7 +615,7 @@ export function ProjectRepositoriesForm({
                       </Button>
                       <Button
                         type="button"
-                        variant="ghost"
+                        variant="destructive"
                         size="icon-sm"
                         aria-label={`删除第 ${index + 1} 个仓库`}
                         onClick={() => {

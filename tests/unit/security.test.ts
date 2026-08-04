@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { decryptAesGcm, encryptAesGcm } from "@/lib/security/aes-gcm";
 import { hashPassword, verifyPassword } from "@/lib/security/password";
 
-describe("敏感变量加密", () => {
+describe("项目数据加密", () => {
   it("使用 AES-256-GCM 加密并可正确解密", () => {
     const key = randomBytes(32);
     const encrypted = encryptAesGcm("secret-value", key);

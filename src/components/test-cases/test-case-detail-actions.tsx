@@ -98,7 +98,7 @@ export function TestCaseDetailActions({
           编辑
         </ButtonLink>
         <Button
-          variant="outline"
+          variant="destructive"
           disabled={isPending || isGenerating}
           onClick={() => setConfirmOpen(true)}
         >

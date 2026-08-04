@@ -140,7 +140,7 @@ export function createExecutionTaskColumns(input: {
                 label: "查看",
                 href: `/execution-tasks/${task.id}`,
               },
-              ...(task.kind === "AI" && task.status === "FAILED"
+              ...(task.status === "FAILED"
                 ? [
                     {
                       label: "重新运行",

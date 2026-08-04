@@ -6,9 +6,13 @@ import {
   AiExecutionStatus,
   RunStatus,
   TestCaseScriptSource,
-  VariableKind,
 } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
+import {
+  validateScriptVariableReferences,
+  validateTestCaseVariableReferences,
+  VariableReferenceError,
+} from "@/lib/project-variables/references";
 import {
   testCaseGroupNameSchema,
   testCaseSchema,
@@ -16,6 +20,7 @@ import {
 import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
+import { getProjectVariableMetadata } from "@/server/projects/project-variables";
 import { generateBusinessCode } from "@/server/requirements/business-code";
 
 async function requireCurrentProjectForAction() {
@@ -27,10 +32,9 @@ async function validateGroupAndStory(
   projectId: string,
   groupId: string,
   userStoryId: string | null,
-  loginProfileId: string | null,
   retainedUserStoryId: string | null = null,
 ): Promise<ActionResult | { ok: true }> {
-  const [group, userStory, loginProfile] = await Promise.all([
+  const [group, userStory] = await Promise.all([
     db.testCaseGroup.findFirst({
       where: { id: groupId, projectId, deletedAt: null },
       select: { id: true },
@@ -45,21 +49,6 @@ async function validateGroupAndStory(
           select: { id: true },
         })
       : null,
-    loginProfileId
-      ? db.projectLoginProfile.findFirst({
-          where: {
-            id: loginProfileId,
-            projectId,
-            deletedAt: null,
-            usernameVariable: { deletedAt: null },
-            passwordVariable: {
-              deletedAt: null,
-              kind: VariableKind.SECRET,
-            },
-          },
-          select: { id: true },
-        })
-      : null,
   ]);
 
   if (!group) {
@@ -68,10 +57,33 @@ async function validateGroupAndStory(
   if (userStoryId && !userStory) {
     return { ok: false, message: "关联 US 不存在或已删除" };
   }
-  if (loginProfileId && !loginProfile) {
-    return { ok: false, message: "登录身份不存在或配置已失效" };
-  }
   return { ok: true };
+}
+
+async function validateTestCaseVariables(
+  projectId: string,
+  input: { preconditions: string; steps: string; script: string },
+): Promise<ActionResult | { ok: true }> {
+  const variables = await getProjectVariableMetadata(projectId);
+  try {
+    validateTestCaseVariableReferences({
+      preconditions: input.preconditions || null,
+      steps: input.steps,
+      variables,
+    });
+    if (input.script.trim()) {
+      validateScriptVariableReferences({
+        script: input.script,
+        variables,
+      });
+    }
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof VariableReferenceError) {
+      return { ok: false, message: error.message };
+    }
+    throw error;
+  }
 }
 
 export async function createTestCaseGroupAction(
@@ -220,9 +232,13 @@ export async function createTestCaseAction(
     project.id,
     parsed.data.groupId,
     parsed.data.userStoryId,
-    parsed.data.loginProfileId,
   );
   if (!validation.ok) return validation;
+  const variableValidation = await validateTestCaseVariables(
+    project.id,
+    parsed.data,
+  );
+  if (!variableValidation.ok) return variableValidation;
   const script = parsed.data.script.trim() || null;
 
   const testCase = await db.testCase.create({
@@ -238,7 +254,6 @@ export async function createTestCaseAction(
       script,
       scriptSource: script ? TestCaseScriptSource.MANUAL : null,
       userStoryId: parsed.data.userStoryId,
-      loginProfileId: parsed.data.loginProfileId,
     },
     select: { id: true },
   });
@@ -282,10 +297,14 @@ export async function updateTestCaseAction(
     project.id,
     parsed.data.groupId,
     parsed.data.userStoryId,
-    parsed.data.loginProfileId,
     testCase.userStoryId,
   );
   if (!validation.ok) return validation;
+  const variableValidation = await validateTestCaseVariables(
+    project.id,
+    parsed.data,
+  );
+  if (!variableValidation.ok) return variableValidation;
   const script = parsed.data.script.trim() || null;
   const scriptChanged = script !== testCase.script;
 
@@ -294,7 +313,6 @@ export async function updateTestCaseAction(
     data: {
       groupId: parsed.data.groupId,
       userStoryId: parsed.data.userStoryId,
-      loginProfileId: parsed.data.loginProfileId,
       name: parsed.data.name,
       priority: parsed.data.priority,
       preconditions: parsed.data.preconditions || null,

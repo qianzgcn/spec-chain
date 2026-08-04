@@ -13,6 +13,7 @@ import {
 import { createAutomationInputFingerprint } from "@/automation/fingerprint";
 import { PlaywrightCliError } from "@/automation/playwright-cli-session";
 import { AutomationScriptValidationError } from "@/automation/script-validator";
+import type { ResolvedProjectVariables } from "@/automation/variable-runtime";
 import {
   generateAutomationScript,
   type AutomationGenerationStage,
@@ -22,7 +23,7 @@ import {
   RunStatus,
   TestRunStage,
 } from "@/generated/prisma/enums";
-import type { RunnerTestRun, RunnerVariable } from "@/runner/run-data";
+import type { RunnerTestRun } from "@/runner/run-data";
 import type { RunLogWriter } from "@/runner/run-log-writer";
 import { decryptTaskSecret, taskDb } from "@/task-runtime/runtime";
 
@@ -85,7 +86,7 @@ function getStageMessage(stage: AutomationGenerationStage) {
 export async function generateScriptForRun(input: {
   run: RunnerTestRun;
   workerId: string;
-  variables: RunnerVariable[];
+  variables: ResolvedProjectVariables;
   authentication: ResolvedAutomationAuthentication | null;
   workDir: string;
   stopSignal: AbortSignal;
@@ -132,14 +133,7 @@ export async function generateScriptForRun(input: {
     testCase: input.run.testCase,
     baseUrl: input.run.baseUrlSnapshot,
     automationInstructions: input.run.testCase.project.automationInstructions,
-    variables: input.variables,
-    authentication: input.authentication
-      ? {
-          profileId: input.authentication.profileId,
-          usernameVariableName: input.authentication.usernameVariableName,
-          passwordVariableName: input.authentication.passwordVariableName,
-        }
-      : null,
+    variables: input.variables.metadata,
   });
   const timeoutSignal = AbortSignal.timeout(GENERATION_TIMEOUT_MS);
   const generationSignal = AbortSignal.any([input.stopSignal, timeoutSignal]);
@@ -158,7 +152,8 @@ export async function generateScriptForRun(input: {
       baseUrl: input.run.baseUrlSnapshot,
       automationInstructions: input.run.testCase.project.automationInstructions,
       authentication: input.authentication,
-      variables: input.variables,
+      variableMetadata: input.variables.metadata,
+      variableValues: input.variables.values,
       testCase: input.run.testCase,
       abortSignal: generationSignal,
       onStage: async (stage) => {

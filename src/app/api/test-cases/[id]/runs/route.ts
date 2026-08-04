@@ -3,12 +3,14 @@ import { NextResponse } from "next/server";
 import { createAutomationInputFingerprint } from "@/automation/fingerprint";
 import { getAutomationScriptStatus } from "@/automation/script-status";
 import { RunStatus, TestRunStage } from "@/generated/prisma/enums";
+import { VariableReferenceError } from "@/lib/project-variables/references";
 import { getAuthenticatedApiContext } from "@/server/api/context";
 import { db } from "@/server/db";
 import { startTaskScheduler } from "@/server/tasks/launcher";
 
 const ARTIFACT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 
+// 测试运行归属于单个用例，由用例执行记录页面统一创建和读取。
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -94,13 +96,6 @@ export async function POST(
       aiScriptFingerprint: true,
       preconditions: true,
       steps: true,
-      loginProfile: {
-        select: {
-          id: true,
-          usernameVariable: { select: { name: true } },
-          passwordVariable: { select: { name: true } },
-        },
-      },
       project: {
         select: {
           automationInstructions: true,
@@ -110,7 +105,17 @@ export async function POST(
             select: {
               name: true,
               kind: true,
+              encrypted: true,
               description: true,
+              fields: {
+                orderBy: { position: "asc" },
+                select: {
+                  name: true,
+                  kind: true,
+                  encrypted: true,
+                  description: true,
+                },
+              },
             },
           },
         },
@@ -136,19 +141,23 @@ export async function POST(
     );
   }
 
-  const fingerprint = createAutomationInputFingerprint({
-    testCase,
-    baseUrl: context.project.baseUrl,
-    automationInstructions: testCase.project.automationInstructions,
-    variables: testCase.project.variables,
-    authentication: testCase.loginProfile
-      ? {
-          profileId: testCase.loginProfile.id,
-          usernameVariableName: testCase.loginProfile.usernameVariable.name,
-          passwordVariableName: testCase.loginProfile.passwordVariable.name,
-        }
-      : null,
-  });
+  let fingerprint: string;
+  try {
+    fingerprint = createAutomationInputFingerprint({
+      testCase,
+      baseUrl: context.project.baseUrl,
+      automationInstructions: testCase.project.automationInstructions,
+      variables: testCase.project.variables,
+    });
+  } catch (error) {
+    if (error instanceof VariableReferenceError) {
+      return NextResponse.json(
+        { message: `测试用例变量引用无效：${error.message}` },
+        { status: 400 },
+      );
+    }
+    throw error;
+  }
   const scriptStatus = getAutomationScriptStatus({
     script: testCase.script,
     source: testCase.scriptSource,

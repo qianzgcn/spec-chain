@@ -153,13 +153,6 @@ function buildBreadcrumbs(pathname: string): BreadcrumbEntry[] {
     ];
   }
 
-  if (pathname === "/project-settings/authentication") {
-    return [
-      { label: "项目设置", href: "/project-settings" },
-      { label: "登录配置" },
-    ];
-  }
-
   return [];
 }
 

@@ -19,7 +19,7 @@ export default async function ProjectTestingSettingsPage() {
     return (
       <ProjectSettingsPage
         title="测试设置"
-        description="配置自动化测试访问地址和运行环境变量。"
+        description="配置测试环境、项目变量和自动化复用能力。"
       >
         <NoCurrentProject />
       </ProjectSettingsPage>
@@ -32,6 +32,7 @@ export default async function ProjectTestingSettingsPage() {
       id: true,
       baseUrl: true,
       automationInstructions: true,
+      loginMethodSource: true,
       variables: {
         where: { deletedAt: null },
         orderBy: { position: "asc" },
@@ -41,6 +42,18 @@ export default async function ProjectTestingSettingsPage() {
           value: true,
           description: true,
           kind: true,
+          encrypted: true,
+          fields: {
+            orderBy: { position: "asc" },
+            select: {
+              id: true,
+              name: true,
+              value: true,
+              description: true,
+              kind: true,
+              encrypted: true,
+            },
+          },
         },
       },
     },
@@ -55,13 +68,32 @@ export default async function ProjectTestingSettingsPage() {
         id: project.id,
         baseUrl: project.baseUrl ?? "",
         automationInstructions: project.automationInstructions ?? "",
-        variables: project.variables.map((variable) => ({
-          id: variable.id,
-          name: variable.name,
-          value: variable.kind === "SECRET" ? "" : variable.value,
-          description: variable.description ?? "",
-          kind: variable.kind,
-        })),
+        loginMethodSource: project.loginMethodSource ?? "",
+        variables: project.variables.map((variable) =>
+          variable.kind === "OBJECT"
+            ? {
+                id: variable.id,
+                name: variable.name,
+                description: variable.description ?? "",
+                kind: variable.kind,
+                fields: variable.fields.map((field) => ({
+                  id: field.id,
+                  name: field.name,
+                  value: field.encrypted ? "" : field.value,
+                  description: field.description ?? "",
+                  kind: field.kind,
+                  encrypted: field.encrypted,
+                })),
+              }
+            : {
+                id: variable.id,
+                name: variable.name,
+                value: variable.encrypted ? "" : variable.value,
+                description: variable.description ?? "",
+                kind: variable.kind,
+                encrypted: variable.encrypted,
+              },
+        ),
       }}
     />
   );

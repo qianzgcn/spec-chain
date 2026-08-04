@@ -3,22 +3,14 @@ import type {
   AiDraftStatus,
   AiExecutionLogLevel,
   AiExecutionStage,
-  RunStatus,
-  TestRunStage,
 } from "@/generated/prisma/enums";
 
-export const TEST_CASE_RUN_TASK_TYPE = "TEST_CASE_RUN" as const;
+export type ExecutionTaskType = AiCapability;
 
-export type ExecutionTaskType = AiCapability | typeof TEST_CASE_RUN_TASK_TYPE;
-
-export type ExecutionTaskStatus =
-  "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "TIMED_OUT" | "STOPPED";
-
-export type ExecutionTaskKind = "AI" | "TEST_RUN";
+export type ExecutionTaskStatus = "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED";
 
 export type ExecutionTaskSummary = {
   id: string;
-  kind: ExecutionTaskKind;
   type: ExecutionTaskType;
   status: ExecutionTaskStatus;
   stageLabel: string;
@@ -77,7 +69,6 @@ type ExecutionTaskDetailBase = ExecutionTaskSummary & {
 };
 
 export type AiExecutionTaskDetail = ExecutionTaskDetailBase & {
-  kind: "AI";
   capability: AiCapability;
   stage: AiExecutionStage;
   requirementText: string;
@@ -96,24 +87,3 @@ export type AiExecutionTaskDetail = ExecutionTaskDetailBase & {
   result: AiExecutionResult | null;
   logs: AiExecutionLogEntry[];
 };
-
-export type TestRunExecutionTaskDetail = ExecutionTaskDetailBase & {
-  kind: "TEST_RUN";
-  runStatus: RunStatus;
-  stage: TestRunStage;
-  testCase: {
-    id: string;
-    code: string;
-    name: string;
-    deleted: boolean;
-  };
-  logContent: string | null;
-  hasScreenshot: boolean;
-  artifactsExpired: boolean;
-  cancelRequested: boolean;
-  baseUrl: string;
-  generatedScriptInRun: boolean;
-};
-
-export type ExecutionTaskDetail =
-  AiExecutionTaskDetail | TestRunExecutionTaskDetail;

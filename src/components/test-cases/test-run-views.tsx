@@ -1,12 +1,6 @@
-import {
-  DownloadIcon,
-  ExternalLinkIcon,
-  HistoryIcon,
-  SquareIcon,
-} from "lucide-react";
+import { DownloadIcon, HistoryIcon, SquareIcon } from "lucide-react";
 import Image from "next/image";
 
-import { ButtonLink } from "@/components/navigation/button-link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -182,28 +176,26 @@ export function TestRunDetailView({
             <dd className="break-all">{detail.baseUrl}</dd>
             <dt className="text-muted-foreground">当前阶段</dt>
             <dd>{TEST_RUN_STAGE_LABELS[detail.stage]}</dd>
+            <dt className="text-muted-foreground">脚本准备</dt>
+            <dd>
+              {detail.generatedScriptInRun ? "本次 AI 生成" : "复用已有脚本"}
+            </dd>
           </dl>
         </div>
-        <div className="flex items-center gap-2">
-          <ButtonLink href={`/execution-tasks/${detail.id}`} variant="outline">
-            <ExternalLinkIcon data-icon="inline-start" />
-            任务详情
-          </ButtonLink>
-          {canStop ? (
-            <Button
-              variant="outline"
-              disabled={stopPending || detail.cancelRequested}
-              onClick={() => onStop(detail.id)}
-            >
-              {stopPending ? (
-                <Spinner data-icon="inline-start" />
-              ) : (
-                <SquareIcon data-icon="inline-start" />
-              )}
-              停止
-            </Button>
-          ) : null}
-        </div>
+        {canStop ? (
+          <Button
+            variant="outline"
+            disabled={stopPending || detail.cancelRequested}
+            onClick={() => onStop(detail.id)}
+          >
+            {stopPending ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <SquareIcon data-icon="inline-start" />
+            )}
+            停止
+          </Button>
+        ) : null}
       </div>
 
       {detail.errorSummary ? (

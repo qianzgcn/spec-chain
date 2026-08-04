@@ -12,7 +12,11 @@ import {
 } from "@/ai/prompts/generate-user-story";
 import { renderPromptTemplate } from "@/ai/prompts/template";
 import { builtInSkillResolver } from "@/ai/skills";
-import { AiCapability } from "@/generated/prisma/enums";
+import {
+  AiCapability,
+  VariableFieldKind,
+  VariableKind,
+} from "@/generated/prisma/enums";
 
 describe("AI 生成 US 提示词", () => {
   it("从独立提示词文件加载 Skill 内容和版本", () => {
@@ -105,6 +109,28 @@ describe("AI 生成测试用例提示词", () => {
     const generationPrompt = buildTestCaseDraftsPrompt({
       requirementText: "管理员使用错误密码时应登录失败",
       groups: [{ id: "group-auth", name: "认证与会话" }],
+      variables: [
+        {
+          name: "ADMIN",
+          kind: VariableKind.OBJECT,
+          encrypted: false,
+          description: "管理员账号",
+          fields: [
+            {
+              name: "username",
+              kind: VariableFieldKind.STRING,
+              encrypted: false,
+              description: "用户名",
+            },
+            {
+              name: "password",
+              kind: VariableFieldKind.STRING,
+              encrypted: true,
+              description: "密码",
+            },
+          ],
+        },
+      ],
       codeEvidence: [
         {
           repository: "team/spec-chain",
@@ -125,5 +151,6 @@ describe("AI 生成测试用例提示词", () => {
     expect(generationPrompt).toContain("group-auth");
     expect(generationPrompt).toContain("认证与会话");
     expect(generationPrompt).toContain("无法明确归类时返回 `null`");
+    expect(generationPrompt).toContain("ADMIN.username");
   });
 });

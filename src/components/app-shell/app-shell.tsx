@@ -236,7 +236,6 @@ export function AppShell({
         { label: "基础设置", href: "/project-settings" },
         { label: "代码仓库", href: "/project-settings/repositories" },
         { label: "测试设置", href: "/project-settings/testing" },
-        { label: "登录配置", href: "/project-settings/authentication" },
       ],
     },
     {

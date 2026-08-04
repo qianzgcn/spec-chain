@@ -2,7 +2,10 @@ import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 
-import type { VariableKind } from "@/generated/prisma/enums";
+import {
+  VARIABLES_MODULE_IMPORT,
+  writeVariableModule,
+} from "@/automation/variable-runtime";
 import {
   LOGIN_METHOD_IMPORT,
   LOGIN_METHOD_TEMPLATE,
@@ -17,30 +20,9 @@ const LOGIN_SETUP_TIMEOUT_MS = 60_000;
 
 export { LOGIN_METHOD_TEMPLATE, LOGIN_MODULE_IMPORT };
 
-export type LoginProfileData = {
-  id: string;
-  name: string;
-  deletedAt: Date | null;
-  usernameVariable: {
-    id: string;
-    name: string;
-    kind: VariableKind;
-    deletedAt: Date | null;
-  };
-  passwordVariable: {
-    id: string;
-    name: string;
-    kind: VariableKind;
-    deletedAt: Date | null;
-  };
-};
-
 export type ResolvedAutomationAuthentication = {
-  profileId: string;
-  profileName: string;
+  variableName: string;
   loginMethodSource: string;
-  usernameVariableName: string;
-  passwordVariableName: string;
   username: string;
   password: string;
 };
@@ -128,47 +110,25 @@ export function validateLoginMethodSource(source: string) {
 
 export function resolveAutomationAuthentication(input: {
   loginMethodSource: string | null;
-  loginProfile: LoginProfileData | null;
-  variables: readonly { id: string; value: string }[];
+  credentialVariableName: string | null;
+  variableValues: Readonly<Record<string, string>>;
 }): ResolvedAutomationAuthentication | null {
-  if (!input.loginProfile) return null;
+  if (!input.credentialVariableName) return null;
 
-  const profile = input.loginProfile;
-  if (
-    profile.deletedAt ||
-    profile.usernameVariable.deletedAt ||
-    profile.passwordVariable.deletedAt
-  ) {
-    throw new AutomationAuthenticationError(
-      "LOGIN_CONFIG_MISSING",
-      "测试用例选择的登录身份不存在或已失效",
-    );
-  }
-  if (profile.passwordVariable.kind !== "SECRET") {
-    throw new AutomationAuthenticationError(
-      "LOGIN_VARIABLE_INVALID",
-      "登录身份的密码必须使用敏感变量",
-    );
-  }
-
-  const values = new Map(
-    input.variables.map((variable) => [variable.id, variable.value]),
-  );
-  const username = values.get(profile.usernameVariable.id);
-  const password = values.get(profile.passwordVariable.id);
+  const username =
+    input.variableValues[`${input.credentialVariableName}.username`];
+  const password =
+    input.variableValues[`${input.credentialVariableName}.password`];
   if (username === undefined || password === undefined) {
     throw new AutomationAuthenticationError(
       "LOGIN_VARIABLE_INVALID",
-      "登录身份引用的项目变量不存在或无法读取",
+      `账号对象 ${input.credentialVariableName} 的用户名或密码无法读取`,
     );
   }
 
   return {
-    profileId: profile.id,
-    profileName: profile.name,
+    variableName: input.credentialVariableName,
     loginMethodSource: validateLoginMethodSource(input.loginMethodSource ?? ""),
-    usernameVariableName: profile.usernameVariable.name,
-    passwordVariableName: profile.passwordVariable.name,
     username,
     password,
   };
@@ -253,6 +213,7 @@ export async function prepareAuthenticationState(input: {
   workDir: string;
   baseUrl: string;
   authentication: ResolvedAutomationAuthentication;
+  variableModuleSource: string;
   environment: NodeJS.ProcessEnv;
   abortSignal: AbortSignal;
 }) {
@@ -260,14 +221,10 @@ export async function prepareAuthenticationState(input: {
   const statePath = path.join(input.workDir, "auth-state.json");
   const setupSource = `import { test } from "@playwright/test";
 import { login } from "./specchain/login";
+${VARIABLES_MODULE_IMPORT}
 
 test("准备登录环境", async ({ page }) => {
-  const username = process.env[${JSON.stringify(input.authentication.usernameVariableName)}];
-  const password = process.env[${JSON.stringify(input.authentication.passwordVariableName)}];
-  if (!username || !password) {
-    throw new Error("登录身份引用的项目变量为空");
-  }
-  await login(page, { username, password });
+  await login(page, getCredentials(${JSON.stringify(input.authentication.variableName)}));
   await page.context().storageState({ path: ${JSON.stringify(statePath)} });
 });
 `;
@@ -277,6 +234,7 @@ test("准备登录环境", async ({ page }) => {
       input.workDir,
       input.authentication.loginMethodSource,
     ),
+    writeVariableModule(input.workDir, input.variableModuleSource),
     writeFile(path.join(input.workDir, "auth.setup.spec.ts"), setupSource),
     writeFile(
       path.join(input.workDir, "playwright.config.ts"),

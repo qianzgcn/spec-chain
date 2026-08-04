@@ -142,32 +142,3 @@ export function AiExecutionTaskLog({
     </PageSection>
   );
 }
-
-export function TestRunExecutionTaskLog({
-  content,
-  active,
-}: {
-  content: string | null;
-  active: boolean;
-}) {
-  const { viewportRef, trackScroll } = useFollowLatest(content);
-
-  return (
-    <PageSection
-      title="执行日志"
-      description={active ? "任务运行中，日志会实时更新。" : undefined}
-      actions={<LiveBadge active={active} />}
-      contentClassName="p-0"
-    >
-      <div
-        ref={viewportRef}
-        className="bg-foreground text-background max-h-[440px] min-h-56 overflow-y-auto px-5 py-4 font-mono text-[13px] leading-6 break-words whitespace-pre-wrap"
-        role="log"
-        aria-live={active ? "polite" : "off"}
-        onScroll={trackScroll}
-      >
-        {content || (active ? "等待任务输出…" : "本次任务没有日志。")}
-      </div>
-    </PageSection>
-  );
-}

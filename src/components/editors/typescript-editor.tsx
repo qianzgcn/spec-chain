@@ -19,10 +19,12 @@ export function TypeScriptEditor({
   onChange = () => undefined,
 }: TypeScriptEditorProps) {
   return (
-    <div className="bg-background overflow-hidden rounded-lg border">
+    <div className="overflow-hidden rounded-lg border border-slate-800 bg-[#0d1117]">
       <CodeMirror
         value={value}
         height={height}
+        theme="dark"
+        className="text-[13px]"
         extensions={[javascript({ typescript: true })]}
         onCreateEditor={(view) => {
           if (ariaLabel) view.contentDOM.setAttribute("aria-label", ariaLabel);

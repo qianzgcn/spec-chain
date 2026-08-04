@@ -42,7 +42,11 @@ export function LoginForm({ passwordChanged }: { passwordChanged: boolean }) {
   }
 
   return (
-    <form className="flex flex-col gap-5" onSubmit={form.handleSubmit(submit)}>
+    <form
+      className="flex flex-col gap-5"
+      method="post"
+      onSubmit={form.handleSubmit(submit)}
+    >
       {passwordChanged ? (
         <Alert>
           <AlertDescription>

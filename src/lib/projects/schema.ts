@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { VariableKind } from "@/generated/prisma/enums";
+import { VariableFieldKind, VariableKind } from "@/generated/prisma/enums";
 import { parseRepositoryUrl } from "@/lib/git/repository-url";
 
 const projectNameSchema = z
@@ -49,7 +49,7 @@ export const repositorySchema = z.object({
     .max(100, "分支不能超过 100 个字符"),
 });
 
-const variableNameSchema = z
+export const variableNameSchema = z
   .string()
   .trim()
   .regex(
@@ -72,45 +72,135 @@ const loginMethodSourceSchema = z
   .trim()
   .max(100_000, "登录方法不能超过 100000 个字符");
 
-const loginProfileSchema = z.object({
-  id: z.string().optional(),
-  name: z
-    .string()
-    .trim()
-    .min(1, "请输入登录身份名称")
-    .max(100, "登录身份名称不能超过 100 个字符"),
-  usernameVariableId: z.string().min(1, "请选择用户名变量"),
-  passwordVariableId: z.string().min(1, "请选择密码变量"),
-});
+const variableValueSchema = z
+  .string()
+  .max(20_000, "变量值不能超过 20000 个字符");
 
-function validateAuthenticationSettings(
-  value: { loginMethodSource: string; profiles: unknown[] },
+function isNumberValue(value: string) {
+  const normalized = value.trim();
+  return normalized.length > 0 && Number.isFinite(Number(normalized));
+}
+
+export const projectVariableFieldFormSchema = z
+  .object({
+    id: z.string().optional(),
+    name: variableNameSchema,
+    description: variableDescriptionSchema,
+    kind: z.enum(VariableFieldKind),
+    value: variableValueSchema,
+    encrypted: z.boolean(),
+  })
+  .strict();
+
+function validateVariableCollection(
+  value: {
+    variables: ReadonlyArray<{
+      name: string;
+      kind: VariableKind;
+      fields?: readonly { name: string }[];
+    }>;
+  },
   context: z.core.$RefinementCtx,
 ) {
-  if (value.profiles.length > 0 && !value.loginMethodSource) {
-    context.addIssue({
-      code: "custom",
-      path: ["loginMethodSource"],
-      message: "配置登录身份前需要填写登录方法",
-    });
+  const names = new Set<string>();
+  for (const [variableIndex, variable] of value.variables.entries()) {
+    if (names.has(variable.name)) {
+      context.addIssue({
+        code: "custom",
+        path: ["variables", variableIndex, "name"],
+        message: "项目变量名不能重复",
+      });
+    }
+    names.add(variable.name);
   }
 }
 
-const variableActionSchema = z.object({
-  id: z.string().optional(),
-  name: variableNameSchema,
-  value: z.string().optional().default(""),
-  description: variableDescriptionSchema.optional().default(""),
-  kind: z.enum(VariableKind),
-});
+export const projectVariableFormSchema = z
+  .discriminatedUnion("kind", [
+    z
+      .object({
+        id: z.string().optional(),
+        name: variableNameSchema,
+        value: variableValueSchema,
+        description: variableDescriptionSchema,
+        kind: z.literal(VariableKind.STRING),
+        encrypted: z.boolean(),
+      })
+      .strict(),
+    z
+      .object({
+        id: z.string().optional(),
+        name: variableNameSchema,
+        value: variableValueSchema,
+        description: variableDescriptionSchema,
+        kind: z.literal(VariableKind.NUMBER),
+        encrypted: z.boolean(),
+      })
+      .strict(),
+    z
+      .object({
+        id: z.string().optional(),
+        name: variableNameSchema,
+        description: variableDescriptionSchema,
+        kind: z.literal(VariableKind.OBJECT),
+        fields: z
+          .array(projectVariableFieldFormSchema)
+          .min(1, "对象变量至少需要一个字段")
+          .max(100, "对象变量最多支持 100 个字段"),
+      })
+      .strict(),
+  ])
+  .superRefine((variable, context) => {
+    if (variable.kind !== VariableKind.OBJECT) {
+      if (!variable.id && !variable.value) {
+        context.addIssue({
+          code: "custom",
+          path: ["value"],
+          message: "请输入变量值",
+        });
+      } else if (
+        variable.kind === VariableKind.NUMBER &&
+        variable.value &&
+        !isNumberValue(variable.value)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["value"],
+          message: "请输入有效数字",
+        });
+      }
+      return;
+    }
 
-const variableFormSchema = z.object({
-  id: z.string().optional(),
-  name: variableNameSchema,
-  value: z.string(),
-  description: variableDescriptionSchema,
-  kind: z.enum(VariableKind),
-});
+    const names = new Set<string>();
+    for (const [fieldIndex, field] of variable.fields.entries()) {
+      if (names.has(field.name)) {
+        context.addIssue({
+          code: "custom",
+          path: ["fields", fieldIndex, "name"],
+          message: "同一对象中的字段名不能重复",
+        });
+      }
+      names.add(field.name);
+      if (!field.id && !field.value) {
+        context.addIssue({
+          code: "custom",
+          path: ["fields", fieldIndex, "value"],
+          message: "请输入字段值",
+        });
+      } else if (
+        field.kind === VariableFieldKind.NUMBER &&
+        field.value &&
+        !isNumberValue(field.value)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["fields", fieldIndex, "value"],
+          message: "请输入有效数字",
+        });
+      }
+    }
+  });
 
 export const gitProviderSchema = z.enum(["GITHUB", "GITEE"]);
 
@@ -131,33 +221,28 @@ export const projectRepositoriesFormSchema = z.object({
   repositories: z.array(repositorySchema),
 });
 
-export const projectTestingSettingsSchema = z.object({
-  projectId: z.string().min(1),
-  baseUrl: z.union([z.literal(""), z.url("请输入有效的 Base URL")]),
-  automationInstructions: automationInstructionsSchema.optional().default(""),
-  variables: z.array(variableActionSchema),
-});
-
-export const projectTestingSettingsFormSchema = z.object({
-  baseUrl: z.union([z.literal(""), z.url("请输入有效的 Base URL")]),
-  automationInstructions: automationInstructionsSchema,
-  variables: z.array(variableFormSchema),
-});
-
-export const projectAuthenticationSchema = z
+export const projectTestingSettingsSchema = z
   .object({
     projectId: z.string().min(1),
+    baseUrl: z.union([z.literal(""), z.url("请输入有效的 Base URL")]),
+    automationInstructions: automationInstructionsSchema.optional().default(""),
+    variables: z.array(projectVariableFormSchema),
     loginMethodSource: loginMethodSourceSchema,
-    profiles: z.array(loginProfileSchema),
   })
-  .superRefine(validateAuthenticationSettings);
+  .superRefine((value, context) => {
+    validateVariableCollection(value, context);
+  });
 
-export const projectAuthenticationFormSchema = z
+export const projectTestingSettingsFormSchema = z
   .object({
+    baseUrl: z.union([z.literal(""), z.url("请输入有效的 Base URL")]),
+    automationInstructions: automationInstructionsSchema,
+    variables: z.array(projectVariableFormSchema),
     loginMethodSource: loginMethodSourceSchema,
-    profiles: z.array(loginProfileSchema),
   })
-  .superRefine(validateAuthenticationSettings);
+  .superRefine((value, context) => {
+    validateVariableCollection(value, context);
+  });
 
 export const projectPatSchema = z.object({
   projectId: z.string().min(1),
@@ -187,6 +272,9 @@ export type ProjectRepositoriesFormValues = z.infer<
 export type ProjectTestingSettingsFormValues = z.infer<
   typeof projectTestingSettingsFormSchema
 >;
-export type ProjectAuthenticationFormValues = z.infer<
-  typeof projectAuthenticationFormSchema
+export type ProjectTestingSettingsInput = z.infer<
+  typeof projectTestingSettingsSchema
+>;
+export type ProjectVariableFormValue = z.infer<
+  typeof projectVariableFormSchema
 >;
