@@ -292,6 +292,34 @@ describe("自动化提示词", () => {
     expect(prompt).toContain('getCredentials("ADMIN")');
     expect(prompt).toContain("不得探测、复制或重新实现登录页面操作");
   });
+
+  it("向脚本模型提供受限的代码上下文，并要求以页面探测为准", () => {
+    const prompt = buildAutomationScriptPrompt({
+      baseUrl: "https://example.com",
+      automationInstructions: null,
+      authentication: null,
+      variables: [],
+      codeEvidence: [
+        {
+          repository: "team/spec-chain",
+          path: "src/projects/page.tsx",
+          commitSha: "commit-1",
+          selectionReason: "核实项目列表入口",
+          content: "export function ProjectList() {}",
+        },
+      ],
+      testCase: {
+        code: "TC-003",
+        name: "查看项目列表",
+        preconditions: null,
+        steps: "1. 打开项目列表",
+      },
+    });
+
+    expect(prompt).toContain("src/projects/page.tsx");
+    expect(prompt).toContain("ProjectList");
+    expect(prompt).toContain("最终必须以真实页面探测结果为准");
+  });
 });
 
 describe("项目登录方法", () => {

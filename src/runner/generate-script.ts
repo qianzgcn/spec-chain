@@ -3,17 +3,27 @@ import path from "node:path";
 import {
   ModelProviderError,
   createCompatibleLanguageModel,
+  createModelProvider,
 } from "@/ai/model-provider";
+import { resolveProjectRepositories } from "@/ai/repository-access";
+import { createRepositoryCodeSource } from "@/ai/repository-code-source";
+import { AiWorkflowError } from "@/ai/workflow";
 import { builtInSkillResolver } from "@/ai/skills";
 import { AutomationAgentError } from "@/automation/agent";
 import {
   AutomationAuthenticationError,
   type ResolvedAutomationAuthentication,
 } from "@/automation/authentication";
+import {
+  addModelUsage,
+  checkAutomationCodeReadiness,
+  type AutomationCodeReadinessResult,
+} from "@/automation/code-readiness";
 import { createAutomationInputFingerprint } from "@/automation/fingerprint";
 import { PlaywrightCliError } from "@/automation/playwright-cli-session";
 import { AutomationScriptValidationError } from "@/automation/script-validator";
 import type { ResolvedProjectVariables } from "@/automation/variable-runtime";
+import { RepositoryCodeError } from "@/ai/repository-code-source";
 import {
   generateAutomationScript,
   type AutomationGenerationStage,
@@ -48,6 +58,8 @@ export function getAutomationGenerationErrorMessage(error: unknown) {
     error instanceof ModelProviderError ||
     error instanceof AutomationAgentError ||
     error instanceof AutomationAuthenticationError ||
+    error instanceof AiWorkflowError ||
+    error instanceof RepositoryCodeError ||
     error instanceof PlaywrightCliError ||
     error instanceof AutomationScriptValidationError
   ) {
@@ -137,23 +149,62 @@ export async function generateScriptForRun(input: {
   });
   const timeoutSignal = AbortSignal.timeout(GENERATION_TIMEOUT_MS);
   const generationSignal = AbortSignal.any([input.stopSignal, timeoutSignal]);
+  const modelConfig = {
+    name: binding.modelProfile.name,
+    baseUrl: binding.modelProfile.baseUrl,
+    modelId: binding.modelProfile.modelId,
+    apiKey: modelApiKey,
+  };
+
+  input.logger.appendTaskLog(
+    "INFO",
+    "检查代码实现",
+    "正在读取当前分支代码，确认测试用例涉及的功能已有实现。",
+  );
+  let codeReadiness: AutomationCodeReadinessResult;
+  try {
+    codeReadiness = await checkAutomationCodeReadiness({
+      testCase: input.run.testCase,
+      repositories: resolveProjectRepositories(
+        input.run.testCase.project,
+        decryptTaskSecret,
+      ),
+      modelProvider: createModelProvider(modelConfig),
+      repositoryCodeSource: createRepositoryCodeSource(),
+      abortSignal: generationSignal,
+      onLog: async (event) =>
+        input.logger.appendTaskLog(
+          event.level,
+          event.stage === "CHECKING_REPOSITORIES"
+            ? "检查代码仓库"
+            : "定位相关代码",
+          event.message,
+        ),
+    });
+  } catch (error) {
+    if (timeoutSignal.aborted && !input.stopSignal.aborted) {
+      throw new ScriptGenerationTimeoutError();
+    }
+    throw error;
+  }
+  input.logger.appendTaskLog(
+    "INFO",
+    "检查代码实现",
+    `代码预检通过，已读取 ${codeReadiness.codeEvidence.length} 个相关源码文件。`,
+  );
 
   let generated;
   try {
     generated = await generateAutomationScript({
       taskId: input.run.id,
       workDir: path.join(input.workDir, "generation"),
-      model: createCompatibleLanguageModel({
-        name: binding.modelProfile.name,
-        baseUrl: binding.modelProfile.baseUrl,
-        modelId: binding.modelProfile.modelId,
-        apiKey: modelApiKey,
-      }),
+      model: createCompatibleLanguageModel(modelConfig),
       baseUrl: input.run.baseUrlSnapshot,
       automationInstructions: input.run.testCase.project.automationInstructions,
       authentication: input.authentication,
       variableMetadata: input.variables.metadata,
       variableValues: input.variables.values,
+      codeEvidence: codeReadiness.codeEvidence,
       testCase: input.run.testCase,
       abortSignal: generationSignal,
       onStage: async (stage) => {
@@ -181,6 +232,8 @@ export async function generateScriptForRun(input: {
     }
     throw error;
   }
+
+  addModelUsage(generated.usage, codeReadiness.usage);
 
   const generatedAt = new Date();
   await taskDb.$transaction(async (transaction) => {

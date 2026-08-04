@@ -75,7 +75,7 @@ function getStageStartedMessage(
     case AiExecutionStage.PREPARING_AUTHENTICATION:
       return "正在调用项目登录方法准备页面探测环境。";
     case AiExecutionStage.GENERATING_SCRIPT:
-      return "模型已提交自动化脚本，正在进行安全检查。";
+      return "正在检查代码实现并生成自动化脚本。";
     case AiExecutionStage.VALIDATING_SCRIPT:
       return "正在执行 Playwright 编译与测试发现检查。";
     case AiExecutionStage.COMPLETED:

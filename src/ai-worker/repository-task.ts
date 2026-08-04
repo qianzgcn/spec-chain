@@ -1,8 +1,6 @@
 import { createModelProvider } from "@/ai/model-provider";
-import {
-  createRepositoryCodeSource,
-  type RepositoryAccess,
-} from "@/ai/repository-code-source";
+import { resolveProjectRepositories } from "@/ai/repository-access";
+import { createRepositoryCodeSource } from "@/ai/repository-code-source";
 import type {
   CodeReferenceRecord,
   RepositorySnapshotRecord,
@@ -32,10 +30,6 @@ import {
   AiExecutionStatus,
   AiExecutionStage,
 } from "@/generated/prisma/enums";
-import {
-  GIT_PROVIDER_LABELS,
-  parseRepositoryUrl,
-} from "@/lib/git/repository-url";
 import { decryptTaskSecret, taskDb } from "@/task-runtime/runtime";
 
 function formatFeatureContext(
@@ -58,34 +52,6 @@ ${feature.backgroundGoal}
 
 现有 US 摘要：
 ${existingStories}`;
-}
-
-function resolveRepositories(execution: AiTaskExecution): RepositoryAccess[] {
-  if (execution.project.repositories.length === 0) {
-    throw new AiWorkflowError("当前项目尚未配置代码仓库");
-  }
-
-  return execution.project.repositories.map((repository) => {
-    const location = parseRepositoryUrl(repository.gitUrl);
-    const encryptedPat =
-      location.provider === "GITHUB"
-        ? execution.project.githubPatEncrypted
-        : execution.project.giteePatEncrypted;
-
-    if (!encryptedPat) {
-      throw new AiWorkflowError(
-        `当前项目尚未配置 ${GIT_PROVIDER_LABELS[location.provider]} PAT`,
-      );
-    }
-
-    try {
-      return { ...repository, pat: decryptTaskSecret(encryptedPat) };
-    } catch {
-      throw new AiWorkflowError(
-        `${GIT_PROVIDER_LABELS[location.provider]} PAT 无法读取，请删除后重新新增`,
-      );
-    }
-  });
 }
 
 async function updateExecutionSnapshot(
@@ -260,7 +226,10 @@ export async function executeRepositoryTask(input: {
   abortSignal: AbortSignal;
   reporter: AiTaskReporter;
 }) {
-  const repositories = resolveRepositories(input.execution);
+  const repositories = resolveProjectRepositories(
+    input.execution.project,
+    decryptTaskSecret,
+  );
   const dependencies = {
     modelProvider: createModelProvider({
       name: input.binding.modelProfile.name,

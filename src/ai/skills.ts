@@ -36,8 +36,8 @@ const GENERATE_AUTOMATION_SCRIPT_SKILL: AiSkill = {
   capability: AiCapability.GENERATE_AUTOMATION_SCRIPT,
   name: "生成 Playwright 自动化脚本",
   purpose:
-    "根据单条自然语言测试用例和真实页面探测结果生成可直接运行的 Playwright 脚本。",
-  version: "1.0.0",
+    "根据单条自然语言测试用例、相关源码和真实页面探测结果生成可直接运行的 Playwright 脚本。",
+  version: "1.1.0",
   instructions: generateAutomationScriptSystemPrompt,
 };
 

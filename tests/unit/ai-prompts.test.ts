@@ -154,3 +154,15 @@ describe("AI 生成测试用例提示词", () => {
     expect(generationPrompt).toContain("ADMIN.username");
   });
 });
+
+describe("AI 自动化脚本提示词", () => {
+  it("包含代码上下文边界和真实页面验证要求", () => {
+    const skill = builtInSkillResolver.resolve(
+      AiCapability.GENERATE_AUTOMATION_SCRIPT,
+    );
+
+    expect(skill.version).toBe("1.1.0");
+    expect(skill.instructions).toContain("代码只能帮助确认可能的入口");
+    expect(skill.instructions).toContain("不能替代真实页面探测");
+  });
+});

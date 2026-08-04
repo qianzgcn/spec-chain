@@ -20,6 +20,7 @@ import {
 } from "@/automation/script-validator";
 import { createVariableRuntimeBundle } from "@/automation/variable-runtime";
 import type { ModelUsage } from "@/ai/model-provider";
+import type { CodeEvidence } from "@/ai/relevant-code";
 
 export type AutomationGenerationStage =
   | "PREPARING_AUTHENTICATION"
@@ -36,6 +37,7 @@ export type AutomationScriptWorkflowInput = {
   authentication: ResolvedAutomationAuthentication | null;
   variableMetadata: AutomationVariableMetadata[];
   variableValues: Readonly<Record<string, string>>;
+  codeEvidence: readonly CodeEvidence[];
   testCase: {
     code: string;
     name: string;
@@ -106,6 +108,7 @@ export async function generateAutomationScript(
             }
           : null,
         variables: input.variableMetadata,
+        codeEvidence: input.codeEvidence,
         testCase: input.testCase,
       }),
       session,

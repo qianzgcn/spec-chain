@@ -16,6 +16,17 @@ const TEST_RUN_INCLUDE = {
         select: {
           automationInstructions: true,
           loginMethodSource: true,
+          githubPatEncrypted: true,
+          giteePatEncrypted: true,
+          repositories: {
+            where: { deletedAt: null },
+            orderBy: { position: "asc" },
+            select: {
+              id: true,
+              gitUrl: true,
+              branch: true,
+            },
+          },
           variables: {
             where: { deletedAt: null },
             orderBy: { position: "asc" },

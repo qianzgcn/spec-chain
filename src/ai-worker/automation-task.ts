@@ -1,7 +1,12 @@
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 
-import { createCompatibleLanguageModel } from "@/ai/model-provider";
+import {
+  createCompatibleLanguageModel,
+  createModelProvider,
+} from "@/ai/model-provider";
+import { resolveProjectRepositories } from "@/ai/repository-access";
+import { createRepositoryCodeSource } from "@/ai/repository-code-source";
 import type {
   AiTaskExecution,
   AiTaskModelBinding,
@@ -12,6 +17,10 @@ import {
   TaskOwnershipLostError,
 } from "@/ai-worker/task-support";
 import { resolveAutomationAuthentication } from "@/automation/authentication";
+import {
+  addModelUsage,
+  checkAutomationCodeReadiness,
+} from "@/automation/code-readiness";
 import { createAutomationInputFingerprint } from "@/automation/fingerprint";
 import {
   ProjectVariableRuntimeError,
@@ -22,7 +31,11 @@ import {
   generateAutomationScript,
   type AutomationGenerationStage,
 } from "@/automation/workflow";
-import { AiExecutionStage, AiExecutionStatus } from "@/generated/prisma/enums";
+import {
+  AiExecutionLogLevel,
+  AiExecutionStage,
+  AiExecutionStatus,
+} from "@/generated/prisma/enums";
 import { AiWorkflowError } from "@/ai/workflow";
 import {
   validateTestCaseVariableReferences,
@@ -53,6 +66,50 @@ export async function executeAutomationScriptTask(input: {
   if (!baseUrl) {
     throw new AiWorkflowError("当前项目尚未配置 Base URL");
   }
+
+  await input.reporter.updateStage(AiExecutionStage.GENERATING_SCRIPT);
+  const modelConfig = {
+    name: input.binding.modelProfile.name,
+    baseUrl: input.binding.modelProfile.baseUrl,
+    modelId: input.binding.modelProfile.modelId,
+    apiKey: input.modelApiKey,
+  };
+  const codeReadiness = await checkAutomationCodeReadiness({
+    testCase,
+    repositories: resolveProjectRepositories(
+      execution.project,
+      decryptTaskSecret,
+    ),
+    modelProvider: createModelProvider(modelConfig),
+    repositoryCodeSource: createRepositoryCodeSource(),
+    abortSignal: input.abortSignal,
+    onStage: input.reporter.updateStage,
+    onLog: (event) =>
+      input.reporter.writeLog(
+        event.level === "WARN"
+          ? AiExecutionLogLevel.WARN
+          : AiExecutionLogLevel.INFO,
+        event.stage,
+        event.message,
+      ),
+  });
+  const snapshotUpdated = await taskDb.aiExecution.updateMany({
+    where: {
+      id: execution.id,
+      status: AiExecutionStatus.RUNNING,
+      workerId: input.ownerId,
+    },
+    data: {
+      repositorySnapshot: JSON.stringify(codeReadiness.repositories),
+      codeReferences: JSON.stringify(codeReadiness.codeReferences),
+    },
+  });
+  if (snapshotUpdated.count !== 1) throw new TaskOwnershipLostError();
+  await input.reporter.writeLog(
+    AiExecutionLogLevel.INFO,
+    AiExecutionStage.GENERATING_SCRIPT,
+    `代码预检通过，已读取 ${codeReadiness.codeEvidence.length} 个相关源码文件，开始探测真实页面。`,
+  );
 
   let variables: ResolvedProjectVariables;
   try {
@@ -98,17 +155,13 @@ export async function executeAutomationScriptTask(input: {
     const result = await generateAutomationScript({
       taskId: execution.id,
       workDir,
-      model: createCompatibleLanguageModel({
-        name: input.binding.modelProfile.name,
-        baseUrl: input.binding.modelProfile.baseUrl,
-        modelId: input.binding.modelProfile.modelId,
-        apiKey: input.modelApiKey,
-      }),
+      model: createCompatibleLanguageModel(modelConfig),
       baseUrl,
       automationInstructions: execution.project.automationInstructions,
       authentication,
       variableMetadata: variables.metadata,
       variableValues: variables.values,
+      codeEvidence: codeReadiness.codeEvidence,
       testCase,
       abortSignal: input.abortSignal,
       onStage: (stage: AutomationGenerationStage) =>
@@ -117,6 +170,7 @@ export async function executeAutomationScriptTask(input: {
         input.reporter.writeLog("INFO", input.reporter.currentStage, message),
     });
     const finishedAt = new Date();
+    addModelUsage(result.usage, codeReadiness.usage);
 
     await taskDb.$transaction(async (transaction) => {
       const saved = await transaction.testCase.updateMany({
