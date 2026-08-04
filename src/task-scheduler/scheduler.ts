@@ -5,6 +5,7 @@ import path from "node:path";
 import type { Prisma } from "@/generated/prisma/client";
 import {
   AiCapability,
+  AiExecutionOrigin,
   AiExecutionLogLevel,
   AiExecutionStage,
   AiExecutionStatus,
@@ -103,7 +104,7 @@ async function markWorkerFailure(task: ClaimedTask, reason: string) {
   if (task.kind === "AI") {
     const execution = await taskDb.aiExecution.findUnique({
       where: { id: task.id },
-      select: { capability: true, testCaseId: true },
+      select: { capability: true, origin: true, testCaseId: true },
     });
     await taskDb
       .$transaction(async (transaction) => {
@@ -123,6 +124,7 @@ async function markWorkerFailure(task: ClaimedTask, reason: string) {
         if (updated.count !== 1) return;
         if (
           execution?.capability === AiCapability.GENERATE_AUTOMATION_SCRIPT &&
+          execution.origin === AiExecutionOrigin.TEST_RUN &&
           execution.testCaseId
         ) {
           await failPendingScriptGenerationRun(

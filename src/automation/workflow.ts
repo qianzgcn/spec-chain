@@ -60,6 +60,7 @@ export async function generateAutomationScript(
   const variableRuntime = createVariableRuntimeBundle({
     metadata: input.variableMetadata,
     values: input.variableValues,
+    runId: input.taskId,
   });
   let storageStatePath: string | undefined;
   if (input.authentication) {

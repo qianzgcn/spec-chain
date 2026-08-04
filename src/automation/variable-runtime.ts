@@ -8,7 +8,7 @@ import type {
 } from "@/lib/project-variables/references";
 
 export const VARIABLES_MODULE_IMPORT =
-  'import { getCredentials, getVariable } from "./specchain/variables";';
+  'import { getCredentials, getUniqueValue, getVariable } from "./specchain/variables";';
 
 export type StoredProjectVariable = Omit<ProjectVariableMetadata, "fields"> & {
   value: string;
@@ -98,6 +98,7 @@ function isCredentialVariable(variable: ProjectVariableMetadata) {
 export function createVariableRuntimeBundle(input: {
   metadata: readonly ProjectVariableMetadata[];
   values: Readonly<Record<string, string>>;
+  runId?: string;
 }) {
   const paths = Object.keys(input.values).toSorted((left, right) =>
     left.localeCompare(right, "en"),
@@ -114,6 +115,9 @@ export function createVariableRuntimeBundle(input: {
       input.values[variablePath],
     ]),
   );
+  if (input.runId) {
+    environment.SPECCHAIN_TEST_RUN_ID = input.runId;
+  }
   const credentialNames = input.metadata
     .filter(isCredentialVariable)
     .map((variable) => variable.name)
@@ -125,6 +129,7 @@ export function createVariableRuntimeBundle(input: {
 
 export type VariablePath = keyof typeof variableKeys;
 export type CredentialVariableName = ${credentialType};
+let uniqueValueSequence = 0;
 
 export function getVariable(path: VariablePath): string {
   const value = process.env[variableKeys[path]];
@@ -139,6 +144,15 @@ export function getCredentials(name: CredentialVariableName) {
     username: getVariable(\`\${name}.username\` as VariablePath),
     password: getVariable(\`\${name}.password\` as VariablePath),
   };
+}
+
+export function getUniqueValue(prefix: string): string {
+  const runId = process.env.SPECCHAIN_TEST_RUN_ID;
+  if (!runId) {
+    throw new Error("当前测试运行没有注入唯一数据标识");
+  }
+  uniqueValueSequence += 1;
+  return \`\${prefix}-\${runId}-\${uniqueValueSequence}\`;
 }
 `;
 

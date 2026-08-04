@@ -10,6 +10,7 @@ const TEST_RUN_INCLUDE = {
       preconditions: true,
       steps: true,
       script: true,
+      scriptSource: true,
       updatedAt: true,
       deletedAt: true,
       project: {

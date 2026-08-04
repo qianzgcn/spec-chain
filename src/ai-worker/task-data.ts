@@ -79,6 +79,7 @@ const AI_TASK_INCLUDE = {
       preconditions: true,
       steps: true,
       script: true,
+      scriptSource: true,
       updatedAt: true,
       deletedAt: true,
     },

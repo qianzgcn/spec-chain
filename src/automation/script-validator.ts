@@ -21,7 +21,7 @@ import { runChildProcess } from "@/task-runtime/child-process";
 const COMPILE_TIMEOUT_MS = 60_000;
 const REQUIRED_IMPORT = 'import { test, expect } from "@playwright/test";';
 const WRITE_OPERATION_PATTERN =
-  /新增|创建|添加|编辑|修改|删除|移除|归档|启用|停用|绑定|解绑|状态变更|更改状态/;
+  /新增|新建|创建(?!人|时间|日期)|添加|编辑|修改|删除|移除|归档|启用|停用|绑定|解绑|状态变更|更改状态/;
 
 export class AutomationScriptValidationError extends Error {
   constructor(message: string) {
@@ -52,9 +52,8 @@ function assertScriptStructure(
   }
 
   const imports = script.match(/^\s*import\b.*$/gm)?.map((line) => line.trim());
-  const usesVariableHelpers = /\b(?:getVariable|getCredentials)\s*\(/.test(
-    script,
-  );
+  const usesVariableHelpers =
+    /\b(?:getVariable|getCredentials|getUniqueValue)\s*\(/.test(script);
   const expectedImports = [
     REQUIRED_IMPORT,
     ...(authentication ? [LOGIN_MODULE_IMPORT] : []),
@@ -184,6 +183,11 @@ export function validateAutomationScriptStatic(input: {
   ) {
     throw new AutomationScriptValidationError(
       "该用例包含数据写入，脚本必须使用 try/finally 清理本次运行创建的临时数据",
+    );
+  }
+  if (input.requiresCleanup && !/\bgetUniqueValue\s*\(\s*["'`]/.test(script)) {
+    throw new AutomationScriptValidationError(
+      "该用例包含数据写入，临时数据必须使用 getUniqueValue 生成唯一标识",
     );
   }
 

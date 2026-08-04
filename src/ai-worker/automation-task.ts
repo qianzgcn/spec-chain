@@ -33,6 +33,7 @@ import {
 } from "@/automation/workflow";
 import {
   AiExecutionLogLevel,
+  AiExecutionOrigin,
   AiExecutionStage,
   AiExecutionStatus,
 } from "@/generated/prisma/enums";
@@ -195,13 +196,15 @@ export async function executeAutomationScriptTask(input: {
         );
       }
 
-      await attachGeneratedScriptToPendingRun(transaction, {
-        testCaseId: testCase.id,
-        script: result.script,
-        promptTokens: result.usage.inputTokens,
-        completionTokens: result.usage.outputTokens,
-        totalTokens: result.usage.totalTokens,
-      });
+      if (execution.origin === AiExecutionOrigin.TEST_RUN) {
+        await attachGeneratedScriptToPendingRun(transaction, {
+          testCaseId: testCase.id,
+          script: result.script,
+          promptTokens: result.usage.inputTokens,
+          completionTokens: result.usage.outputTokens,
+          totalTokens: result.usage.totalTokens,
+        });
+      }
 
       const completed = await transaction.aiExecution.updateMany({
         where: {

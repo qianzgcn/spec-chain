@@ -3,7 +3,15 @@ import path from "node:path";
 
 import { resolveAutomationAuthentication } from "@/automation/authentication";
 import { validateTestCaseVariableReferences } from "@/lib/project-variables/references";
-import { RunStatus, TestRunStage } from "@/generated/prisma/enums";
+import {
+  RunStatus,
+  TestCaseScriptSource,
+  TestRunStage,
+} from "@/generated/prisma/enums";
+import {
+  requiresIsolatedTestData,
+  validateAutomationScriptStatic,
+} from "@/automation/script-validator";
 import { purgeExpiredArtifacts } from "@/runner/artifacts";
 import {
   generateScriptForRun,
@@ -105,6 +113,22 @@ async function executeRun(runId: string, workerId: string) {
     }
 
     if (cancellation.signal.aborted) throw new RunStoppedError();
+    if (run.testCase.scriptSource === TestCaseScriptSource.AI) {
+      try {
+        validateAutomationScriptStatic({
+          script,
+          variables: variables.metadata,
+          authentication,
+          requiresCleanup: requiresIsolatedTestData(run.testCase),
+        });
+      } catch (error) {
+        throw new Error(
+          `现有 AI 自动化脚本未通过安全校验，请重新生成：${
+            error instanceof Error ? error.message : "脚本内容不安全"
+          }`,
+        );
+      }
+    }
     await setRunStage({
       runId: run.id,
       workerId,

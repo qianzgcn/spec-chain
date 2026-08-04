@@ -9,6 +9,7 @@ import { appendPendingScriptGenerationRunLog } from "@/automation/script-generat
 import type { Prisma } from "@/generated/prisma/client";
 import {
   AiCapability,
+  AiExecutionOrigin,
   AiExecutionLogLevel,
   AiExecutionStage,
   AiExecutionStatus,
@@ -90,6 +91,7 @@ export async function createAiTaskReporter(input: {
   executionId: string;
   ownerId: string;
   capability: AiCapability;
+  origin: AiExecutionOrigin;
   testCaseId: string | null;
   initialStage: AiExecutionStage;
 }) {
@@ -132,6 +134,7 @@ export async function createAiTaskReporter(input: {
         });
         if (
           input.capability === AiCapability.GENERATE_AUTOMATION_SCRIPT &&
+          input.origin === AiExecutionOrigin.TEST_RUN &&
           input.testCaseId
         ) {
           await appendPendingScriptGenerationRunLog(transaction, {

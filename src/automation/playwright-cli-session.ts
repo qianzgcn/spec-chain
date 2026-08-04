@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 
+import { writeReadOnlyProbeScript } from "@/automation/probe-safety";
 import { redactSecrets } from "@/runner/logs";
 import { runChildProcess } from "@/task-runtime/child-process";
 
@@ -183,6 +184,9 @@ export class PlaywrightCliSession {
     const executablePath = resolveProjectChromiumExecutablePath();
     assertPlaywrightCliBrowserInstalled(executablePath);
     await mkdir(this.input.workDir, { recursive: true });
+    const readOnlyProbeScript = await writeReadOnlyProbeScript(
+      this.input.workDir,
+    );
     await writeFile(
       this.configPath,
       JSON.stringify(
@@ -197,6 +201,7 @@ export class PlaywrightCliSession {
                 ? { storageState: this.input.storageStatePath }
                 : {}),
             },
+            initScript: [readOnlyProbeScript],
           },
           outputMode: "stdout",
           codegen: "typescript",

@@ -437,6 +437,13 @@ describe("自动化脚本静态校验", () => {
         steps: "创建项目后验证并删除",
       }),
     ).toBe(true);
+    expect(
+      requiresIsolatedTestData({
+        name: "查看需求创建人",
+        preconditions: null,
+        steps: "查看需求列表中的创建人",
+      }),
+    ).toBe(false);
     expect(() =>
       validateAutomationScriptStatic({
         script: validScript,

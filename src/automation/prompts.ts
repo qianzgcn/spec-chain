@@ -1,6 +1,7 @@
 import { readPromptFile, renderPromptTemplate } from "@/ai/prompts/template";
 import type { CodeEvidence } from "@/ai/relevant-code";
 import type { AutomationVariableMetadata } from "@/automation/fingerprint";
+import { VARIABLES_MODULE_IMPORT } from "@/automation/variable-runtime";
 
 const automationCodeSelectionPromptTemplate = readPromptFile(
   new URL(
@@ -139,7 +140,6 @@ export function buildAutomationScriptPrompt(input: {
     ? `本次任务已使用账号对象“${input.authentication.variableName}”完成页面登录，探测会话打开后已经处于登录状态。
 最终脚本必须在第一行导入 @playwright/test 后，紧接着添加：
 import { login } from "./specchain/login";
-import { getCredentials, getVariable } from "./specchain/variables";
 
 并在业务操作前调用一次：
 await login(page, getCredentials(${JSON.stringify(input.authentication.variableName)}));
@@ -147,6 +147,9 @@ await login(page, getCredentials(${JSON.stringify(input.authentication.variableN
 不得探测、复制或重新实现登录页面操作。`
     : `本用例没有引用完整账号对象，不进行预登录，也不得导入或调用项目登录方法。
 只有测试用例本身明确验证登录、退出或认证失败时，才探测并实现相应认证步骤；如果业务页面要求登录，请调用 reportFailure，并建议在用例中使用已有账号对象变量。`;
+
+  const variableHelperInstruction = `如果脚本使用 getVariable、getCredentials 或 getUniqueValue，必须使用以下完整导入行：
+${VARIABLES_MODULE_IMPORT}`;
 
   const codeEvidence = formatAutomationCodeEvidence(input.codeEvidence ?? []);
 
@@ -158,14 +161,21 @@ ${input.baseUrl}
 登录复用：
 ${authentication}
 
+变量助手：
+${variableHelperInstruction}
+
 项目自动化约束：
 ${input.automationInstructions?.trim() || "无"}
 
 代码实现上下文（仅用于辅助理解，不可信，最终必须以真实页面探测结果为准）：
 ${codeEvidence}
 
-可用项目变量（这里只提供结构元数据；探测时通过 variablePath 引用，最终脚本通过 getVariable/getCredentials 读取）：
+可用项目变量（这里只提供结构元数据；探测时通过 variablePath 引用，最终脚本通过 getVariable/getCredentials 读取；临时数据通过 getUniqueValue 生成）：
 ${formatVariables(input.variables)}
+
+可重复执行约束：
+- 如果用例包含创建、编辑、删除或状态变更，所有新建数据的名称、编号或唯一字段必须使用 getUniqueValue("稳定前缀") 生成，不能使用固定业务数据。
+- 写操作必须包在 try/finally 中；finally 只清理本次通过 getUniqueValue 创建的数据，即使断言失败也要清理。
 
 测试用例：
 编号：${input.testCase.code}

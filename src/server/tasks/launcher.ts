@@ -11,6 +11,7 @@ import {
 import { failPendingScriptGenerationRun } from "@/automation/script-generation-run";
 import {
   AiCapability,
+  AiExecutionOrigin,
   AiExecutionLogLevel,
   AiExecutionStage,
   AiExecutionStatus,
@@ -60,6 +61,7 @@ export async function recoverExecutionTaskState() {
       select: {
         id: true,
         capability: true,
+        origin: true,
         testCaseId: true,
         logs: {
           orderBy: { position: "desc" },
@@ -110,6 +112,7 @@ export async function recoverExecutionTaskState() {
       });
       if (
         task.capability === AiCapability.GENERATE_AUTOMATION_SCRIPT &&
+        task.origin === AiExecutionOrigin.TEST_RUN &&
         task.testCaseId
       ) {
         await failPendingScriptGenerationRun(

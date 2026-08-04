@@ -16,6 +16,7 @@ import {
 } from "@/ai-worker/task-support";
 import {
   AiCapability,
+  AiExecutionOrigin,
   AiExecutionLogLevel,
   AiExecutionStatus,
 } from "@/generated/prisma/enums";
@@ -104,6 +105,7 @@ async function executeTask(executionId: string, ownerId: string) {
     executionId: execution.id,
     ownerId,
     capability: execution.capability,
+    origin: execution.origin,
     testCaseId: execution.testCaseId,
     initialStage: execution.stage,
   });
@@ -171,6 +173,7 @@ async function executeTask(executionId: string, ownerId: string) {
       if (
         failed.count === 1 &&
         execution.capability === AiCapability.GENERATE_AUTOMATION_SCRIPT &&
+        execution.origin === AiExecutionOrigin.TEST_RUN &&
         execution.testCaseId
       ) {
         await failPendingScriptGenerationRun(

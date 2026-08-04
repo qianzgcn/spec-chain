@@ -22,7 +22,10 @@ export function prepareRunEnvironment(
     run.testCase.project.variables,
     decryptTaskSecret,
   );
-  const runtime = createVariableRuntimeBundle(variables);
+  const runtime = createVariableRuntimeBundle({
+    ...variables,
+    runId: run.id,
+  });
   Object.assign(environment, runtime.environment);
   for (const value of variables.secretValues) logger.addSecret(value);
 
