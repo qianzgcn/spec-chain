@@ -452,7 +452,7 @@ export function AiSettingsManagement({
           />
         }
       >
-        <div className="contents [&_[data-slot=table-head]]:text-xs">
+        <div className="contents [&_[data-slot=table-head]]:text-base">
           <DataTable
             columns={columns}
             data={pageItems}
