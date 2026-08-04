@@ -55,7 +55,7 @@ async function executeRun(runId: string, workerId: string) {
 
   const workDir = path.join(taskRuntime.dataDir, "runs", run.id);
   const startedAt = run.startedAt ?? new Date();
-  const logger = createRunLogWriter(run.id, workerId);
+  const logger = createRunLogWriter(run.id, workerId, run.logContent);
   const cancellation = watchRunCancellation({
     runId: run.id,
     workerId,

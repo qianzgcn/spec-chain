@@ -9,9 +9,13 @@ function formatTaskLog(level: RunLogLevel, stage: string, message: string) {
   return `${timestamp}  ${level.padEnd(5)}  [${stage}]  ${message}`;
 }
 
-export function createRunLogWriter(runId: string, workerId: string) {
+export function createRunLogWriter(
+  runId: string,
+  workerId: string,
+  initialContent?: string | null,
+) {
   const secretValues: string[] = [];
-  let taskLog = "";
+  let taskLog = initialContent?.trim() ?? "";
   let stdout = "";
   let stderr = "";
   let writeQueue = Promise.resolve();

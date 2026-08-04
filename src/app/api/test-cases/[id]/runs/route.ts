@@ -12,6 +12,7 @@ import {
   TestRunStage,
 } from "@/generated/prisma/enums";
 import { VariableReferenceError } from "@/lib/project-variables/references";
+import { formatAutomationRunLog } from "@/automation/script-generation-run";
 import { getAuthenticatedApiContext } from "@/server/api/context";
 import { db } from "@/server/db";
 import {
@@ -279,6 +280,13 @@ export async function POST(
         testCaseNameSnapshot: testCase.name,
         scriptSnapshot,
         baseUrlSnapshot: baseUrl,
+        logContent: needsScriptGeneration
+          ? formatAutomationRunLog(
+              "INFO",
+              "生成自动化脚本",
+              "运行任务已创建，等待 AI 脚本任务开始。",
+            )
+          : null,
       },
       select: { id: true, status: true },
     });

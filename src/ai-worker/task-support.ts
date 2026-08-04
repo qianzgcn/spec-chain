@@ -5,6 +5,7 @@ import { AutomationAgentError } from "@/automation/agent";
 import { AutomationAuthenticationError } from "@/automation/authentication";
 import { PlaywrightCliError } from "@/automation/playwright-cli-session";
 import { AutomationScriptValidationError } from "@/automation/script-validator";
+import { appendPendingScriptGenerationRunLog } from "@/automation/script-generation-run";
 import type { Prisma } from "@/generated/prisma/client";
 import {
   AiCapability,
@@ -89,6 +90,7 @@ export async function createAiTaskReporter(input: {
   executionId: string;
   ownerId: string;
   capability: AiCapability;
+  testCaseId: string | null;
   initialStage: AiExecutionStage;
 }) {
   const latestLog = await taskDb.aiExecutionLog.findFirst({
@@ -128,6 +130,17 @@ export async function createAiTaskReporter(input: {
             message,
           },
         });
+        if (
+          input.capability === AiCapability.GENERATE_AUTOMATION_SCRIPT &&
+          input.testCaseId
+        ) {
+          await appendPendingScriptGenerationRunLog(transaction, {
+            testCaseId: input.testCaseId,
+            level,
+            stage: AiExecutionStage[stage],
+            message,
+          });
+        }
       });
       nextPosition += 1;
     });

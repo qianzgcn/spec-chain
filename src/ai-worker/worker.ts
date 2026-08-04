@@ -104,6 +104,7 @@ async function executeTask(executionId: string, ownerId: string) {
     executionId: execution.id,
     ownerId,
     capability: execution.capability,
+    testCaseId: execution.testCaseId,
     initialStage: execution.stage,
   });
   const timeoutSignal = AbortSignal.timeout(TASK_TIMEOUT_MS);
