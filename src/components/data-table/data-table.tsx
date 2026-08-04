@@ -65,7 +65,6 @@ export function DataTable<TData>({
   getSubRows,
   expanded,
   onExpandedChange,
-  headerClassName,
   rowClassName,
 }: {
   columns: ColumnDef<TData>[];
@@ -76,7 +75,6 @@ export function DataTable<TData>({
   getSubRows?: (row: TData) => TData[] | undefined;
   expanded?: ExpandedState;
   onExpandedChange?: OnChangeFn<ExpandedState>;
-  headerClassName?: string;
   rowClassName?: (row: Row<TData>) => string | undefined;
 }) {
   // TanStack Table 的实例由库内部管理，React Compiler 不应尝试记忆化它。
@@ -119,7 +117,6 @@ export function DataTable<TData>({
                   )}
                   className={cn(
                     "truncate",
-                    headerClassName,
                     header.column.columnDef.meta?.headerClassName,
                   )}
                 >
