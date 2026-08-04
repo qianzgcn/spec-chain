@@ -59,6 +59,11 @@ export default async function PendingReviewRequirementsPage({
       createdAt: true,
       updatedAt: true,
       feature: { select: { code: true, name: true } },
+      sourceExecution: {
+        select: {
+          requestedBy: { select: { username: true } },
+        },
+      },
     },
   });
 
@@ -66,6 +71,7 @@ export default async function PendingReviewRequirementsPage({
     ...draft,
     createdAt: draft.createdAt.toISOString(),
     updatedAt: draft.updatedAt.toISOString(),
+    createdBy: draft.sourceExecution.requestedBy.username,
   }));
 
   return (

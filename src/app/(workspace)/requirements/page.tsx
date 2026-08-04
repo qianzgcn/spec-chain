@@ -58,6 +58,7 @@ export default async function RequirementsPage({
         id: true,
         code: true,
         name: true,
+        createdBy: { select: { username: true } },
         updatedAt: true,
         userStories: {
           where: { deletedAt: null },
@@ -67,6 +68,7 @@ export default async function RequirementsPage({
             code: true,
             title: true,
             status: true,
+            createdBy: { select: { username: true } },
             updatedAt: true,
           },
         },
@@ -83,6 +85,7 @@ export default async function RequirementsPage({
         code: true,
         title: true,
         status: true,
+        createdBy: { select: { username: true } },
         updatedAt: true,
       },
     }),
@@ -110,6 +113,7 @@ export default async function RequirementsPage({
         code: story.code,
         title: story.title,
         status: story.status,
+        createdBy: story.createdBy?.username ?? null,
         childCount: null,
         updatedAt: story.updatedAt.toISOString(),
       }),
@@ -132,6 +136,7 @@ export default async function RequirementsPage({
               code: feature.code,
               title: feature.name,
               status: featureStatus,
+              createdBy: feature.createdBy?.username ?? null,
               childCount: allChildren.length,
               updatedAt: feature.updatedAt.toISOString(),
               autoExpand: Boolean(query && matchingChildren.length),
@@ -165,6 +170,7 @@ export default async function RequirementsPage({
         code: feature.code,
         title: feature.name,
         status: featureStatus,
+        createdBy: feature.createdBy?.username ?? null,
         childCount: allChildren.length,
         updatedAt: feature.updatedAt.toISOString(),
         autoExpand: Boolean(query && matchingChildren.length),
@@ -186,6 +192,7 @@ export default async function RequirementsPage({
       code: story.code,
       title: story.title,
       status: story.status,
+      createdBy: story.createdBy?.username ?? null,
       childCount: null,
       updatedAt: story.updatedAt.toISOString(),
     }));
@@ -204,9 +211,7 @@ export default async function RequirementsPage({
 
   return (
     <PageContainer table className="gap-5">
-      <PageHeader
-        title="需求列表"
-      />
+      <PageHeader title="需求列表" />
 
       <RequirementsList
         items={items}

@@ -14,6 +14,7 @@ export type PendingRequirementListItem = {
   id: string;
   title: string;
   feature: { code: string; name: string } | null;
+  createdBy: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -57,6 +58,19 @@ const columns: ColumnDef<PendingRequirementListItem>[] = [
       cellClassName: "max-[1360px]:hidden text-muted-foreground",
     },
     cell: ({ row }) => formatDetailedDateTime(row.original.createdAt),
+  },
+  {
+    accessorKey: "createdBy",
+    header: "创建人",
+    size: 120,
+    cell: ({ row }) => (
+      <span
+        className="text-muted-foreground truncate"
+        title={row.original.createdBy}
+      >
+        {row.original.createdBy}
+      </span>
+    ),
   },
   {
     accessorKey: "updatedAt",

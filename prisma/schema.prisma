@@ -111,9 +111,11 @@ model User {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  sessions      Session[]
-  requestedRuns TestRun[]
-  aiExecutions  AiExecution[]
+  sessions           Session[]
+  requestedRuns      TestRun[]
+  aiExecutions       AiExecution[]
+  createdFeatures    Feature[]     @relation("FeatureCreatedBy")
+  createdUserStories UserStory[]   @relation("UserStoryCreatedBy")
 
   @@index([deletedAt])
 }
@@ -215,6 +217,7 @@ model ProjectVariableField {
 model Feature {
   id             String    @id @default(cuid())
   projectId      String
+  createdById    String?
   code           String    @unique
   name           String
   summary        String
@@ -224,17 +227,20 @@ model Feature {
   deletedAt      DateTime?
 
   project      Project          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  createdBy    User?            @relation("FeatureCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   userStories  UserStory[]
   aiExecutions AiExecution[]
   aiDrafts     UserStoryDraft[]
 
   @@index([projectId, deletedAt, updatedAt])
+  @@index([createdById])
 }
 
 model UserStory {
   id                        String            @id @default(cuid())
   projectId                 String
   featureId                 String?
+  createdById               String?
   code                      String            @unique
   title                     String
   asA                       String
@@ -249,12 +255,14 @@ model UserStory {
 
   project              Project               @relation(fields: [projectId], references: [id], onDelete: Restrict)
   feature              Feature?              @relation(fields: [featureId], references: [id], onDelete: Restrict)
+  createdBy            User?                 @relation("UserStoryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   acceptanceCriteria   AcceptanceCriterion[]
   testCases            TestCase[]
   aiTestCaseExecutions AiExecution[]         @relation("AiTestCaseSourceUserStory")
   sourceDraft          UserStoryDraft?       @relation("ConfirmedUserStory")
 
   @@index([projectId, deletedAt, updatedAt])
+  @@index([createdById])
   @@index([featureId, deletedAt])
 }
 

@@ -15,7 +15,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { RunStatus, TestRunStage } from "@/generated/prisma/enums";
 import { formatDetailedDateTime } from "@/lib/date-time";
 import { TEST_RUN_STAGE_LABELS } from "@/lib/execution-tasks/meta";
-import { RUN_STATUS_META } from "@/lib/test-cases/meta";
+import { getRunDisplayStatus, RUN_STATUS_META } from "@/lib/test-cases/meta";
 import { cn } from "@/lib/utils";
 
 export type TestRunSummary = {
@@ -61,8 +61,14 @@ function formatDuration(durationMs: number | null) {
   return `${(durationMs / 1_000).toFixed(1)} 秒`;
 }
 
-function RunStatusBadge({ status }: { status: RunStatus }) {
-  const meta = RUN_STATUS_META[status];
+function RunStatusBadge({
+  status,
+  stage,
+}: {
+  status: RunStatus;
+  stage: TestRunStage;
+}) {
+  const meta = RUN_STATUS_META[getRunDisplayStatus(status, stage)];
   return <Badge variant={meta.badgeVariant}>{meta.label}</Badge>;
 }
 
@@ -104,7 +110,7 @@ export function TestRunList({
           onClick={() => onSelect(run.id)}
         >
           <div className="flex w-full items-center justify-between gap-3">
-            <RunStatusBadge status={run.status} />
+            <RunStatusBadge status={run.status} stage={run.stage} />
             <span className="text-muted-foreground text-xs">
               {formatDuration(run.durationMs)}
             </span>
@@ -154,6 +160,7 @@ export function TestRunDetailView({
     );
   }
 
+  const displayStatus = getRunDisplayStatus(detail.status, detail.stage);
   const canStop =
     detail.status === RunStatus.QUEUED || detail.status === RunStatus.RUNNING;
 
@@ -162,8 +169,8 @@ export function TestRunDetailView({
       <div className="flex items-start justify-between gap-5">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <RunStatusBadge status={detail.status} />
-            {detail.cancelRequested && detail.status === RunStatus.RUNNING ? (
+            <RunStatusBadge status={detail.status} stage={detail.stage} />
+            {detail.cancelRequested && displayStatus === RunStatus.RUNNING ? (
               <Badge variant="warning">正在停止</Badge>
             ) : null}
           </div>

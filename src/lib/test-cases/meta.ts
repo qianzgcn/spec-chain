@@ -1,4 +1,8 @@
-import { RunStatus, TestPriority } from "@/generated/prisma/enums";
+import {
+  RunStatus,
+  TestPriority,
+  TestRunStage,
+} from "@/generated/prisma/enums";
 
 type BadgeVariant = "info" | "success" | "warning" | "destructive" | "outline";
 
@@ -34,3 +38,16 @@ export const RUN_STATUS_META: Record<
   [RunStatus.TIMED_OUT]: { label: "超时", badgeVariant: "warning" },
   [RunStatus.STOPPED]: { label: "已停止", badgeVariant: "outline" },
 };
+
+/**
+ * 运行时补齐脚本时，TestRun 会暂时保持 QUEUED，直到运行器领取它。
+ * 阶段已经推进后，对用户而言任务已开始执行，因此展示为运行中。
+ */
+export function getRunDisplayStatus(
+  status: RunStatus,
+  stage: TestRunStage,
+): RunStatus {
+  return status === RunStatus.QUEUED && stage !== TestRunStage.QUEUED
+    ? RunStatus.RUNNING
+    : status;
+}

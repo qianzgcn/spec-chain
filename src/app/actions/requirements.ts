@@ -27,6 +27,7 @@ export async function createFeatureAction(
   input: unknown,
 ): Promise<ActionResult<{ id: string }>> {
   const project = await requireCurrentProjectForAction();
+  const user = await requireUser();
   if (!project) {
     return { ok: false, message: "请先创建项目" };
   }
@@ -43,6 +44,7 @@ export async function createFeatureAction(
   const feature = await db.feature.create({
     data: {
       projectId: project.id,
+      createdById: user.id,
       code: await generateBusinessCode("FE"),
       ...parsed.data,
     },
@@ -128,6 +130,7 @@ export async function createUserStoryAction(
   input: unknown,
 ): Promise<ActionResult<{ id: string }>> {
   const project = await requireCurrentProjectForAction();
+  const user = await requireUser();
   if (!project) {
     return { ok: false, message: "请先创建项目" };
   }
@@ -159,6 +162,7 @@ export async function createUserStoryAction(
     data: {
       projectId: project.id,
       featureId: parsed.data.featureId ?? null,
+      createdById: user.id,
       code: await generateBusinessCode("US"),
       title: parsed.data.title,
       asA: parsed.data.asA,

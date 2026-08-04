@@ -31,9 +31,17 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
-import { RunStatus, TestPriority } from "@/generated/prisma/enums";
+import {
+  RunStatus,
+  TestPriority,
+  TestRunStage,
+} from "@/generated/prisma/enums";
 import { formatCompactDateTime } from "@/lib/date-time";
-import { RUN_STATUS_META, TEST_PRIORITY_META } from "@/lib/test-cases/meta";
+import {
+  getRunDisplayStatus,
+  RUN_STATUS_META,
+  TEST_PRIORITY_META,
+} from "@/lib/test-cases/meta";
 
 export type TestCaseListItem = {
   id: string;
@@ -44,6 +52,7 @@ export type TestCaseListItem = {
   enabled: boolean;
   hasScript: boolean;
   lastRunStatus: RunStatus | null;
+  lastRunStage: TestRunStage | null;
   lastEditedAt: string;
   lastRunAt: string | null;
 };
@@ -225,7 +234,12 @@ export function TestCasesList({
         if (!status) {
           return <span className="text-muted-foreground">尚未运行</span>;
         }
-        const meta = RUN_STATUS_META[status];
+        const meta =
+          RUN_STATUS_META[
+            row.original.lastRunStage
+              ? getRunDisplayStatus(status, row.original.lastRunStage)
+              : status
+          ];
         return <Badge variant={meta.badgeVariant}>{meta.label}</Badge>;
       },
     },

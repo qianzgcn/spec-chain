@@ -45,6 +45,7 @@ export type RequirementListItem = {
   code: string;
   title: string;
   status: RequirementStatus;
+  createdBy: string | null;
   childCount: number | null;
   updatedAt: string;
   autoExpand?: boolean;
@@ -256,6 +257,19 @@ export function RequirementsList({
         ) : (
           <RequirementStatusBadge status={row.original.status} />
         ),
+    },
+    {
+      accessorKey: "createdBy",
+      header: "创建人",
+      size: 120,
+      cell: ({ row }) => (
+        <span
+          className="text-muted-foreground block truncate"
+          title={row.original.createdBy ?? "--"}
+        >
+          {row.original.createdBy ?? "--"}
+        </span>
+      ),
     },
     {
       accessorKey: "updatedAt",

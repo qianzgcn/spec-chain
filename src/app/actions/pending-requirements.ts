@@ -166,6 +166,7 @@ export async function confirmPendingRequirementAction(
   draftId: string,
 ): Promise<ActionResult<{ id: string }>> {
   const project = await requireCurrentProjectForAction();
+  const user = await requireUser();
   if (!project) {
     return { ok: false, message: "请先创建项目" };
   }
@@ -226,6 +227,7 @@ export async function confirmPendingRequirementAction(
         data: {
           projectId: draft.projectId,
           featureId: draft.featureId,
+          createdById: user.id,
           code,
           title: draft.title,
           asA: draft.asA,

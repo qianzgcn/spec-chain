@@ -105,6 +105,7 @@ export default async function TestCasesPage({
         take: 1,
         select: {
           status: true,
+          stage: true,
           queuedAt: true,
           startedAt: true,
           finishedAt: true,
@@ -128,6 +129,7 @@ export default async function TestCasesPage({
       enabled: testCase.enabled,
       hasScript: Boolean(testCase.script?.trim()),
       lastRunStatus: lastRun?.status ?? null,
+      lastRunStage: lastRun?.stage ?? null,
       lastEditedAt: testCase.updatedAt.toISOString(),
       lastRunAt: lastRunAt?.toISOString() ?? null,
     };
