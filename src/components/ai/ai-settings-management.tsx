@@ -455,6 +455,7 @@ export function AiSettingsManagement({
         <DataTable
           columns={columns}
           data={pageItems}
+          headerClassName="text-xs"
           loading={isPending && checkingProfileId === null}
           emptyText="尚未配置模型"
           getRowId={(profile) => profile.id}
