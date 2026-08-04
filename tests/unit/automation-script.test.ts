@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import { AUTOMATION_AGENT_TOOL_NAMES } from "@/automation/agent-tools";
+import {
+  AUTOMATION_AGENT_TOOL_NAMES,
+  createAutomationAgentTools,
+} from "@/automation/agent-tools";
 import {
   AutomationAuthenticationError,
   resolveAutomationAuthentication,
@@ -244,6 +248,19 @@ describe("页面探测边界", () => {
     expect(AUTOMATION_AGENT_TOOL_NAMES).not.toContain("shell");
     expect(AUTOMATION_AGENT_TOOL_NAMES).not.toContain("evaluate");
     expect(AUTOMATION_AGENT_TOOL_NAMES).not.toContain("screenshot");
+  });
+
+  it("需要变量值的工具使用 OpenAI 兼容的对象 Schema", () => {
+    const { tools } = createAutomationAgentTools({
+      session: {} as never,
+      variables: {},
+    });
+
+    for (const toolName of ["fillField", "selectOption"] as const) {
+      const schema = z.toJSONSchema(tools[toolName].inputSchema as z.ZodType);
+      expect(schema.type).toBe("object");
+      expect(schema).not.toHaveProperty("allOf");
+    }
   });
 });
 

@@ -35,25 +35,31 @@ const variablePathSchema = z
     /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/,
     "变量路径格式不正确",
   );
-const toolValueSchema = z
-  .object({
-    literal: z.string().max(2_000).optional(),
-    variablePath: variablePathSchema.optional(),
-  })
-  .superRefine((value, context) => {
-    if ((value.literal === undefined) === (value.variablePath === undefined)) {
-      context.addIssue({
-        code: "custom",
-        message: "literal 和 variablePath 必须且只能提供一个",
-      });
-    }
-  });
+const toolValueFields = {
+  literal: z.string().max(2_000).optional(),
+  variablePath: variablePathSchema.optional(),
+};
+type ToolValue = { literal?: string; variablePath?: string };
+
+function validateToolValue(value: ToolValue, context: z.core.$RefinementCtx) {
+  if ((value.literal === undefined) === (value.variablePath === undefined)) {
+    context.addIssue({
+      code: "custom",
+      message: "literal 和 variablePath 必须且只能提供一个",
+      input: value,
+    });
+  }
+}
+
+const elementToolValueSchema = z
+  .object({ target: elementReferenceSchema, ...toolValueFields })
+  .superRefine(validateToolValue);
 const variablesContextSchema = z.object({
   variables: z.record(z.string(), z.string()),
 });
 
 function resolveToolValue(
-  input: z.infer<typeof toolValueSchema>,
+  input: ToolValue,
   variables: Readonly<Record<string, string>>,
 ) {
   if (!input.variablePath) return input.literal ?? "";
@@ -128,9 +134,7 @@ export function createAutomationAgentTools(input: {
     fillField: tool({
       description:
         "填写最新页面快照中的输入框。项目变量只能通过 variablePath 引用，普通临时输入使用 literal。",
-      inputSchema: z
-        .object({ target: elementReferenceSchema })
-        .and(toolValueSchema),
+      inputSchema: elementToolValueSchema,
       contextSchema: variablesContextSchema,
       execute: async (value, { context }) =>
         commandResult(
@@ -143,9 +147,7 @@ export function createAutomationAgentTools(input: {
     selectOption: tool({
       description:
         "选择最新页面快照中的下拉选项。项目变量只能通过 variablePath 引用，普通选项值使用 literal。",
-      inputSchema: z
-        .object({ target: elementReferenceSchema })
-        .and(toolValueSchema),
+      inputSchema: elementToolValueSchema,
       contextSchema: variablesContextSchema,
       execute: async (value, { context }) =>
         commandResult(
