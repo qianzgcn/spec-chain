@@ -35,17 +35,37 @@ function createSource(
   };
 }
 
-function createProvider(hasMatch: boolean): ModelProvider {
+function createProvider(
+  hasMatch: boolean,
+  implemented = hasMatch,
+): ModelProvider {
+  let callCount = 0;
   return {
-    generateStructured: vi.fn().mockResolvedValue({
-      output: {
-        hasPotentialMatch: hasMatch,
-        reason: hasMatch ? "核实项目列表入口" : "本批没有相关实现",
-        files: hasMatch
-          ? [{ path: "src/projects/page.tsx", reason: "核实项目列表入口" }]
-          : [],
-      },
-      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+    generateStructured: vi.fn().mockImplementation(async () => {
+      callCount += 1;
+      return callCount === 1
+        ? {
+            output: {
+              hasPotentialMatch: hasMatch,
+              reason: hasMatch ? "核实项目列表入口" : "本批没有相关实现",
+              files: hasMatch
+                ? [
+                    {
+                      path: "src/projects/page.tsx",
+                      reason: "核实项目列表入口",
+                    },
+                  ]
+                : [],
+            },
+            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          }
+        : {
+            output: {
+              implemented,
+              reason: implemented ? "已找到目标行为" : "创建人字段不存在",
+            },
+            usage: { inputTokens: 20, outputTokens: 5, totalTokens: 25 },
+          };
     }),
   };
 }
@@ -103,6 +123,33 @@ describe("自动化脚本代码预检", () => {
 
     expect(result.codeEvidence[0]?.content).toContain("代码上下文已截断");
     expect(result.codeEvidence[0]?.content.length).toBeLessThan(32_100);
+  });
+
+  it("只有页面存在但没有目标行为时不会启动后续页面探测", async () => {
+    const source = createSource(
+      "export function RequirementsPage() { return <div>需求名称</div>; }",
+    );
+
+    await expect(
+      checkAutomationCodeReadiness({
+        testCase: {
+          ...testCase,
+          name: "查看需求创建人",
+          steps: "1. 打开需求列表\n2. 查看每条需求的创建人",
+        },
+        repositories: [
+          {
+            id: "repo-1",
+            gitUrl: "https://github.com/team/spec-chain.git",
+            branch: "main",
+            pat: "secret",
+          },
+        ],
+        modelProvider: createProvider(true, false),
+        repositoryCodeSource: source,
+      }),
+    ).rejects.toThrow("创建人字段不存在");
+    expect(source.readFile).toHaveBeenCalledTimes(1);
   });
 
   it("没有相关源码时不会读取文件并返回失败", async () => {

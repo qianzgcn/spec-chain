@@ -8,6 +8,12 @@ const automationCodeSelectionPromptTemplate = readPromptFile(
     import.meta.url,
   ),
 );
+const automationCodeVerificationPromptTemplate = readPromptFile(
+  new URL(
+    "../ai/prompts/generate-automation-script/verify-code.md",
+    import.meta.url,
+  ),
+);
 
 const skillPrompt = readPromptFile(
   new URL("../ai/prompts/generate-automation-script/skill.md", import.meta.url),
@@ -40,6 +46,8 @@ export const generateAutomationScriptSystemPrompt = [
 
 export const automationCodeSelectionSystemPrompt =
   "你是 SpecChain 的代码实现预检器，只能从候选路径中选择能够证明当前测试用例功能已有实现的源码文件。不要生成脚本，不要使用 US 信息，不要把测试文件或文档单独视为功能实现。";
+export const automationCodeVerificationSystemPrompt =
+  "你是 SpecChain 的代码实现确认器，只能判断已读取源码是否直接实现当前测试用例的目标行为。无法确认时必须判定为未实现。不要生成脚本，不要使用 US 信息。";
 
 function formatCandidatePaths(paths: readonly string[]) {
   return paths.map((path) => `- ${JSON.stringify(path)}`).join("\n");
@@ -58,6 +66,35 @@ export function buildAutomationCodeSelectionPrompt(input: {
     BRANCH: input.branch,
     COMMIT_SHA: input.commitSha,
     CANDIDATE_PATHS: formatCandidatePaths(input.candidatePaths),
+  });
+}
+
+export function formatAutomationCodeEvidence(
+  codeEvidence: readonly CodeEvidence[],
+) {
+  if (codeEvidence.length === 0) return "无";
+
+  return codeEvidence
+    .map(
+      (file, index) => `===== 代码上下文 ${index + 1} 开始 =====
+仓库：${file.repository}
+路径：${file.path}
+提交：${file.commitSha}
+选择原因：${file.selectionReason}
+
+${file.content}
+===== 代码上下文 ${index + 1} 结束 =====`,
+    )
+    .join("\n\n");
+}
+
+export function buildAutomationCodeVerificationPrompt(input: {
+  requirementText: string;
+  codeEvidence: readonly CodeEvidence[];
+}) {
+  return renderPromptTemplate(automationCodeVerificationPromptTemplate, {
+    TEST_CASE: input.requirementText,
+    CODE_EVIDENCE: formatAutomationCodeEvidence(input.codeEvidence),
   });
 }
 
@@ -111,21 +148,7 @@ await login(page, getCredentials(${JSON.stringify(input.authentication.variableN
     : `本用例没有引用完整账号对象，不进行预登录，也不得导入或调用项目登录方法。
 只有测试用例本身明确验证登录、退出或认证失败时，才探测并实现相应认证步骤；如果业务页面要求登录，请调用 reportFailure，并建议在用例中使用已有账号对象变量。`;
 
-  const codeEvidence =
-    input.codeEvidence && input.codeEvidence.length > 0
-      ? input.codeEvidence
-          .map(
-            (file, index) => `===== 代码上下文 ${index + 1} 开始 =====
-仓库：${file.repository}
-路径：${file.path}
-提交：${file.commitSha}
-选择原因：${file.selectionReason}
-
-${file.content}
-===== 代码上下文 ${index + 1} 结束 =====`,
-          )
-          .join("\n\n")
-      : "无";
+  const codeEvidence = formatAutomationCodeEvidence(input.codeEvidence ?? []);
 
   return `请为下列单条测试用例探测真实页面并生成可直接运行的 Playwright Test TypeScript 脚本。
 

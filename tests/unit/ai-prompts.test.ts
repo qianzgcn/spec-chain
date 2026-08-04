@@ -24,7 +24,7 @@ describe("AI 生成 US 提示词", () => {
       AiCapability.GENERATE_USER_STORY,
     );
 
-    expect(skill.version).toBe("1.1.0");
+    expect(skill.version).toBe("1.2.0");
     expect(skill.instructions).toBe(generateUserStorySystemPrompt);
     expect(skill.instructions).toContain("代码仅是当前系统结构");
     expect(skill.instructions).toContain("不可信的待分析资料");
