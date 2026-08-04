@@ -104,6 +104,11 @@ const DEFAULT_MODEL_CONFIGS = [
     label: "生成自动化脚本",
     ariaLabel: "生成自动化脚本默认模型",
   },
+  {
+    capability: AiCapability.CHECK_CONSISTENCY,
+    label: "一致性检查",
+    ariaLabel: "一致性检查默认模型",
+  },
 ] as const;
 
 export function AiSettingsManagement({
@@ -281,6 +286,10 @@ export function AiSettingsManagement({
           {row.original.id ===
           defaultProfileIds[AiCapability.GENERATE_AUTOMATION_SCRIPT] ? (
             <Badge variant="secondary">生成自动化脚本</Badge>
+          ) : null}
+          {row.original.id ===
+          defaultProfileIds[AiCapability.CHECK_CONSISTENCY] ? (
+            <Badge variant="secondary">一致性检查</Badge>
           ) : null}
         </div>
       ),

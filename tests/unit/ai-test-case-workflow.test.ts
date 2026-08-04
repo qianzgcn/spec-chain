@@ -193,13 +193,25 @@ describe("AI 生成测试用例工作流", () => {
     ).rejects.toThrow("没有说明可使用的账号状态");
   });
 
-  it("拒绝空结果、超过 20 条和重复用例", () => {
+  it("允许覆盖完整时返回空结果，并拒绝超过 20 条和重复用例", () => {
     const decisionSchema = createGeneratedTestCasesDecisionSchema(
       ["group-auth"],
       workflowInput.variables,
+      true,
     );
     expect(
       decisionSchema.safeParse({
+        sufficient: true,
+        failureReason: "",
+        testCases: [],
+      }).success,
+    ).toBe(true);
+
+    expect(
+      createGeneratedTestCasesDecisionSchema(
+        ["group-auth"],
+        workflowInput.variables,
+      ).safeParse({
         sufficient: true,
         failureReason: "",
         testCases: [],

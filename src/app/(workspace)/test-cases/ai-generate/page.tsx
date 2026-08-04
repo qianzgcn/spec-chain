@@ -11,7 +11,12 @@ export const metadata: Metadata = {
   title: "AI辅助生成测试用例",
 };
 
-export default async function AiGenerateTestCasesPage() {
+export default async function AiGenerateTestCasesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ userStoryId?: string }>;
+}) {
+  const params = await searchParams;
   const project = await getCurrentProject();
   if (!project) {
     return (
@@ -38,6 +43,7 @@ export default async function AiGenerateTestCasesPage() {
 
   return (
     <AiTestCaseGeneratorForm
+      initialUserStoryId={params.userStoryId ?? null}
       userStories={userStories.map((story) => ({
         id: story.id,
         code: story.code,

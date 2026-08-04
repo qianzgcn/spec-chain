@@ -259,6 +259,17 @@ export async function createAiTestCaseExecutionAction(
           backgroundGoal: true,
         },
       },
+      testCases: {
+        where: { deletedAt: null },
+        orderBy: { code: "asc" },
+        select: {
+          code: true,
+          name: true,
+          preconditions: true,
+          steps: true,
+          enabled: true,
+        },
+      },
     },
   });
   if (!userStory) {
@@ -272,6 +283,57 @@ export async function createAiTestCaseExecutionAction(
     capability: AiCapability.GENERATE_TEST_CASES,
     requirementText: formatUserStoryForTestCaseGeneration(userStory),
   });
+}
+
+export async function createConsistencyCheckExecutionAction(): Promise<
+  ActionResult<{ id: string }>
+> {
+  const { user, project } = await getCurrentActionContext();
+  if (!project) {
+    return { ok: false, message: "请先创建项目" };
+  }
+
+  const created = await db.$transaction(async (transaction) => {
+    const active = await transaction.aiExecution.findFirst({
+      where: {
+        projectId: project.id,
+        capability: AiCapability.CHECK_CONSISTENCY,
+        status: {
+          in: [AiExecutionStatus.QUEUED, AiExecutionStatus.RUNNING],
+        },
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (active) return null;
+
+    return createQueuedAiExecutionRecord(transaction, {
+      projectId: project.id,
+      requestedById: user.id,
+      capability: AiCapability.CHECK_CONSISTENCY,
+      requirementText:
+        "检查当前代码与测试/完成态 US、需求用例及平台用例的一致性",
+    });
+  });
+  if (!created) {
+    return { ok: false, message: "当前项目已有一致性检查正在执行" };
+  }
+
+  if (!startTaskScheduler()) {
+    await markWorkerStartFailure(created.id, 1);
+    revalidatePath("/execution-tasks");
+    return {
+      ok: false,
+      message: "无法启动任务调度器，请查看服务日志",
+    };
+  }
+
+  revalidatePath("/execution-tasks");
+  return {
+    ok: true,
+    message: "一致性检查已进入队列",
+    data: created,
+  };
 }
 
 export async function retryExecutionTaskAction(
@@ -321,6 +383,48 @@ export async function retryExecutionTaskAction(
         ok: false as const,
         message: "只有失败的任务可以重新运行",
       };
+    }
+    if (execution.capability === AiCapability.CHECK_CONSISTENCY) {
+      const activeConsistencyCheck = await transaction.aiExecution.findFirst({
+        where: {
+          id: { not: parsed.data.taskId },
+          projectId: project.id,
+          capability: AiCapability.CHECK_CONSISTENCY,
+          status: {
+            in: [AiExecutionStatus.QUEUED, AiExecutionStatus.RUNNING],
+          },
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (activeConsistencyCheck) {
+        return {
+          ok: false as const,
+          message: "当前项目已有一致性检查正在执行",
+        };
+      }
+
+      await transaction.consistencyCheckItem.deleteMany({
+        where: { executionId: parsed.data.taskId },
+      });
+      await transaction.draftAcceptanceCriterion.deleteMany({
+        where: { draft: { sourceExecutionId: parsed.data.taskId } },
+      });
+      await transaction.userStoryDraft.deleteMany({
+        where: { sourceExecutionId: parsed.data.taskId },
+      });
+      const batches = await transaction.testCaseDraftBatch.findMany({
+        where: { sourceExecutionId: parsed.data.taskId },
+        select: { id: true },
+      });
+      if (batches.length) {
+        await transaction.testCaseDraft.deleteMany({
+          where: { batchId: { in: batches.map((batch) => batch.id) } },
+        });
+        await transaction.testCaseDraftBatch.deleteMany({
+          where: { id: { in: batches.map((batch) => batch.id) } },
+        });
+      }
     }
 
     const updated = await transaction.aiExecution.updateMany({

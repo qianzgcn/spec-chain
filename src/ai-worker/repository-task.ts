@@ -187,6 +187,7 @@ async function saveTestCaseDrafts(input: {
         drafts: {
           create: input.result.drafts.map((draft, position) => ({
             position,
+            proposedUserStoryId: input.execution.sourceUserStoryId,
             name: draft.name,
             priority: draft.priority,
             preconditions: draft.preconditions.trim() || null,
@@ -212,7 +213,9 @@ async function saveTestCaseDrafts(input: {
     await appendCompletionLog(
       transaction,
       input.execution.id,
-      `任务处理完成，已保存 ${input.result.drafts.length} 条待评审测试用例。`,
+      input.result.drafts.length
+        ? `任务处理完成，已保存 ${input.result.drafts.length} 条待评审测试用例。`
+        : "任务处理完成，现有需求用例已完整覆盖，无需新增。",
     );
   });
 }
@@ -277,6 +280,15 @@ export async function executeRepositoryTask(input: {
   if (input.execution.capability !== AiCapability.GENERATE_TEST_CASES) {
     throw new AiWorkflowError("不支持的仓库分析任务类型");
   }
+  const allowEmptyResult = input.execution.sourceUserStoryId
+    ? (await taskDb.testCase.count({
+        where: {
+          projectId: input.execution.projectId,
+          userStoryId: input.execution.sourceUserStoryId,
+          deletedAt: null,
+        },
+      })) > 0
+    : false;
   const result = await createGenerateTestCasesWorkflow(dependencies).run({
     requirementText: input.execution.requirementText,
     repositories,
@@ -293,6 +305,7 @@ export async function executeRepositoryTask(input: {
         description: field.description,
       })),
     })),
+    allowEmptyResult,
     ...callbacks,
   });
   await saveTestCaseDrafts({ ...input, result });

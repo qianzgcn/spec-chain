@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ModelProvider, ModelUsage } from "@/ai/model-provider";
 import type {
   RepositoryAccess,
+  RepositoryCodeFile,
   RepositoryCodeSource,
   RepositoryFile,
   RepositoryTreeSnapshot,
@@ -103,6 +104,7 @@ async function readSelectedFiles(
   source: RepositoryCodeSource,
   selectedFiles: SelectedFile[],
   abortSignal?: AbortSignal,
+  readCache?: Map<string, Promise<RepositoryCodeFile>>,
 ) {
   const readable: Array<SelectedFile & { content: string }> = [];
   let totalCharacters = 0;
@@ -114,14 +116,15 @@ async function readSelectedFiles(
   ) {
     const batch = selectedFiles.slice(offset, offset + FILE_READ_CONCURRENCY);
     const results = await Promise.allSettled(
-      batch.map(async (selected) => ({
-        selected,
-        code: await source.readFile(
-          selected.snapshot,
-          selected.file,
-          abortSignal,
-        ),
-      })),
+      batch.map(async (selected) => {
+        const cacheKey = `${selected.snapshot.repositoryId}:${selected.file.sha}`;
+        let read = readCache?.get(cacheKey);
+        if (!read) {
+          read = source.readFile(selected.snapshot, selected.file, abortSignal);
+          readCache?.set(cacheKey, read);
+        }
+        return { selected, code: await read };
+      }),
     );
 
     for (const result of results) {
@@ -154,8 +157,47 @@ export async function analyzeRelevantCode({
   onRepositoriesLoaded,
   onCodeSelected,
 }: RelevantCodeAnalysisInput): Promise<RelevantCodeAnalysisResult> {
-  const usage = emptyUsage();
+  const snapshots = await loadRepositorySnapshots({
+    repositories,
+    repositoryCodeSource,
+    abortSignal,
+    onStage,
+    onLog,
+    onRepositoriesLoaded,
+  });
+  return analyzeRelevantCodeFromSnapshots({
+    requirementText,
+    businessContext,
+    snapshots,
+    modelProvider,
+    repositoryCodeSource,
+    systemPrompt,
+    buildSelectionPrompt,
+    abortSignal,
+    onStage,
+    onLog,
+    onCodeSelected,
+  });
+}
 
+export async function loadRepositorySnapshots(input: {
+  repositories: RepositoryAccess[];
+  repositoryCodeSource: RepositoryCodeSource;
+  abortSignal?: AbortSignal;
+  onStage?: (stage: AiExecutionStage) => Promise<void>;
+  onLog?: (event: WorkflowLogEvent) => Promise<void>;
+  onRepositoriesLoaded?: (
+    repositories: RepositorySnapshotRecord[],
+  ) => Promise<void>;
+}) {
+  const {
+    repositories,
+    repositoryCodeSource,
+    abortSignal,
+    onStage,
+    onLog,
+    onRepositoriesLoaded,
+  } = input;
   await onStage?.(AiExecutionStage.CHECKING_REPOSITORIES);
   const snapshots = await Promise.all(
     repositories.map(async (repository) => {
@@ -191,6 +233,46 @@ export async function analyzeRelevantCode({
     stage: AiExecutionStage.CHECKING_REPOSITORIES,
     message: `已读取 ${snapshots.length} 个仓库的文件树，共 ${repositoryFileCount} 个文件。`,
   });
+  return snapshots;
+}
+
+export async function analyzeRelevantCodeFromSnapshots(input: {
+  requirementText: string;
+  businessContext: string | null;
+  snapshots: RepositoryTreeSnapshot[];
+  modelProvider: ModelProvider;
+  repositoryCodeSource: RepositoryCodeSource;
+  systemPrompt: string;
+  buildSelectionPrompt: RelevantCodeAnalysisInput["buildSelectionPrompt"];
+  abortSignal?: AbortSignal;
+  onStage?: (stage: AiExecutionStage) => Promise<void>;
+  onLog?: (event: WorkflowLogEvent) => Promise<void>;
+  onCodeSelected?: (references: CodeReferenceRecord[]) => Promise<void>;
+  readCache?: Map<string, Promise<RepositoryCodeFile>>;
+}): Promise<RelevantCodeAnalysisResult> {
+  const {
+    requirementText,
+    businessContext,
+    snapshots,
+    modelProvider,
+    repositoryCodeSource,
+    systemPrompt,
+    buildSelectionPrompt,
+    abortSignal,
+    onStage,
+    onLog,
+    onCodeSelected,
+    readCache,
+  } = input;
+  const usage = emptyUsage();
+  const repositoryRecords = snapshots.map((snapshot) => ({
+    repositoryId: snapshot.repositoryId,
+    provider: snapshot.provider,
+    owner: snapshot.owner,
+    repository: snapshot.repository,
+    branch: snapshot.branch,
+    commitSha: snapshot.commitSha,
+  }));
 
   await onStage?.(AiExecutionStage.SELECTING_CODE);
   const selectedByKey = new Map<string, SelectedFile>();
@@ -271,6 +353,7 @@ export async function analyzeRelevantCode({
     repositoryCodeSource,
     selectedFiles,
     abortSignal,
+    readCache,
   );
   if (readableFiles.length === 0) {
     throw new AiWorkflowError("相关代码文件无法读取，不能可靠生成内容");

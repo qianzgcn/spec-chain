@@ -2,6 +2,7 @@ import { AiCapability } from "@/generated/prisma/enums";
 import { generateTestCasesSystemPrompt } from "@/ai/prompts/generate-test-cases";
 import { generateUserStorySystemPrompt } from "@/ai/prompts/generate-user-story";
 import { generateAutomationScriptSystemPrompt } from "@/automation/prompts";
+import { checkConsistencySystemPrompt } from "@/ai/prompts/check-consistency";
 
 export type AiSkill = {
   capability: AiCapability;
@@ -41,6 +42,15 @@ const GENERATE_AUTOMATION_SCRIPT_SKILL: AiSkill = {
   instructions: generateAutomationScriptSystemPrompt,
 };
 
+const CHECK_CONSISTENCY_SKILL: AiSkill = {
+  capability: AiCapability.CHECK_CONSISTENCY,
+  name: "检查代码与需求用例一致性",
+  purpose:
+    "以指定代码提交为依据，检查测试/完成态 US 及启用测试用例的外部业务行为是否一致。",
+  version: "1.0.0",
+  instructions: checkConsistencySystemPrompt,
+};
+
 export const builtInSkillResolver: SkillResolver = {
   resolve(capability) {
     switch (capability) {
@@ -50,6 +60,8 @@ export const builtInSkillResolver: SkillResolver = {
         return GENERATE_TEST_CASES_SKILL;
       case AiCapability.GENERATE_AUTOMATION_SCRIPT:
         return GENERATE_AUTOMATION_SCRIPT_SKILL;
+      case AiCapability.CHECK_CONSISTENCY:
+        return CHECK_CONSISTENCY_SKILL;
     }
   },
 };

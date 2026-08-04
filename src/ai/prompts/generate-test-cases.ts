@@ -94,11 +94,15 @@ export function buildTestCaseDraftsPrompt(input: {
   codeEvidence: readonly CodeEvidence[];
   groups: readonly { id: string; name: string }[];
   variables: readonly ProjectVariableMetadata[];
+  allowEmptyResult?: boolean;
 }) {
   return renderPromptTemplate(generateDraftsPromptTemplate, {
     REQUIREMENT_TEXT: input.requirementText,
     CODE_EVIDENCE: formatCodeEvidence(input.codeEvidence),
     AVAILABLE_GROUPS: formatAvailableGroups(input.groups),
     AVAILABLE_VARIABLES: formatAvailableVariables(input.variables),
+    RESULT_COUNT_RULE: input.allowEmptyResult
+      ? "`testCases` 包含 0～20 条用例；已有用例已经完整覆盖时返回空数组，不得生成重复草稿。"
+      : "`testCases` 必须包含 1～20 条用例，按业务重要性排序。",
   });
 }

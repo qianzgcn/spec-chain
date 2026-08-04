@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
-import { TestPriority } from "@/generated/prisma/enums";
+import { DraftOperation, TestPriority } from "@/generated/prisma/enums";
 import { formatDetailedDateTime } from "@/lib/date-time";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
 
@@ -43,6 +43,9 @@ const PRIORITY_OPTIONS = Object.values(TestPriority).map((priority) => ({
 export type PendingTestCaseListItem = {
   id: string;
   name: string;
+  operation: DraftOperation;
+  baseVersion: number | null;
+  changeReason: string | null;
   priority: TestPriority;
   groupId: string | null;
   sourceUserStory: {
@@ -218,6 +221,7 @@ export function PendingTestCasesList({
     if (
       selectedItems.some(
         (item) =>
+          item.operation !== DraftOperation.RETIRE &&
           (groupValues[item.id] ?? UNASSIGNED_GROUP) === UNASSIGNED_GROUP,
       )
     ) {
@@ -316,6 +320,19 @@ export function PendingTestCasesList({
       ),
     },
     {
+      accessorKey: "operation",
+      header: "类型",
+      size: 92,
+      cell: ({ row }) => {
+        const labels: Record<DraftOperation, string> = {
+          CREATE: "新增",
+          UPDATE: "更新",
+          RETIRE: "停用",
+        };
+        return labels[row.original.operation];
+      },
+    },
+    {
       id: "source",
       header: "来源",
       size: 220,
@@ -332,6 +349,18 @@ export function PendingTestCasesList({
       },
     },
     {
+      id: "targetVersion",
+      header: "目标版本",
+      size: 88,
+      cell: ({ row }) =>
+        row.original.operation === DraftOperation.UPDATE &&
+        row.original.baseVersion
+          ? `v${row.original.baseVersion + 1}`
+          : row.original.operation === DraftOperation.CREATE
+            ? "v1"
+            : "—",
+    },
+    {
       accessorKey: "priority",
       header: "优先级",
       size: 76,
@@ -339,6 +368,9 @@ export function PendingTestCasesList({
       cell: ({ row }) => {
         const item = row.original;
         const priority = priorityValues[item.id] ?? item.priority;
+        if (item.operation === DraftOperation.RETIRE) {
+          return TEST_PRIORITY_META[priority].label;
+        }
         return (
           <Select
             items={PRIORITY_OPTIONS}
@@ -373,10 +405,18 @@ export function PendingTestCasesList({
       meta: { cellClassName: "overflow-visible" },
       cell: ({ row }) => {
         const item = row.original;
+        const selectedGroup =
+          groupValues[item.id] ?? item.groupId ?? UNASSIGNED_GROUP;
+        if (item.operation === DraftOperation.RETIRE) {
+          return (
+            groupSelectOptions.find((option) => option.value === selectedGroup)
+              ?.label ?? "未分组"
+          );
+        }
         return (
           <Select
             items={groupSelectOptions}
-            value={groupValues[item.id] ?? UNASSIGNED_GROUP}
+            value={selectedGroup}
             disabled={isPending}
             onValueChange={(value) => changeGroup(item, value)}
           >
@@ -415,6 +455,7 @@ export function PendingTestCasesList({
       cell: ({ row }) => {
         const item = row.original;
         const hasGroup =
+          item.operation === DraftOperation.RETIRE ||
           (groupValues[item.id] ?? UNASSIGNED_GROUP) !== UNASSIGNED_GROUP;
         return (
           <DataTableRowActions
@@ -454,6 +495,8 @@ export function PendingTestCasesList({
                 selectedIds.length === 0 ||
                 selectedIds.some(
                   (id) =>
+                    items.find((item) => item.id === id)?.operation !==
+                      DraftOperation.RETIRE &&
                     (groupValues[id] ?? UNASSIGNED_GROUP) === UNASSIGNED_GROUP,
                 )
               }

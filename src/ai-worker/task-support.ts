@@ -29,7 +29,7 @@ export function getSafeTaskError(error: unknown, timeoutSignal: AbortSignal) {
   if (timeoutSignal.aborted) {
     return {
       code: "TASK_TIMEOUT",
-      message: "AI 任务运行超过 10 分钟，已自动终止",
+      message: "AI 任务运行超过允许时长，已自动终止",
     };
   }
   if (error instanceof ModelProviderError) {
@@ -69,9 +69,13 @@ function getStageStartedMessage(
     case AiExecutionStage.SELECTING_CODE:
       return "正在根据需求定位相关代码。";
     case AiExecutionStage.GENERATING_DRAFT:
-      return capability === AiCapability.GENERATE_USER_STORY
-        ? "正在根据需求和代码生成结构化 US 草稿。"
-        : "正在根据需求和代码生成自然语言测试用例草稿。";
+      if (capability === AiCapability.GENERATE_USER_STORY) {
+        return "正在根据需求和代码生成结构化 US 草稿。";
+      }
+      if (capability === AiCapability.CHECK_CONSISTENCY) {
+        return "正在比较正式内容与当前代码。";
+      }
+      return "正在根据需求和代码生成自然语言测试用例草稿。";
     case AiExecutionStage.PROBING_PAGE:
       return "正在使用独立浏览器会话探测真实页面。";
     case AiExecutionStage.PREPARING_AUTHENTICATION:

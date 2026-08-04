@@ -7,8 +7,13 @@ import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageSection } from "@/components/layout/page-section";
 import { PendingTestCaseDetailActions } from "@/components/test-cases/pending-test-case-detail-actions";
+import { PendingTestCaseReview } from "@/components/test-cases/pending-test-case-review";
 import { Badge } from "@/components/ui/badge";
-import { AiDraftStatus } from "@/generated/prisma/enums";
+import {
+  AiCapability,
+  AiDraftStatus,
+  AiExecutionStatus,
+} from "@/generated/prisma/enums";
 import { formatDetailedDateTime } from "@/lib/date-time";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
 import { db } from "@/server/db";
@@ -34,10 +39,14 @@ export default async function PendingReviewTestCasePage({
       batch: {
         projectId: project.id,
         deletedAt: null,
+        sourceExecution: { status: AiExecutionStatus.SUCCEEDED },
       },
     },
     select: {
       id: true,
+      operation: true,
+      baseVersion: true,
+      changeReason: true,
       name: true,
       priority: true,
       preconditions: true,
@@ -49,10 +58,24 @@ export default async function PendingReviewTestCasePage({
           deletedAt: true,
         },
       },
+      targetTestCase: {
+        select: {
+          name: true,
+          priority: true,
+          preconditions: true,
+          steps: true,
+          group: { select: { name: true } },
+          userStory: { select: { code: true, title: true } },
+        },
+      },
+      proposedUserStory: {
+        select: { id: true, code: true, title: true, deletedAt: true },
+      },
       batch: {
         select: {
           sourceExecution: {
             select: {
+              capability: true,
               requirementText: true,
               sourceUserStory: {
                 select: {
@@ -73,7 +96,8 @@ export default async function PendingReviewTestCasePage({
   const priorityMeta = TEST_PRIORITY_META[draft.priority];
   const activeGroup =
     draft.group && !draft.group.deletedAt ? draft.group : null;
-  const sourceUserStory = draft.batch.sourceExecution.sourceUserStory;
+  const sourceUserStory =
+    draft.proposedUserStory ?? draft.batch.sourceExecution.sourceUserStory;
 
   return (
     <PageContainer className="flex flex-col gap-5">
@@ -82,6 +106,13 @@ export default async function PendingReviewTestCasePage({
         meta={
           <>
             <Badge variant="warning">待评审</Badge>
+            <Badge variant="secondary">
+              {draft.operation === "CREATE"
+                ? "新增"
+                : draft.operation === "UPDATE"
+                  ? "更新"
+                  : "停用"}
+            </Badge>
             <Badge variant={priorityMeta.badgeVariant}>
               {priorityMeta.label}
             </Badge>
@@ -92,27 +123,41 @@ export default async function PendingReviewTestCasePage({
         actions={
           <PendingTestCaseDetailActions
             id={draft.id}
-            hasGroup={Boolean(activeGroup)}
+            hasGroup={draft.operation === "RETIRE" || Boolean(activeGroup)}
           />
         }
       />
 
-      <PageSection title="用例内容">
-        <div className="flex flex-col gap-5">
-          <div className="bg-muted/50 flex min-w-0 flex-col gap-2 rounded-lg p-4">
-            <h3 className="text-sm font-medium">前置条件</h3>
-            <p className="text-sm leading-6 break-words whitespace-pre-wrap">
-              {draft.preconditions?.trim() || "无"}
-            </p>
-          </div>
-          <div className="bg-muted/50 flex min-w-0 flex-col gap-2 rounded-lg p-4">
-            <h3 className="text-sm font-medium">测试步骤</h3>
-            <p className="text-sm leading-6 break-words whitespace-pre-wrap">
-              {draft.steps}
-            </p>
-          </div>
-        </div>
-      </PageSection>
+      <PendingTestCaseReview
+        draftId={draft.id}
+        operation={draft.operation}
+        baseVersion={draft.baseVersion}
+        changeReason={draft.changeReason}
+        current={
+          draft.targetTestCase
+            ? {
+                name: draft.targetTestCase.name,
+                priority: draft.targetTestCase.priority,
+                groupName: draft.targetTestCase.group.name,
+                userStoryLabel: draft.targetTestCase.userStory
+                  ? `${draft.targetTestCase.userStory.code} · ${draft.targetTestCase.userStory.title}`
+                  : "平台用例",
+                preconditions: draft.targetTestCase.preconditions,
+                steps: draft.targetTestCase.steps,
+              }
+            : null
+        }
+        proposed={{
+          name: draft.name,
+          priority: draft.priority,
+          groupName: activeGroup?.name ?? "未分组",
+          userStoryLabel: sourceUserStory
+            ? `${sourceUserStory.code} · ${sourceUserStory.title}`
+            : "平台用例",
+          preconditions: draft.preconditions,
+          steps: draft.steps,
+        }}
+      />
 
       <PageSection title="生成来源">
         {sourceUserStory ? (
@@ -122,7 +167,7 @@ export default async function PendingReviewTestCasePage({
             </span>
           ) : (
             <Link
-              className="text-sm font-medium underline-offset-4 hover:underline"
+              className="text-link text-sm font-medium underline-offset-4 hover:underline"
               href={`/user-stories/${sourceUserStory.id}`}
             >
               {sourceUserStory.code} · {sourceUserStory.title}
@@ -130,7 +175,10 @@ export default async function PendingReviewTestCasePage({
           )
         ) : (
           <p className="text-sm leading-6 break-words whitespace-pre-wrap">
-            {draft.batch.sourceExecution.requirementText}
+            {draft.batch.sourceExecution.capability ===
+            AiCapability.CHECK_CONSISTENCY
+              ? "平台用例"
+              : draft.batch.sourceExecution.requirementText}
           </p>
         )}
       </PageSection>

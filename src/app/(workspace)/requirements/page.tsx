@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
+import { ButtonLink } from "@/components/navigation/button-link";
 import { ProjectRequiredState } from "@/components/projects/project-required-state";
 import {
   RequirementsList,
@@ -211,7 +212,12 @@ export default async function RequirementsPage({
 
   return (
     <PageContainer table className="gap-5">
-      <PageHeader title="需求列表" />
+      <PageHeader
+        title="需求列表"
+        actions={
+          <ButtonLink href="/consistency-checks/new">一致性检查</ButtonLink>
+        }
+      />
 
       <RequirementsList
         items={items}

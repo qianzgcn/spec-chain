@@ -20,6 +20,7 @@ type SearchParams = {
   group?: string;
   priority?: string;
   enabled?: string;
+  type?: string;
   page?: string;
 };
 
@@ -57,6 +58,10 @@ export default async function TestCasesPage({
       : params.enabled === "false"
         ? false
         : undefined;
+  const type =
+    params.type === "REQUIREMENT" || params.type === "PLATFORM"
+      ? params.type
+      : undefined;
   const requestedPage = Number.parseInt(params.page ?? "1", 10);
   const page =
     Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
@@ -72,6 +77,11 @@ export default async function TestCasesPage({
     ...(params.group ? { groupId: params.group } : {}),
     ...(priority ? { priority } : {}),
     ...(enabled === undefined ? {} : { enabled }),
+    ...(type === "REQUIREMENT"
+      ? { userStoryId: { not: null } }
+      : type === "PLATFORM"
+        ? { userStoryId: null }
+        : {}),
   };
 
   const [groups, total] = await Promise.all([
@@ -97,6 +107,7 @@ export default async function TestCasesPage({
       priority: true,
       enabled: true,
       script: true,
+      userStoryId: true,
       updatedAt: true,
       group: { select: { name: true } },
       runs: {
@@ -128,6 +139,7 @@ export default async function TestCasesPage({
       priority: testCase.priority,
       enabled: testCase.enabled,
       hasScript: Boolean(testCase.script?.trim()),
+      type: testCase.userStoryId ? "REQUIREMENT" : "PLATFORM",
       lastRunStatus: lastRun?.status ?? null,
       lastRunStage: lastRun?.stage ?? null,
       lastEditedAt: testCase.updatedAt.toISOString(),
@@ -150,6 +162,7 @@ export default async function TestCasesPage({
           group: params.group ?? "",
           priority: priority ?? "",
           enabled: params.enabled ?? "",
+          type: type ?? "",
           page: safePage,
         }}
       />

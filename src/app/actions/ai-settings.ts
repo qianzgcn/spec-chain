@@ -192,7 +192,9 @@ export async function bindAiCapabilityModelAction(
       ? "生成 US"
       : parsed.data.capability === AiCapability.GENERATE_TEST_CASES
         ? "生成测试用例"
-        : "生成自动化脚本";
+        : parsed.data.capability === AiCapability.GENERATE_AUTOMATION_SCRIPT
+          ? "生成自动化脚本"
+          : "一致性检查";
   return { ok: true, message: `${capabilityName}的默认模型已更新` };
 }
 

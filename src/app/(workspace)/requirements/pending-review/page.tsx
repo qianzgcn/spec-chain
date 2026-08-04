@@ -8,6 +8,7 @@ import {
   type PendingRequirementListItem,
 } from "@/components/requirements/pending-requirements-list";
 import { AiDraftStatus } from "@/generated/prisma/enums";
+import { AiExecutionStatus } from "@/generated/prisma/enums";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -44,6 +45,7 @@ export default async function PendingReviewRequirementsPage({
     projectId: project.id,
     status: AiDraftStatus.PENDING,
     deletedAt: null,
+    sourceExecution: { status: AiExecutionStatus.SUCCEEDED },
   };
   const total = await db.userStoryDraft.count({ where });
   const pageCount = Math.max(1, Math.ceil(total / 20));
@@ -56,6 +58,9 @@ export default async function PendingReviewRequirementsPage({
     select: {
       id: true,
       title: true,
+      operation: true,
+      baseVersion: true,
+      changeReason: true,
       createdAt: true,
       updatedAt: true,
       feature: { select: { code: true, name: true } },
@@ -72,6 +77,9 @@ export default async function PendingReviewRequirementsPage({
     createdAt: draft.createdAt.toISOString(),
     updatedAt: draft.updatedAt.toISOString(),
     createdBy: draft.sourceExecution.requestedBy.username,
+    operation: draft.operation,
+    baseVersion: draft.baseVersion,
+    changeReason: draft.changeReason,
   }));
 
   return (

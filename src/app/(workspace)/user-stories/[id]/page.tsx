@@ -10,6 +10,15 @@ import { ButtonLink } from "@/components/navigation/button-link";
 import { RequirementDetailActions } from "@/components/requirements/requirement-detail-actions";
 import { UserStoryStatusSelect } from "@/components/requirements/user-story-status-select";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { formatDetailedDateTime } from "@/lib/date-time";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -35,6 +44,19 @@ export default async function UserStoryDetailPage({
         where: { deletedAt: null },
         orderBy: { position: "asc" },
       },
+      testCases: {
+        where: { deletedAt: null },
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          priority: true,
+          enabled: true,
+          updatedAt: true,
+          group: { select: { name: true } },
+        },
+      },
     },
   });
   if (!story) notFound();
@@ -46,6 +68,7 @@ export default async function UserStoryDetailPage({
         meta={
           <>
             <Badge variant="outline">US</Badge>
+            <Badge variant="secondary">v{story.currentVersion}</Badge>
             <span className="font-mono text-xs">{story.code}</span>
             {story.feature ? (
               <ButtonLink
@@ -61,6 +84,18 @@ export default async function UserStoryDetailPage({
         }
         actions={
           <>
+            <ButtonLink
+              href={`/test-cases/ai-generate?userStoryId=${story.id}`}
+              variant="outline"
+            >
+              AI生成测试用例
+            </ButtonLink>
+            <ButtonLink
+              href={`/user-stories/${story.id}/versions`}
+              variant="outline"
+            >
+              版本历史
+            </ButtonLink>
             <UserStoryStatusSelect id={story.id} status={story.status} />
             <RequirementDetailActions type="USER_STORY" id={story.id} />
           </>
@@ -124,6 +159,54 @@ export default async function UserStoryDetailPage({
 
         <PageSection title="非功能需求">
           <MarkdownView content={story.nonFunctionalRequirements} />
+        </PageSection>
+
+        <PageSection title="关联测试用例">
+          {story.testCases.length ? (
+            <Table containerClassName="rounded-lg border">
+              <TableHeader className="bg-muted/50 text-muted-foreground text-xs">
+                <TableRow>
+                  <TableHead className="px-4">编号</TableHead>
+                  <TableHead className="px-4">名称</TableHead>
+                  <TableHead className="px-4">分组</TableHead>
+                  <TableHead className="px-4">优先级</TableHead>
+                  <TableHead className="px-4">状态</TableHead>
+                  <TableHead className="px-4">最后更新</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {story.testCases.map((testCase) => (
+                  <TableRow key={testCase.id}>
+                    <TableCell className="text-muted-foreground px-4 font-mono text-xs">
+                      {testCase.code}
+                    </TableCell>
+                    <TableCell className="px-4">
+                      <ButtonLink
+                        href={`/test-cases/${testCase.id}`}
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0"
+                      >
+                        {testCase.name}
+                      </ButtonLink>
+                    </TableCell>
+                    <TableCell className="px-4">
+                      {testCase.group.name}
+                    </TableCell>
+                    <TableCell className="px-4">{testCase.priority}</TableCell>
+                    <TableCell className="px-4">
+                      {testCase.enabled ? "启用" : "停用"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground px-4">
+                      {formatDetailedDateTime(testCase.updatedAt.toISOString())}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="text-muted-foreground text-sm">暂无关联测试用例。</p>
+          )}
         </PageSection>
       </div>
     </PageContainer>

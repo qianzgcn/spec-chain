@@ -31,6 +31,7 @@ export type { UserStoryFormValues };
 
 type UserStoryFormProps = {
   userStoryId?: string;
+  currentVersion?: number;
   code?: string;
   feature?: {
     id: string;
@@ -55,6 +56,7 @@ function createEmptyUserStory(): UserStoryFormValues {
 
 export function UserStoryForm({
   userStoryId,
+  currentVersion,
   code,
   feature,
   initialValues,
@@ -74,7 +76,7 @@ export function UserStoryForm({
   function submit(values: UserStoryFormValues) {
     startTransition(async () => {
       const result = userStoryId
-        ? await updateUserStoryAction(userStoryId, values)
+        ? await updateUserStoryAction(userStoryId, values, currentVersion ?? 0)
         : await createUserStoryAction({
             ...values,
             featureId: feature?.id ?? null,
@@ -151,7 +153,7 @@ export function UserStoryForm({
           className="flex w-full flex-col gap-4"
           onSubmit={form.handleSubmit(submit)}
         >
-          <UserStoryFields showStatus />
+          <UserStoryFields showStatus lockTitle={editing} />
         </form>
       </FormProvider>
     </FormPage>

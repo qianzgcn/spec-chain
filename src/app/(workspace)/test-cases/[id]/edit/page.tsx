@@ -87,6 +87,7 @@ export default async function EditTestCasePage({
   return (
     <TestCaseForm
       testCaseId={testCase.id}
+      currentVersion={testCase.currentVersion}
       code={testCase.code}
       groups={groups}
       userStories={selectableStories}

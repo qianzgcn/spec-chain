@@ -1,6 +1,7 @@
 import { builtInSkillResolver } from "@/ai/skills";
 import { AiWorkflowError } from "@/ai/workflow";
 import { executeAutomationScriptTask } from "@/ai-worker/automation-task";
+import { executeConsistencyTask } from "@/ai-worker/consistency-task";
 import { executeRepositoryTask } from "@/ai-worker/repository-task";
 import {
   findAiTaskExecution,
@@ -23,7 +24,8 @@ import {
 import { failPendingScriptGenerationRun } from "@/automation/script-generation-run";
 import { decryptTaskSecret, taskDb } from "@/task-runtime/runtime";
 
-const TASK_TIMEOUT_MS = 10 * 60 * 1_000;
+const DEFAULT_TASK_TIMEOUT_MS = 10 * 60 * 1_000;
+const CONSISTENCY_TASK_TIMEOUT_MS = 60 * 60 * 1_000;
 
 function getCapabilityName(capability: AiCapability) {
   switch (capability) {
@@ -33,6 +35,8 @@ function getCapabilityName(capability: AiCapability) {
       return "生成测试用例";
     case AiCapability.GENERATE_AUTOMATION_SCRIPT:
       return "生成自动化脚本";
+    case AiCapability.CHECK_CONSISTENCY:
+      return "一致性检查";
   }
 }
 
@@ -109,7 +113,11 @@ async function executeTask(executionId: string, ownerId: string) {
     testCaseId: execution.testCaseId,
     initialStage: execution.stage,
   });
-  const timeoutSignal = AbortSignal.timeout(TASK_TIMEOUT_MS);
+  const timeoutSignal = AbortSignal.timeout(
+    execution.capability === AiCapability.CHECK_CONSISTENCY
+      ? CONSISTENCY_TASK_TIMEOUT_MS
+      : DEFAULT_TASK_TIMEOUT_MS,
+  );
   const ownership = watchAiTaskOwnership(execution.id, ownerId);
   const taskSignal = AbortSignal.any([timeoutSignal, ownership.signal]);
   const startedAt = execution.startedAt ?? new Date();
@@ -138,6 +146,8 @@ async function executeTask(executionId: string, ownerId: string) {
     };
     if (execution.capability === AiCapability.GENERATE_AUTOMATION_SCRIPT) {
       await executeAutomationScriptTask(taskInput);
+    } else if (execution.capability === AiCapability.CHECK_CONSISTENCY) {
+      await executeConsistencyTask(taskInput);
     } else {
       await executeRepositoryTask(taskInput);
     }

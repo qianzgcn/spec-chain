@@ -4,7 +4,11 @@ import { z } from "zod";
 
 import { revalidatePath } from "next/cache";
 
-import { RequirementStatus } from "@/generated/prisma/enums";
+import {
+  AiDraftStatus,
+  RequirementStatus,
+  VersionSource,
+} from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
 import { featureSchema } from "@/lib/requirements/feature-schema";
 import {
@@ -16,6 +20,9 @@ import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 import { generateBusinessCode } from "@/server/requirements/business-code";
+import { recordUserStoryVersion } from "@/server/versions/content-version";
+
+class ContentVersionChangedError extends Error {}
 
 async function requireCurrentProjectForAction() {
   await requireUser();
@@ -158,29 +165,39 @@ export async function createUserStoryAction(
     }
   }
 
-  const story = await db.userStory.create({
-    data: {
-      projectId: project.id,
-      featureId: parsed.data.featureId ?? null,
-      createdById: user.id,
-      code: await generateBusinessCode("US"),
-      title: parsed.data.title,
-      asA: parsed.data.asA,
-      iWant: parsed.data.iWant,
-      soThat: parsed.data.soThat,
-      status: parsed.data.status,
-      businessRules: parsed.data.businessRules || null,
-      nonFunctionalRequirements: parsed.data.nonFunctionalRequirements || null,
-      acceptanceCriteria: {
-        create: parsed.data.acceptanceCriteria.map((criterion, position) => ({
-          position,
-          given: criterion.given,
-          when: criterion.when,
-          then: criterion.then,
-        })),
+  const code = await generateBusinessCode("US");
+  const story = await db.$transaction(async (transaction) => {
+    const created = await transaction.userStory.create({
+      data: {
+        projectId: project.id,
+        featureId: parsed.data.featureId ?? null,
+        createdById: user.id,
+        code,
+        title: parsed.data.title,
+        asA: parsed.data.asA,
+        iWant: parsed.data.iWant,
+        soThat: parsed.data.soThat,
+        status: parsed.data.status,
+        businessRules: parsed.data.businessRules || null,
+        nonFunctionalRequirements:
+          parsed.data.nonFunctionalRequirements || null,
+        acceptanceCriteria: {
+          create: parsed.data.acceptanceCriteria.map((criterion, position) => ({
+            position,
+            given: criterion.given,
+            when: criterion.when,
+            then: criterion.then,
+          })),
+        },
       },
-    },
-    select: { id: true },
+      select: { id: true },
+    });
+    await recordUserStoryVersion(transaction, created.id, {
+      source: VersionSource.MANUAL,
+      createdById: user.id,
+      changeSummary: "创建 US",
+    });
+    return created;
   });
 
   revalidatePath("/requirements");
@@ -190,8 +207,10 @@ export async function createUserStoryAction(
 export async function updateUserStoryAction(
   id: string,
   input: unknown,
+  expectedVersion: number,
 ): Promise<ActionResult> {
   const project = await requireCurrentProjectForAction();
+  const user = await requireUser();
   if (!project) {
     return { ok: false, message: "请先创建项目" };
   }
@@ -207,19 +226,38 @@ export async function updateUserStoryAction(
     };
   }
 
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+    return { ok: false, message: "US 版本无效，请刷新后重试" };
+  }
+
   const story = await db.userStory.findFirst({
     where: { id, projectId: project.id, deletedAt: null },
     select: {
       id: true,
+      title: true,
+      asA: true,
+      iWant: true,
+      soThat: true,
+      status: true,
+      businessRules: true,
+      nonFunctionalRequirements: true,
+      currentVersion: true,
       featureId: true,
       acceptanceCriteria: {
         where: { deletedAt: null },
-        select: { id: true },
+        orderBy: { position: "asc" },
+        select: { id: true, given: true, when: true, then: true },
       },
     },
   });
   if (!story) {
     return { ok: false, message: "US 不存在或已删除" };
+  }
+  if (story.title !== parsed.data.title) {
+    return { ok: false, message: "US 标题创建后不能修改" };
+  }
+  if (story.currentVersion !== expectedVersion) {
+    return { ok: false, message: "US 内容已被更新，请刷新后重试" };
   }
 
   const inputIds = new Set(
@@ -234,57 +272,107 @@ export async function updateUserStoryAction(
     return { ok: false, message: "验收标准中包含无效数据" };
   }
 
-  await db.$transaction(async (transaction) => {
-    await transaction.userStory.update({
-      where: { id },
-      data: {
-        title: parsed.data.title,
-        asA: parsed.data.asA,
-        iWant: parsed.data.iWant,
-        soThat: parsed.data.soThat,
-        status: parsed.data.status,
-        businessRules: parsed.data.businessRules || null,
-        nonFunctionalRequirements:
-          parsed.data.nonFunctionalRequirements || null,
-      },
-    });
+  const nextCriteria = parsed.data.acceptanceCriteria.map((criterion) => ({
+    id: criterion.id ?? null,
+    given: criterion.given,
+    when: criterion.when,
+    then: criterion.then,
+  }));
+  const currentCriteria = story.acceptanceCriteria.map((criterion) => ({
+    id: criterion.id,
+    given: criterion.given,
+    when: criterion.when,
+    then: criterion.then,
+  }));
+  const contentChanged =
+    story.asA !== parsed.data.asA ||
+    story.iWant !== parsed.data.iWant ||
+    story.soThat !== parsed.data.soThat ||
+    (story.businessRules ?? "") !== parsed.data.businessRules ||
+    (story.nonFunctionalRequirements ?? "") !==
+      parsed.data.nonFunctionalRequirements ||
+    JSON.stringify(currentCriteria) !== JSON.stringify(nextCriteria);
 
-    await transaction.acceptanceCriterion.updateMany({
-      where: {
-        userStoryId: id,
-        deletedAt: null,
-        id: { notIn: [...inputIds] },
-      },
-      data: { deletedAt: new Date() },
-    });
+  try {
+    await db.$transaction(async (transaction) => {
+      const claimed = await transaction.userStory.updateMany({
+        where: {
+          id,
+          projectId: project.id,
+          deletedAt: null,
+          currentVersion: expectedVersion,
+        },
+        data: {
+          asA: parsed.data.asA,
+          iWant: parsed.data.iWant,
+          soThat: parsed.data.soThat,
+          status: parsed.data.status,
+          businessRules: parsed.data.businessRules || null,
+          nonFunctionalRequirements:
+            parsed.data.nonFunctionalRequirements || null,
+          ...(contentChanged ? { currentVersion: { increment: 1 } } : {}),
+        },
+      });
+      if (claimed.count !== 1) throw new ContentVersionChangedError();
 
-    for (const [
-      position,
-      criterion,
-    ] of parsed.data.acceptanceCriteria.entries()) {
-      if (criterion.id) {
-        await transaction.acceptanceCriterion.update({
-          where: { id: criterion.id },
-          data: {
-            position,
-            given: criterion.given,
-            when: criterion.when,
-            then: criterion.then,
-          },
-        });
-      } else {
-        await transaction.acceptanceCriterion.create({
-          data: {
-            userStoryId: id,
-            position,
-            given: criterion.given,
-            when: criterion.when,
-            then: criterion.then,
-          },
-        });
+      if (!contentChanged) return;
+
+      await transaction.acceptanceCriterion.updateMany({
+        where: {
+          userStoryId: id,
+          deletedAt: null,
+          id: { notIn: [...inputIds] },
+        },
+        data: { deletedAt: new Date() },
+      });
+
+      for (const [
+        position,
+        criterion,
+      ] of parsed.data.acceptanceCriteria.entries()) {
+        if (criterion.id) {
+          await transaction.acceptanceCriterion.update({
+            where: { id: criterion.id },
+            data: {
+              position,
+              given: criterion.given,
+              when: criterion.when,
+              then: criterion.then,
+            },
+          });
+        } else {
+          await transaction.acceptanceCriterion.create({
+            data: {
+              userStoryId: id,
+              position,
+              given: criterion.given,
+              when: criterion.when,
+              then: criterion.then,
+            },
+          });
+        }
       }
+
+      await recordUserStoryVersion(transaction, id, {
+        source: VersionSource.MANUAL,
+        createdById: user.id,
+        changeSummary: "人工更新 US 内容",
+      });
+      await transaction.userStoryDraft.updateMany({
+        where: {
+          targetUserStoryId: id,
+          status: AiDraftStatus.PENDING,
+          deletedAt: null,
+        },
+        data: { status: AiDraftStatus.SUPERSEDED },
+      });
+    });
+  } catch (error) {
+    if (error instanceof ContentVersionChangedError) {
+      return { ok: false, message: "US 内容已被更新，请刷新后重试" };
     }
-  });
+    throw error;
+  }
 
   revalidatePath("/requirements");
   revalidatePath(`/user-stories/${id}`);

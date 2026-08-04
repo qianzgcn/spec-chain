@@ -105,12 +105,25 @@ const AI_EXECUTION_DETAIL_SELECT = {
       createdAt: true,
     },
   },
-  draft: {
+  userStoryDrafts: {
+    orderBy: { createdAt: "asc" },
     select: {
       id: true,
       status: true,
       deletedAt: true,
       confirmedUserStoryId: true,
+    },
+  },
+  consistencyItems: {
+    select: {
+      outcome: true,
+      reason: true,
+      userStory: { select: { code: true, title: true } },
+      testCase: { select: { code: true, name: true } },
+      userStoryDraft: { select: { status: true } },
+      testCaseDraft: {
+        select: { operation: true, status: true },
+      },
     },
   },
   testCaseDraftBatch: {
@@ -132,13 +145,50 @@ type AiExecutionDetailRecord = Prisma.AiExecutionGetPayload<{
 function toAiExecutionResult(
   execution: AiExecutionDetailRecord,
 ): AiExecutionResult | null {
-  if (execution.draft) {
+  if (execution.capability === AiCapability.CHECK_CONSISTENCY) {
+    const requirementDraftCount = execution.consistencyItems.filter(
+      (item) => item.userStoryDraft,
+    ).length;
+    return {
+      kind: "CONSISTENCY_CHECK",
+      deleted: false,
+      totalCount: execution.consistencyItems.length,
+      unchangedCount: execution.consistencyItems.filter(
+        (item) => item.outcome === "UNCHANGED",
+      ).length,
+      requirementDraftCount,
+      testCaseCreateCount: execution.consistencyItems.filter(
+        (item) => item.testCaseDraft?.operation === "CREATE",
+      ).length,
+      testCaseUpdateCount: execution.consistencyItems.filter(
+        (item) => item.testCaseDraft?.operation === "UPDATE",
+      ).length,
+      testCaseRetireCount: execution.consistencyItems.filter(
+        (item) => item.testCaseDraft?.operation === "RETIRE",
+      ).length,
+      attentionCount: execution.consistencyItems.filter(
+        (item) => item.outcome === "NEEDS_ATTENTION",
+      ).length,
+      attentionItems: execution.consistencyItems
+        .filter((item) => item.outcome === "NEEDS_ATTENTION")
+        .map((item) => ({
+          label: item.testCase
+            ? `${item.testCase.code} · ${item.testCase.name}`
+            : item.userStory
+              ? `${item.userStory.code} · ${item.userStory.title}`
+              : "未映射对象",
+          reason: item.reason,
+        })),
+    };
+  }
+  const userStoryDraft = execution.userStoryDrafts[0];
+  if (userStoryDraft) {
     return {
       kind: "USER_STORY",
-      id: execution.draft.id,
-      status: execution.draft.status,
-      deleted: Boolean(execution.draft.deletedAt),
-      confirmedUserStoryId: execution.draft.confirmedUserStoryId,
+      id: userStoryDraft.id,
+      status: userStoryDraft.status,
+      deleted: Boolean(userStoryDraft.deletedAt),
+      confirmedUserStoryId: userStoryDraft.confirmedUserStoryId,
     };
   }
   if (execution.testCaseDraftBatch) {

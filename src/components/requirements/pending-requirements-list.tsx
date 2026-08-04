@@ -1,6 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
 
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
 import { DataTable } from "@/components/data-table/data-table";
@@ -8,11 +9,15 @@ import { DataTablePagination } from "@/components/data-table/data-table-paginati
 import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { Badge } from "@/components/ui/badge";
+import type { DraftOperation } from "@/generated/prisma/enums";
 import { formatCompactDateTime, formatDetailedDateTime } from "@/lib/date-time";
 
 export type PendingRequirementListItem = {
   id: string;
   title: string;
+  operation: DraftOperation;
+  baseVersion: number | null;
+  changeReason: string | null;
   feature: { code: string; name: string } | null;
   createdBy: string;
   createdAt: string;
@@ -24,8 +29,47 @@ const columns: ColumnDef<PendingRequirementListItem>[] = [
     accessorKey: "title",
     header: "标题",
     cell: ({ row }) => (
-      <span className="block truncate font-medium" title={row.original.title}>
+      <Link
+        href={`/requirements/pending-review/${row.original.id}`}
+        className="text-link block truncate font-medium underline-offset-4 hover:underline"
+        title={row.original.title}
+      >
         {row.original.title}
+      </Link>
+    ),
+  },
+  {
+    accessorKey: "operation",
+    header: "类型",
+    size: 110,
+    cell: ({ row }) => (
+      <Badge
+        variant={row.original.operation === "UPDATE" ? "info" : "secondary"}
+      >
+        {row.original.operation === "UPDATE" ? "代码更新" : "新建"}
+      </Badge>
+    ),
+  },
+  {
+    id: "targetVersion",
+    header: "目标版本",
+    size: 96,
+    cell: ({ row }) =>
+      row.original.operation === "UPDATE" && row.original.baseVersion
+        ? `v${row.original.baseVersion + 1}`
+        : "v1",
+  },
+  {
+    accessorKey: "changeReason",
+    header: "变更摘要",
+    size: 220,
+    meta: {
+      headerClassName: "max-[1500px]:hidden",
+      cellClassName: "max-[1500px]:hidden",
+    },
+    cell: ({ row }) => (
+      <span className="block truncate" title={row.original.changeReason ?? ""}>
+        {row.original.changeReason ?? "—"}
       </span>
     ),
   },

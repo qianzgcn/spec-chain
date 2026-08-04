@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 
 import {
+  AiDraftStatus,
   AiExecutionStatus,
   RunStatus,
   TestCaseScriptSource,
+  VersionSource,
 } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
 import {
@@ -22,6 +24,9 @@ import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 import { getProjectVariableMetadata } from "@/server/projects/project-variables";
 import { generateBusinessCode } from "@/server/requirements/business-code";
+import { recordTestCaseVersion } from "@/server/versions/content-version";
+
+class ContentVersionChangedError extends Error {}
 
 async function requireCurrentProjectForAction() {
   await requireUser();
@@ -215,6 +220,7 @@ export async function createTestCaseAction(
   input: unknown,
 ): Promise<ActionResult<{ id: string }>> {
   const project = await requireCurrentProjectForAction();
+  const user = await requireUser();
   if (!project) {
     return { ok: false, message: "请先创建项目" };
   }
@@ -241,21 +247,30 @@ export async function createTestCaseAction(
   if (!variableValidation.ok) return variableValidation;
   const script = parsed.data.script.trim() || null;
 
-  const testCase = await db.testCase.create({
-    data: {
-      projectId: project.id,
-      groupId: parsed.data.groupId,
-      code: await generateBusinessCode("TC"),
-      name: parsed.data.name,
-      priority: parsed.data.priority,
-      preconditions: parsed.data.preconditions || null,
-      steps: parsed.data.steps,
-      enabled: parsed.data.enabled,
-      script,
-      scriptSource: script ? TestCaseScriptSource.MANUAL : null,
-      userStoryId: parsed.data.userStoryId,
-    },
-    select: { id: true },
+  const code = await generateBusinessCode("TC");
+  const testCase = await db.$transaction(async (transaction) => {
+    const created = await transaction.testCase.create({
+      data: {
+        projectId: project.id,
+        groupId: parsed.data.groupId,
+        code,
+        name: parsed.data.name,
+        priority: parsed.data.priority,
+        preconditions: parsed.data.preconditions || null,
+        steps: parsed.data.steps,
+        enabled: parsed.data.enabled,
+        script,
+        scriptSource: script ? TestCaseScriptSource.MANUAL : null,
+        userStoryId: parsed.data.userStoryId,
+      },
+      select: { id: true },
+    });
+    await recordTestCaseVersion(transaction, created.id, {
+      source: VersionSource.MANUAL,
+      createdById: user.id,
+      changeSummary: "创建测试用例",
+    });
+    return created;
   });
 
   revalidatePath("/test-cases");
@@ -266,8 +281,10 @@ export async function createTestCaseAction(
 export async function updateTestCaseAction(
   id: string,
   input: unknown,
+  expectedVersion: number,
 ): Promise<ActionResult> {
   const project = await requireCurrentProjectForAction();
+  const user = await requireUser();
   if (!project) {
     return { ok: false, message: "请先创建项目" };
   }
@@ -280,18 +297,32 @@ export async function updateTestCaseAction(
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+    return { ok: false, message: "测试用例版本无效，请刷新后重试" };
+  }
 
   const testCase = await db.testCase.findFirst({
     where: { id, projectId: project.id, deletedAt: null },
     select: {
       id: true,
+      groupId: true,
       userStoryId: true,
+      name: true,
+      priority: true,
+      preconditions: true,
+      steps: true,
+      enabled: true,
       script: true,
+      scriptSource: true,
+      currentVersion: true,
     },
   });
 
   if (!testCase) {
     return { ok: false, message: "测试用例不存在或已删除" };
+  }
+  if (testCase.currentVersion !== expectedVersion) {
+    return { ok: false, message: "测试用例内容已被更新，请刷新后重试" };
   }
   const validation = await validateGroupAndStory(
     project.id,
@@ -307,27 +338,84 @@ export async function updateTestCaseAction(
   if (!variableValidation.ok) return variableValidation;
   const script = parsed.data.script.trim() || null;
   const scriptChanged = script !== testCase.script;
+  const nextPreconditions = parsed.data.preconditions || null;
+  const contentChanged =
+    testCase.groupId !== parsed.data.groupId ||
+    testCase.userStoryId !== parsed.data.userStoryId ||
+    testCase.name !== parsed.data.name ||
+    testCase.priority !== parsed.data.priority ||
+    testCase.preconditions !== nextPreconditions ||
+    testCase.steps !== parsed.data.steps;
+  const automationContentChanged =
+    testCase.name !== parsed.data.name ||
+    testCase.preconditions !== nextPreconditions ||
+    testCase.steps !== parsed.data.steps;
+  const clearUnchangedManualScript =
+    automationContentChanged &&
+    testCase.scriptSource === TestCaseScriptSource.MANUAL &&
+    !scriptChanged;
+  const nextScript = clearUnchangedManualScript ? null : script;
 
-  await db.testCase.update({
-    where: { id },
-    data: {
-      groupId: parsed.data.groupId,
-      userStoryId: parsed.data.userStoryId,
-      name: parsed.data.name,
-      priority: parsed.data.priority,
-      preconditions: parsed.data.preconditions || null,
-      steps: parsed.data.steps,
-      enabled: parsed.data.enabled,
-      script,
-      ...(scriptChanged
-        ? {
-            scriptSource: script ? TestCaseScriptSource.MANUAL : null,
-            aiScriptFingerprint: null,
-            scriptGeneratedAt: null,
-          }
-        : {}),
-    },
-  });
+  try {
+    await db.$transaction(async (transaction) => {
+      const updated = await transaction.testCase.updateMany({
+        where: {
+          id,
+          projectId: project.id,
+          deletedAt: null,
+          currentVersion: expectedVersion,
+        },
+        data: {
+          groupId: parsed.data.groupId,
+          userStoryId: parsed.data.userStoryId,
+          name: parsed.data.name,
+          priority: parsed.data.priority,
+          preconditions: nextPreconditions,
+          steps: parsed.data.steps,
+          enabled: parsed.data.enabled,
+          script: nextScript,
+          ...(contentChanged ? { currentVersion: { increment: 1 } } : {}),
+          ...(scriptChanged || clearUnchangedManualScript
+            ? {
+                scriptSource: nextScript ? TestCaseScriptSource.MANUAL : null,
+                aiScriptFingerprint: null,
+                scriptGeneratedAt: null,
+              }
+            : {}),
+          ...(parsed.data.enabled
+            ? {
+                retiredAt: null,
+                retirementReason: null,
+                retiredById: null,
+                retirementExecutionId: null,
+              }
+            : {}),
+        },
+      });
+      if (updated.count !== 1) throw new ContentVersionChangedError();
+
+      if (contentChanged) {
+        await recordTestCaseVersion(transaction, id, {
+          source: VersionSource.MANUAL,
+          createdById: user.id,
+          changeSummary: "人工更新测试用例内容",
+        });
+        await transaction.testCaseDraft.updateMany({
+          where: {
+            targetTestCaseId: id,
+            status: AiDraftStatus.PENDING,
+            deletedAt: null,
+          },
+          data: { status: AiDraftStatus.SUPERSEDED },
+        });
+      }
+    });
+  } catch (error) {
+    if (error instanceof ContentVersionChangedError) {
+      return { ok: false, message: "测试用例内容已被更新，请刷新后重试" };
+    }
+    throw error;
+  }
 
   revalidatePath("/test-cases");
   revalidatePath(`/test-cases/${id}`);
@@ -352,7 +440,20 @@ export async function setTestCaseEnabledAction(
     return { ok: false, message: "测试用例不存在或已删除" };
   }
 
-  await db.testCase.update({ where: { id }, data: { enabled } });
+  await db.testCase.update({
+    where: { id },
+    data: {
+      enabled,
+      ...(enabled
+        ? {
+            retiredAt: null,
+            retirementReason: null,
+            retiredById: null,
+            retirementExecutionId: null,
+          }
+        : {}),
+    },
+  });
   revalidatePath("/test-cases");
   revalidatePath(`/test-cases/${id}`);
   return { ok: true, message: enabled ? "用例已启用" : "用例已停用" };

@@ -32,7 +32,13 @@ const STATUS_OPTIONS = Object.values(RequirementStatus).map((status) => ({
   label: REQUIREMENT_STATUS_META[status].label,
 }));
 
-export function UserStoryFields({ showStatus }: { showStatus: boolean }) {
+export function UserStoryFields({
+  showStatus,
+  lockTitle = false,
+}: {
+  showStatus: boolean;
+  lockTitle?: boolean;
+}) {
   const form = useFormContext<UserStoryFormValues>();
   const errors = form.formState.errors;
 
@@ -46,12 +52,14 @@ export function UserStoryFields({ showStatus }: { showStatus: boolean }) {
               : undefined
           }
         >
-          <Field data-invalid={Boolean(errors.title)}>
+          <Field data-disabled={lockTitle} data-invalid={Boolean(errors.title)}>
             <FieldLabel htmlFor="user-story-title">US 标题</FieldLabel>
             <Input
               id="user-story-title"
               maxLength={150}
               placeholder="用一句话说明要交付的用户价值"
+              readOnly={lockTitle}
+              aria-readonly={lockTitle}
               aria-invalid={Boolean(errors.title)}
               {...form.register("title")}
             />

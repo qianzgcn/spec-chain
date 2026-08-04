@@ -43,6 +43,7 @@ export const generatedTestCaseSchema = z.object({
 export function createGeneratedTestCasesDecisionSchema(
   groupIds: readonly string[],
   variables: readonly ProjectVariableMetadata[],
+  allowEmptyResult = false,
 ) {
   const validGroupIds = new Set(groupIds);
 
@@ -53,11 +54,15 @@ export function createGeneratedTestCasesDecisionSchema(
       testCases: z.array(generatedTestCaseSchema).max(20),
     })
     .superRefine((value, context) => {
-      if (value.sufficient && value.testCases.length === 0) {
+      if (
+        value.sufficient &&
+        value.testCases.length === 0 &&
+        !allowEmptyResult
+      ) {
         context.addIssue({
           code: "custom",
           path: ["testCases"],
-          message: "信息充分时至少需要一条测试用例",
+          message: "当前任务至少需要一条测试用例",
         });
       }
       if (!value.sufficient && value.testCases.length > 0) {
@@ -121,6 +126,7 @@ export type GenerateTestCasesWorkflowInput = {
   repositories: RepositoryAccess[];
   groups: Array<{ id: string; name: string }>;
   variables: ProjectVariableMetadata[];
+  allowEmptyResult?: boolean;
   abortSignal?: AbortSignal;
   onStage?: (stage: AiExecutionStage) => Promise<void>;
   onLog?: (event: WorkflowLogEvent) => Promise<void>;
@@ -158,6 +164,7 @@ export function createGenerateTestCasesWorkflow({
       repositories,
       groups,
       variables,
+      allowEmptyResult = false,
       abortSignal,
       onStage,
       onLog,
@@ -192,6 +199,7 @@ export function createGenerateTestCasesWorkflow({
         schema: createGeneratedTestCasesDecisionSchema(
           groups.map((group) => group.id),
           variables,
+          allowEmptyResult,
         ),
         system: skill.instructions,
         prompt: buildTestCaseDraftsPrompt({
@@ -199,6 +207,7 @@ export function createGenerateTestCasesWorkflow({
           codeEvidence: relevantCode.codeEvidence,
           groups,
           variables,
+          allowEmptyResult,
         }),
         abortSignal,
         onRetry: ({ nextAttempt, maxAttempts, reason }) =>
@@ -225,7 +234,10 @@ export function createGenerateTestCasesWorkflow({
       await onLog?.({
         level: "INFO",
         stage: AiExecutionStage.GENERATING_DRAFT,
-        message: `已生成 ${generation.output.testCases.length} 条测试用例草稿，本次模型调用共使用 ${relevantCode.usage.totalTokens} Token。`,
+        message:
+          generation.output.testCases.length > 0
+            ? `已生成 ${generation.output.testCases.length} 条测试用例草稿，本次模型调用共使用 ${relevantCode.usage.totalTokens} Token。`
+            : `现有用例已覆盖当前需求，无需新增草稿，本次模型调用共使用 ${relevantCode.usage.totalTokens} Token。`,
       });
 
       return {

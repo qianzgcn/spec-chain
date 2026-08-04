@@ -3,7 +3,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { PendingRequirementForm } from "@/components/requirements/pending-requirement-form";
-import { AiDraftStatus, RequirementStatus } from "@/generated/prisma/enums";
+import {
+  AiDraftStatus,
+  AiExecutionStatus,
+  RequirementStatus,
+} from "@/generated/prisma/enums";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -25,9 +29,13 @@ export default async function PendingReviewRequirementPage({
       projectId: project.id,
       status: AiDraftStatus.PENDING,
       deletedAt: null,
+      sourceExecution: { status: AiExecutionStatus.SUCCEEDED },
     },
     select: {
       id: true,
+      operation: true,
+      baseVersion: true,
+      changeReason: true,
       title: true,
       asA: true,
       iWant: true,
@@ -35,6 +43,21 @@ export default async function PendingReviewRequirementPage({
       businessRules: true,
       nonFunctionalRequirements: true,
       feature: { select: { id: true, code: true, name: true } },
+      targetUserStory: {
+        select: {
+          title: true,
+          asA: true,
+          iWant: true,
+          soThat: true,
+          businessRules: true,
+          nonFunctionalRequirements: true,
+          acceptanceCriteria: {
+            where: { deletedAt: null },
+            orderBy: { position: "asc" },
+            select: { given: true, when: true, then: true },
+          },
+        },
+      },
       acceptanceCriteria: {
         where: { deletedAt: null },
         orderBy: { position: "asc" },
@@ -52,6 +75,10 @@ export default async function PendingReviewRequirementPage({
   return (
     <PendingRequirementForm
       draftId={draft.id}
+      operation={draft.operation}
+      baseVersion={draft.baseVersion}
+      changeReason={draft.changeReason}
+      currentValues={draft.targetUserStory}
       feature={draft.feature}
       initialValues={{
         title: draft.title,

@@ -26,6 +26,7 @@ const POLL_INTERVAL_MS = 500;
 const NORMAL_AI_CAPABILITIES = [
   AiCapability.GENERATE_USER_STORY,
   AiCapability.GENERATE_TEST_CASES,
+  AiCapability.CHECK_CONSISTENCY,
 ];
 
 type TaskKind = "AI" | "TEST_RUN";

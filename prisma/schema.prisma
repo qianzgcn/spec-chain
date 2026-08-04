@@ -49,6 +49,7 @@ enum AiCapability {
   GENERATE_USER_STORY
   GENERATE_TEST_CASES
   GENERATE_AUTOMATION_SCRIPT
+  CHECK_CONSISTENCY
 }
 
 enum AiModelCheckStatus {
@@ -90,6 +91,32 @@ enum AiExecutionLogLevel {
 enum AiDraftStatus {
   PENDING
   CONFIRMED
+  SUPERSEDED
+}
+
+enum DraftOperation {
+  CREATE
+  UPDATE
+  RETIRE
+}
+
+enum VersionSource {
+  MIGRATION
+  MANUAL
+  AI_GENERATION
+  CONSISTENCY_CHECK
+}
+
+enum ConsistencyEntityType {
+  USER_STORY
+  TEST_CASE
+}
+
+enum ConsistencyOutcome {
+  UNCHANGED
+  DRAFTED
+  NEEDS_ATTENTION
+  SKIPPED
 }
 
 enum TestCaseScriptSource {
@@ -119,8 +146,11 @@ model User {
   sessions           Session[]
   requestedRuns      TestRun[]
   aiExecutions       AiExecution[]
-  createdFeatures    Feature[]     @relation("FeatureCreatedBy")
-  createdUserStories UserStory[]   @relation("UserStoryCreatedBy")
+  createdFeatures    Feature[]          @relation("FeatureCreatedBy")
+  createdUserStories UserStory[]        @relation("UserStoryCreatedBy")
+  userStoryVersions  UserStoryVersion[] @relation("UserStoryVersionCreatedBy")
+  testCaseVersions   TestCaseVersion[]  @relation("TestCaseVersionCreatedBy")
+  retiredTestCases   TestCase[]         @relation("TestCaseRetiredBy")
 
   @@index([deletedAt])
 }
@@ -162,6 +192,7 @@ model Project {
   aiExecutions         AiExecution[]
   aiDrafts             UserStoryDraft[]
   testCaseDraftBatches TestCaseDraftBatch[]
+  consistencyItems     ConsistencyCheckItem[]
 
   @@index([deletedAt])
   @@index([updatedAt])
@@ -254,17 +285,22 @@ model UserStory {
   status                    RequirementStatus @default(DESIGN)
   businessRules             String?
   nonFunctionalRequirements String?
+  currentVersion            Int               @default(1)
   createdAt                 DateTime          @default(now())
   updatedAt                 DateTime          @updatedAt
   deletedAt                 DateTime?
 
-  project              Project               @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  feature              Feature?              @relation(fields: [featureId], references: [id], onDelete: Restrict)
-  createdBy            User?                 @relation("UserStoryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  acceptanceCriteria   AcceptanceCriterion[]
-  testCases            TestCase[]
-  aiTestCaseExecutions AiExecution[]         @relation("AiTestCaseSourceUserStory")
-  sourceDraft          UserStoryDraft?       @relation("ConfirmedUserStory")
+  project                Project                @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  feature                Feature?               @relation(fields: [featureId], references: [id], onDelete: Restrict)
+  createdBy              User?                  @relation("UserStoryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  acceptanceCriteria     AcceptanceCriterion[]
+  testCases              TestCase[]
+  aiTestCaseExecutions   AiExecution[]          @relation("AiTestCaseSourceUserStory")
+  sourceDrafts           UserStoryDraft[]       @relation("ConfirmedUserStory")
+  updateDrafts           UserStoryDraft[]       @relation("TargetUserStoryDraft")
+  proposedTestCaseDrafts TestCaseDraft[]        @relation("TestCaseDraftProposedUserStory")
+  versions               UserStoryVersion[]
+  consistencyItems       ConsistencyCheckItem[]
 
   @@index([projectId, deletedAt, updatedAt])
   @@index([createdById])
@@ -287,6 +323,46 @@ model AcceptanceCriterion {
   @@index([userStoryId, deletedAt, position])
 }
 
+model UserStoryVersion {
+  id                        String        @id @default(cuid())
+  userStoryId               String
+  version                   Int
+  title                     String
+  asA                       String
+  iWant                     String
+  soThat                    String
+  businessRules             String?
+  nonFunctionalRequirements String?
+  source                    VersionSource
+  createdById               String?
+  sourceExecutionId         String?
+  repositorySnapshot        String?
+  changeSummary             String?
+  createdAt                 DateTime      @default(now())
+
+  userStory          UserStory                             @relation(fields: [userStoryId], references: [id], onDelete: Restrict)
+  createdBy          User?                                 @relation("UserStoryVersionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  sourceExecution    AiExecution?                          @relation("UserStoryVersionSourceExecution", fields: [sourceExecutionId], references: [id], onDelete: Restrict)
+  acceptanceCriteria UserStoryVersionAcceptanceCriterion[]
+
+  @@unique([userStoryId, version])
+  @@index([createdById])
+  @@index([sourceExecutionId])
+}
+
+model UserStoryVersionAcceptanceCriterion {
+  id        String @id @default(cuid())
+  versionId String
+  position  Int
+  given     String
+  when      String
+  then      String
+
+  version UserStoryVersion @relation(fields: [versionId], references: [id], onDelete: Restrict)
+
+  @@index([versionId, position])
+}
+
 model TestCaseGroup {
   id        String    @id @default(cuid())
   projectId String
@@ -303,34 +379,75 @@ model TestCaseGroup {
 }
 
 model TestCase {
-  id                  String                @id @default(cuid())
-  projectId           String
-  groupId             String
-  userStoryId         String?
-  code                String                @unique
-  name                String
-  priority            TestPriority          @default(P2)
-  preconditions       String?
-  steps               String
-  enabled             Boolean               @default(true)
-  script              String?
-  scriptSource        TestCaseScriptSource?
-  aiScriptFingerprint String?
-  scriptGeneratedAt   DateTime?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  deletedAt           DateTime?
+  id                    String                @id @default(cuid())
+  projectId             String
+  groupId               String
+  userStoryId           String?
+  code                  String                @unique
+  name                  String
+  priority              TestPriority          @default(P2)
+  preconditions         String?
+  steps                 String
+  enabled               Boolean               @default(true)
+  script                String?
+  scriptSource          TestCaseScriptSource?
+  aiScriptFingerprint   String?
+  scriptGeneratedAt     DateTime?
+  currentVersion        Int                   @default(1)
+  retiredAt             DateTime?
+  retirementReason      String?
+  retiredById           String?
+  retirementExecutionId String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  deletedAt             DateTime?
 
-  project      Project        @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  group        TestCaseGroup  @relation(fields: [groupId], references: [id], onDelete: Restrict)
-  userStory    UserStory?     @relation(fields: [userStoryId], references: [id], onDelete: Restrict)
-  runs         TestRun[]
-  aiExecutions AiExecution[]
-  sourceDraft  TestCaseDraft? @relation("ConfirmedTestCase")
+  project             Project                @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  group               TestCaseGroup          @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  userStory           UserStory?             @relation(fields: [userStoryId], references: [id], onDelete: Restrict)
+  runs                TestRun[]
+  aiExecutions        AiExecution[]
+  sourceDrafts        TestCaseDraft[]        @relation("ConfirmedTestCase")
+  updateDrafts        TestCaseDraft[]        @relation("TargetTestCaseDraft")
+  versions            TestCaseVersion[]
+  retiredBy           User?                  @relation("TestCaseRetiredBy", fields: [retiredById], references: [id], onDelete: Restrict)
+  retirementExecution AiExecution?           @relation("TestCaseRetirementExecution", fields: [retirementExecutionId], references: [id], onDelete: Restrict)
+  consistencyItems    ConsistencyCheckItem[]
 
   @@index([projectId, deletedAt, updatedAt])
   @@index([groupId, deletedAt])
   @@index([userStoryId, deletedAt])
+  @@index([retiredById])
+  @@index([retirementExecutionId])
+}
+
+model TestCaseVersion {
+  id                     String        @id @default(cuid())
+  testCaseId             String
+  version                Int
+  groupIdSnapshot        String
+  groupNameSnapshot      String
+  userStoryIdSnapshot    String?
+  userStoryCodeSnapshot  String?
+  userStoryTitleSnapshot String?
+  name                   String
+  priority               TestPriority
+  preconditions          String?
+  steps                  String
+  source                 VersionSource
+  createdById            String?
+  sourceExecutionId      String?
+  repositorySnapshot     String?
+  changeSummary          String?
+  createdAt              DateTime      @default(now())
+
+  testCase        TestCase     @relation(fields: [testCaseId], references: [id], onDelete: Restrict)
+  createdBy       User?        @relation("TestCaseVersionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  sourceExecution AiExecution? @relation("TestCaseVersionSourceExecution", fields: [sourceExecutionId], references: [id], onDelete: Restrict)
+
+  @@unique([testCaseId, version])
+  @@index([createdById])
+  @@index([sourceExecutionId])
 }
 
 model TestRun {
@@ -438,14 +555,18 @@ model AiExecution {
   updatedAt                DateTime          @updatedAt
   deletedAt                DateTime?
 
-  project            Project             @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  requestedBy        User                @relation(fields: [requestedById], references: [id], onDelete: Restrict)
-  feature            Feature?            @relation(fields: [featureId], references: [id], onDelete: Restrict)
-  sourceUserStory    UserStory?          @relation("AiTestCaseSourceUserStory", fields: [sourceUserStoryId], references: [id], onDelete: Restrict)
-  testCase           TestCase?           @relation(fields: [testCaseId], references: [id], onDelete: Restrict)
-  draft              UserStoryDraft?
+  project            Project                @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  requestedBy        User                   @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  feature            Feature?               @relation(fields: [featureId], references: [id], onDelete: Restrict)
+  sourceUserStory    UserStory?             @relation("AiTestCaseSourceUserStory", fields: [sourceUserStoryId], references: [id], onDelete: Restrict)
+  testCase           TestCase?              @relation(fields: [testCaseId], references: [id], onDelete: Restrict)
   testCaseDraftBatch TestCaseDraftBatch?
   logs               AiExecutionLog[]
+  userStoryDrafts    UserStoryDraft[]
+  consistencyItems   ConsistencyCheckItem[]
+  userStoryVersions  UserStoryVersion[]     @relation("UserStoryVersionSourceExecution")
+  testCaseVersions   TestCaseVersion[]      @relation("TestCaseVersionSourceExecution")
+  retiredTestCases   TestCase[]             @relation("TestCaseRetirementExecution")
 
   @@index([status, queuedAt])
   @@index([projectId, deletedAt, queuedAt])
@@ -471,12 +592,16 @@ model AiExecutionLog {
 }
 
 model UserStoryDraft {
-  id                        String        @id @default(cuid())
+  id                        String         @id @default(cuid())
   projectId                 String
   featureId                 String?
-  sourceExecutionId         String        @unique
-  confirmedUserStoryId      String?       @unique
-  status                    AiDraftStatus @default(PENDING)
+  sourceExecutionId         String
+  targetUserStoryId         String?
+  confirmedUserStoryId      String?
+  status                    AiDraftStatus  @default(PENDING)
+  operation                 DraftOperation @default(CREATE)
+  baseVersion               Int?
+  changeReason              String?
   title                     String
   asA                       String
   iWant                     String
@@ -484,18 +609,23 @@ model UserStoryDraft {
   businessRules             String?
   nonFunctionalRequirements String?
   confirmedAt               DateTime?
-  createdAt                 DateTime      @default(now())
-  updatedAt                 DateTime      @updatedAt
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
   deletedAt                 DateTime?
 
   project            Project                    @relation(fields: [projectId], references: [id], onDelete: Restrict)
   feature            Feature?                   @relation(fields: [featureId], references: [id], onDelete: Restrict)
   sourceExecution    AiExecution                @relation(fields: [sourceExecutionId], references: [id], onDelete: Restrict)
   confirmedUserStory UserStory?                 @relation("ConfirmedUserStory", fields: [confirmedUserStoryId], references: [id], onDelete: Restrict)
+  targetUserStory    UserStory?                 @relation("TargetUserStoryDraft", fields: [targetUserStoryId], references: [id], onDelete: Restrict)
   acceptanceCriteria DraftAcceptanceCriterion[]
+  consistencyItem    ConsistencyCheckItem?
 
   @@index([projectId, deletedAt, updatedAt])
   @@index([featureId, deletedAt])
+  @@index([sourceExecutionId])
+  @@index([targetUserStoryId, status, deletedAt])
+  @@index([confirmedUserStoryId])
 }
 
 model DraftAcceptanceCriterion {
@@ -530,28 +660,65 @@ model TestCaseDraftBatch {
 }
 
 model TestCaseDraft {
-  id                  String        @id @default(cuid())
+  id                  String         @id @default(cuid())
   batchId             String
   groupId             String?
-  confirmedTestCaseId String?       @unique
+  proposedUserStoryId String?
+  targetTestCaseId    String?
+  confirmedTestCaseId String?
   position            Int
+  operation           DraftOperation @default(CREATE)
+  baseVersion         Int?
+  changeReason        String?
   name                String
   priority            TestPriority
   preconditions       String?
   steps               String
-  status              AiDraftStatus @default(PENDING)
+  status              AiDraftStatus  @default(PENDING)
   confirmedAt         DateTime?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
   deletedAt           DateTime?
 
-  batch             TestCaseDraftBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
-  group             TestCaseGroup?     @relation(fields: [groupId], references: [id], onDelete: Restrict)
-  confirmedTestCase TestCase?          @relation("ConfirmedTestCase", fields: [confirmedTestCaseId], references: [id], onDelete: Restrict)
+  batch             TestCaseDraftBatch    @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  group             TestCaseGroup?        @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  proposedUserStory UserStory?            @relation("TestCaseDraftProposedUserStory", fields: [proposedUserStoryId], references: [id], onDelete: Restrict)
+  confirmedTestCase TestCase?             @relation("ConfirmedTestCase", fields: [confirmedTestCaseId], references: [id], onDelete: Restrict)
+  targetTestCase    TestCase?             @relation("TargetTestCaseDraft", fields: [targetTestCaseId], references: [id], onDelete: Restrict)
+  consistencyItem   ConsistencyCheckItem?
 
   @@index([batchId, deletedAt, position])
   @@index([groupId, deletedAt])
+  @@index([proposedUserStoryId, deletedAt])
   @@index([status, deletedAt])
+  @@index([targetTestCaseId, status, deletedAt])
+  @@index([confirmedTestCaseId])
+}
+
+model ConsistencyCheckItem {
+  id               String                @id @default(cuid())
+  projectId        String
+  executionId      String
+  entityType       ConsistencyEntityType
+  outcome          ConsistencyOutcome
+  userStoryId      String?
+  testCaseId       String?
+  userStoryDraftId String?               @unique
+  testCaseDraftId  String?               @unique
+  reason           String
+  createdAt        DateTime              @default(now())
+
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  execution      AiExecution     @relation(fields: [executionId], references: [id], onDelete: Restrict)
+  userStory      UserStory?      @relation(fields: [userStoryId], references: [id], onDelete: Restrict)
+  testCase       TestCase?       @relation(fields: [testCaseId], references: [id], onDelete: Restrict)
+  userStoryDraft UserStoryDraft? @relation(fields: [userStoryDraftId], references: [id], onDelete: Restrict)
+  testCaseDraft  TestCaseDraft?  @relation(fields: [testCaseDraftId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, executionId])
+  @@index([executionId, outcome])
+  @@index([userStoryId])
+  @@index([testCaseId])
 }
 
 model TaskSchedulerLease {

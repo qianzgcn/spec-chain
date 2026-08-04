@@ -54,6 +54,7 @@ export default async function EditUserStoryPage({
   return (
     <UserStoryForm
       userStoryId={story.id}
+      currentVersion={story.currentVersion}
       code={story.code}
       feature={story.feature}
       initialValues={initialValues}

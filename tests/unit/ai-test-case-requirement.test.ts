@@ -29,6 +29,15 @@ describe("AI 测试用例需求快照", () => {
         summary: "统一平台登录能力",
         backgroundGoal: "保障平台访问安全。",
       },
+      testCases: [
+        {
+          code: "TC-001",
+          name: "管理员错误密码登录失败",
+          preconditions: "管理员未登录",
+          steps: "1. 使用错误密码登录。\n2. 验证登录失败。",
+          enabled: true,
+        },
+      ],
     });
 
     expect(snapshot).toContain("US 标题：管理员登录失败");
@@ -38,6 +47,8 @@ describe("AI 测试用例需求快照", () => {
     expect(snapshot).toContain("连续失败不会创建登录会话");
     expect(snapshot).toContain("名称：账号与访问控制");
     expect(snapshot).toContain("不要求逐条转换为用例");
+    expect(snapshot).toContain("已有需求用例");
+    expect(snapshot).toContain("TC-001");
   });
 
   it("独立 US 的可选内容使用明确占位", () => {

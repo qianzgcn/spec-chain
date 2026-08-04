@@ -44,10 +44,24 @@ export type AiExecutionAutomationScriptResult = {
   deleted: boolean;
 };
 
+export type AiExecutionConsistencyResult = {
+  kind: "CONSISTENCY_CHECK";
+  deleted: false;
+  totalCount: number;
+  unchangedCount: number;
+  requirementDraftCount: number;
+  testCaseCreateCount: number;
+  testCaseUpdateCount: number;
+  testCaseRetireCount: number;
+  attentionCount: number;
+  attentionItems: Array<{ label: string; reason: string }>;
+};
+
 export type AiExecutionResult =
   | AiExecutionUserStoryResult
   | AiExecutionTestCaseResult
-  | AiExecutionAutomationScriptResult;
+  | AiExecutionAutomationScriptResult
+  | AiExecutionConsistencyResult;
 
 export type AiExecutionLogEntry = {
   position: number;

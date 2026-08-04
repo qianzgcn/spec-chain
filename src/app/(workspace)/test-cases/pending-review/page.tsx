@@ -7,7 +7,11 @@ import {
   PendingTestCasesList,
   type PendingTestCaseListItem,
 } from "@/components/test-cases/pending-test-cases-list";
-import { AiDraftStatus } from "@/generated/prisma/enums";
+import {
+  AiCapability,
+  AiDraftStatus,
+  AiExecutionStatus,
+} from "@/generated/prisma/enums";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -47,6 +51,7 @@ export default async function PendingReviewTestCasesPage({
     batch: {
       projectId: project.id,
       deletedAt: null,
+      sourceExecution: { status: AiExecutionStatus.SUCCEEDED },
       ...(batchId ? { id: batchId } : {}),
     },
   };
@@ -68,13 +73,20 @@ export default async function PendingReviewTestCasesPage({
     select: {
       id: true,
       name: true,
+      operation: true,
+      baseVersion: true,
+      changeReason: true,
       priority: true,
       groupId: true,
       createdAt: true,
+      proposedUserStory: {
+        select: { code: true, title: true, deletedAt: true },
+      },
       batch: {
         select: {
           sourceExecution: {
             select: {
+              capability: true,
               requirementText: true,
               sourceUserStory: {
                 select: {
@@ -94,19 +106,29 @@ export default async function PendingReviewTestCasesPage({
   const items: PendingTestCaseListItem[] = drafts.map((draft) => ({
     id: draft.id,
     name: draft.name,
+    operation: draft.operation,
+    baseVersion: draft.baseVersion,
+    changeReason: draft.changeReason,
     priority: draft.priority,
     groupId:
       draft.groupId && activeGroupIds.has(draft.groupId) ? draft.groupId : null,
-    requirementText: draft.batch.sourceExecution.requirementText,
-    sourceUserStory: draft.batch.sourceExecution.sourceUserStory
-      ? {
-          code: draft.batch.sourceExecution.sourceUserStory.code,
-          title: draft.batch.sourceExecution.sourceUserStory.title,
-          deleted: Boolean(
-            draft.batch.sourceExecution.sourceUserStory.deletedAt,
-          ),
-        }
-      : null,
+    requirementText:
+      draft.batch.sourceExecution.capability === AiCapability.CHECK_CONSISTENCY
+        ? "平台用例"
+        : draft.batch.sourceExecution.requirementText,
+    sourceUserStory:
+      (draft.proposedUserStory ?? draft.batch.sourceExecution.sourceUserStory)
+        ? {
+            code: (draft.proposedUserStory ??
+              draft.batch.sourceExecution.sourceUserStory)!.code,
+            title: (draft.proposedUserStory ??
+              draft.batch.sourceExecution.sourceUserStory)!.title,
+            deleted: Boolean(
+              (draft.proposedUserStory ??
+                draft.batch.sourceExecution.sourceUserStory)!.deletedAt,
+            ),
+          }
+        : null,
     createdAt: draft.createdAt.toISOString(),
   }));
 

@@ -15,6 +15,13 @@ export type TestCaseGenerationUserStory = {
     summary: string;
     backgroundGoal: string;
   } | null;
+  testCases?: Array<{
+    code: string;
+    name: string;
+    preconditions: string | null;
+    steps: string;
+    enabled: boolean;
+  }>;
 };
 
 function formatOptionalSection(value: string | null) {
@@ -37,6 +44,16 @@ export function formatUserStoryForTestCaseGeneration(
 业务背景与目标：
 ${story.feature.backgroundGoal}`
     : "未归属 FE";
+  const existingTestCases = story.testCases?.length
+    ? story.testCases
+        .map(
+          (testCase) =>
+            `- ${testCase.code} ${testCase.name}（${
+              testCase.enabled ? "启用" : "停用，仅用于去重"
+            }）\n  前置条件：${testCase.preconditions ?? "无"}\n  步骤：${testCase.steps}`,
+        )
+        .join("\n")
+    : "暂无";
 
   return `来源：已有 US
 
@@ -57,5 +74,8 @@ ${formatOptionalSection(story.businessRules)}
 ${formatOptionalSection(story.nonFunctionalRequirements)}
 
 所属 FE：
-${featureContext}`;
+${featureContext}
+
+已有需求用例（用于判断覆盖和去重；覆盖完整时不要生成重复草稿）：
+${existingTestCases}`;
 }

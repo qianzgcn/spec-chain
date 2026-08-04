@@ -51,6 +51,7 @@ export type TestCaseListItem = {
   priority: TestPriority;
   enabled: boolean;
   hasScript: boolean;
+  type: "REQUIREMENT" | "PLATFORM";
   lastRunStatus: RunStatus | null;
   lastRunStage: TestRunStage | null;
   lastEditedAt: string;
@@ -62,6 +63,7 @@ type TestCaseFilters = {
   group: string;
   priority: string;
   enabled: string;
+  type: string;
   page: number;
 };
 
@@ -77,6 +79,12 @@ const ENABLED_OPTIONS = [
   { label: "全部状态", value: null },
   { label: "已启用", value: "true" },
   { label: "已停用", value: "false" },
+];
+
+const TYPE_OPTIONS = [
+  { label: "全部类型", value: null },
+  { label: "需求用例", value: "REQUIREMENT" },
+  { label: "平台用例", value: "PLATFORM" },
 ];
 
 export function TestCasesList({
@@ -113,6 +121,7 @@ export function TestCasesList({
     if (next.group) params.set("group", next.group);
     if (next.priority) params.set("priority", next.priority);
     if (next.enabled) params.set("enabled", next.enabled);
+    if (next.type) params.set("type", next.type);
     if (next.page > 1) params.set("page", String(next.page));
     navigate(`/test-cases${params.size ? `?${params}` : ""}`);
   }
@@ -178,7 +187,7 @@ export function TestCasesList({
       cell: ({ row }) => (
         <Link
           href={`/test-cases/${row.original.id}`}
-          className="block truncate font-medium underline-offset-4 hover:underline"
+          className="text-link block truncate font-medium underline-offset-4 hover:underline"
           title={row.original.name}
         >
           {row.original.name}
@@ -194,6 +203,13 @@ export function TestCasesList({
         cellClassName:
           "max-[1440px]:hidden font-mono text-xs text-muted-foreground",
       },
+    },
+    {
+      accessorKey: "type",
+      header: "类型",
+      size: 92,
+      cell: ({ row }) =>
+        row.original.type === "REQUIREMENT" ? "需求用例" : "平台用例",
     },
     {
       accessorKey: "groupName",
@@ -331,6 +347,29 @@ export function TestCasesList({
               onSearch={(value) => updateQuery({ q: value, page: 1 })}
             />
             <Select
+              items={TYPE_OPTIONS}
+              value={filters.type || null}
+              onValueChange={(value) =>
+                updateQuery({ type: value ?? "", page: 1 })
+              }
+            >
+              <SelectTrigger className="w-32" aria-label="用例类型">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {TYPE_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value ?? "all"}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select
               items={groupOptions}
               value={filters.group || null}
               onValueChange={(value) =>
@@ -402,6 +441,7 @@ export function TestCasesList({
             {filters.q ||
             filters.group ||
             filters.priority ||
+            filters.type ||
             filters.enabled ? (
               <Button
                 variant="ghost"

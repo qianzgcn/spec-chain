@@ -4,13 +4,19 @@ import { z } from "zod";
 
 import { revalidatePath } from "next/cache";
 
-import { AiDraftStatus, RequirementStatus } from "@/generated/prisma/enums";
+import {
+  AiDraftStatus,
+  DraftOperation,
+  RequirementStatus,
+  VersionSource,
+} from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
 import { userStoryDraftInputSchema } from "@/lib/requirements/user-story-schema";
 import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
-import { generateBusinessCode } from "@/server/requirements/business-code";
+import { generateBusinessCodeInTransaction } from "@/server/requirements/business-code";
+import { recordUserStoryVersion } from "@/server/versions/content-version";
 
 const idSchema = z.string().min(1);
 
@@ -62,6 +68,8 @@ export async function updatePendingRequirementAction(
     select: {
       id: true,
       status: true,
+      operation: true,
+      title: true,
       acceptanceCriteria: {
         where: { deletedAt: null },
         select: { id: true },
@@ -73,6 +81,12 @@ export async function updatePendingRequirementAction(
   }
   if (draft.status !== AiDraftStatus.PENDING) {
     return { ok: false, message: "该需求已经完成评审，不能再修改" };
+  }
+  if (
+    draft.operation === DraftOperation.UPDATE &&
+    parsedInput.data.title !== draft.title
+  ) {
+    return { ok: false, message: "已有 US 的标题不可修改" };
   }
 
   const inputCriterionIds = new Set(
@@ -95,7 +109,9 @@ export async function updatePendingRequirementAction(
     await transaction.userStoryDraft.update({
       where: { id: draft.id },
       data: {
-        title: parsedInput.data.title,
+        ...(draft.operation === DraftOperation.CREATE
+          ? { title: parsedInput.data.title }
+          : {}),
         asA: parsedInput.data.asA,
         iWant: parsedInput.data.iWant,
         soThat: parsedInput.data.soThat,
@@ -184,6 +200,9 @@ export async function confirmPendingRequirementAction(
     },
     include: {
       feature: { select: { id: true, deletedAt: true } },
+      sourceExecution: {
+        select: { repositorySnapshot: true, status: true },
+      },
       acceptanceCriteria: {
         where: { deletedAt: null },
         orderBy: { position: "asc" },
@@ -202,11 +221,49 @@ export async function confirmPendingRequirementAction(
   if (draft.acceptanceCriteria.length === 0) {
     return { ok: false, message: "待评审需求至少需要一条验收标准" };
   }
+  if (draft.sourceExecution.status !== "SUCCEEDED") {
+    return { ok: false, message: "来源任务尚未成功完成" };
+  }
+  if (
+    draft.operation !== DraftOperation.CREATE &&
+    draft.operation !== DraftOperation.UPDATE
+  ) {
+    return { ok: false, message: "待评审需求类型无效" };
+  }
 
-  const code = await generateBusinessCode("US");
-  let story: { id: string };
+  let result: { kind: "SUCCESS"; story: { id: string } } | { kind: "CONFLICT" };
   try {
-    story = await db.$transaction(async (transaction) => {
+    result = await db.$transaction(async (transaction) => {
+      const expectedTargetVersion = draft.baseVersion;
+      if (draft.operation === DraftOperation.UPDATE) {
+        const target = draft.targetUserStoryId
+          ? await transaction.userStory.findFirst({
+              where: {
+                id: draft.targetUserStoryId,
+                projectId: draft.projectId,
+                deletedAt: null,
+              },
+              select: { title: true, currentVersion: true },
+            })
+          : null;
+        if (
+          !target ||
+          expectedTargetVersion === null ||
+          target.currentVersion !== expectedTargetVersion ||
+          target.title !== draft.title
+        ) {
+          await transaction.userStoryDraft.updateMany({
+            where: {
+              id: draft.id,
+              status: AiDraftStatus.PENDING,
+              deletedAt: null,
+            },
+            data: { status: AiDraftStatus.SUPERSEDED },
+          });
+          return { kind: "CONFLICT" as const };
+        }
+      }
+
       const claimed = await transaction.userStoryDraft.updateMany({
         where: {
           id: draft.id,
@@ -223,42 +280,124 @@ export async function confirmPendingRequirementAction(
         throw new DraftStateChangedError();
       }
 
-      const createdStory = await transaction.userStory.create({
-        data: {
-          projectId: draft.projectId,
-          featureId: draft.featureId,
+      let story: { id: string };
+      if (draft.operation === DraftOperation.CREATE) {
+        story = await transaction.userStory.create({
+          data: {
+            projectId: draft.projectId,
+            featureId: draft.featureId,
+            createdById: user.id,
+            code: await generateBusinessCodeInTransaction(transaction, "US"),
+            title: draft.title,
+            asA: draft.asA,
+            iWant: draft.iWant,
+            soThat: draft.soThat,
+            status: RequirementStatus.DESIGN,
+            businessRules: draft.businessRules,
+            nonFunctionalRequirements: draft.nonFunctionalRequirements,
+            acceptanceCriteria: {
+              create: draft.acceptanceCriteria.map((criterion, position) => ({
+                position,
+                given: criterion.given,
+                when: criterion.when,
+                then: criterion.then,
+              })),
+            },
+          },
+          select: { id: true },
+        });
+        await recordUserStoryVersion(transaction, story.id, {
+          source: VersionSource.AI_GENERATION,
           createdById: user.id,
-          code,
-          title: draft.title,
-          asA: draft.asA,
-          iWant: draft.iWant,
-          soThat: draft.soThat,
-          status: RequirementStatus.DESIGN,
-          businessRules: draft.businessRules,
-          nonFunctionalRequirements: draft.nonFunctionalRequirements,
-          acceptanceCriteria: {
-            create: draft.acceptanceCriteria.map((criterion, position) => ({
+          sourceExecutionId: draft.sourceExecutionId,
+          repositorySnapshot: draft.sourceExecution.repositorySnapshot,
+        });
+      } else {
+        const targetId = draft.targetUserStoryId;
+        if (!targetId || expectedTargetVersion === null) {
+          await transaction.userStoryDraft.update({
+            where: { id: draft.id },
+            data: {
+              status: AiDraftStatus.SUPERSEDED,
+              confirmedAt: null,
+            },
+          });
+          return { kind: "CONFLICT" as const };
+        }
+        const updated = await transaction.userStory.updateMany({
+          where: {
+            id: targetId,
+            projectId: draft.projectId,
+            deletedAt: null,
+            title: draft.title,
+            currentVersion: expectedTargetVersion,
+          },
+          data: {
+            asA: draft.asA,
+            iWant: draft.iWant,
+            soThat: draft.soThat,
+            businessRules: draft.businessRules,
+            nonFunctionalRequirements: draft.nonFunctionalRequirements,
+            currentVersion: { increment: 1 },
+          },
+        });
+        if (updated.count !== 1) {
+          await transaction.userStoryDraft.update({
+            where: { id: draft.id },
+            data: {
+              status: AiDraftStatus.SUPERSEDED,
+              confirmedAt: null,
+            },
+          });
+          return { kind: "CONFLICT" as const };
+        }
+        await transaction.acceptanceCriterion.updateMany({
+          where: { userStoryId: targetId, deletedAt: null },
+          data: { deletedAt: new Date() },
+        });
+        for (const [
+          position,
+          criterion,
+        ] of draft.acceptanceCriteria.entries()) {
+          await transaction.acceptanceCriterion.create({
+            data: {
+              userStoryId: targetId,
               position,
               given: criterion.given,
               when: criterion.when,
               then: criterion.then,
-            })),
-          },
-        },
-        select: { id: true },
-      });
+            },
+          });
+        }
+        story = { id: targetId };
+        await recordUserStoryVersion(transaction, story.id, {
+          source: VersionSource.CONSISTENCY_CHECK,
+          createdById: user.id,
+          sourceExecutionId: draft.sourceExecutionId,
+          repositorySnapshot: draft.sourceExecution.repositorySnapshot,
+          changeSummary: draft.changeReason,
+        });
+      }
 
       await transaction.userStoryDraft.update({
         where: { id: draft.id },
-        data: { confirmedUserStoryId: createdStory.id },
+        data: { confirmedUserStoryId: story.id },
       });
-      return createdStory;
+      return { kind: "SUCCESS" as const, story };
     });
   } catch (error) {
     if (error instanceof DraftStateChangedError) {
       return { ok: false, message: "需求状态已变化，请刷新后重试" };
     }
     throw error;
+  }
+
+  if (result.kind === "CONFLICT") {
+    revalidatePath("/requirements/pending-review");
+    return {
+      ok: false,
+      message: "正式需求已在评审期间更新，该草稿已过期",
+    };
   }
 
   revalidatePath("/requirements");
@@ -271,8 +410,9 @@ export async function confirmPendingRequirementAction(
   }
   return {
     ok: true,
-    message: "US 已创建",
-    data: story,
+    message:
+      draft.operation === DraftOperation.CREATE ? "US 已创建" : "US 已更新",
+    data: result.story,
   };
 }
 

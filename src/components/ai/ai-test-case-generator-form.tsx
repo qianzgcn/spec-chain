@@ -48,8 +48,10 @@ type UserStoryOption = {
 
 export function AiTestCaseGeneratorForm({
   userStories,
+  initialUserStoryId,
 }: {
   userStories: UserStoryOption[];
+  initialUserStoryId: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -59,7 +61,9 @@ export function AiTestCaseGeneratorForm({
     resolver: zodResolver(aiTestCaseGeneratorFormSchema),
     defaultValues: {
       sourceMode: initialSourceMode,
-      userStoryId: null,
+      userStoryId: userStories.some((story) => story.id === initialUserStoryId)
+        ? initialUserStoryId
+        : null,
       requirementText: "",
     },
   });

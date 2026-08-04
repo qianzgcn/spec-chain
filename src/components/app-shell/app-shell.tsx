@@ -100,6 +100,7 @@ function isPathActive(pathname: string, href: string) {
   if (href === "/requirements") {
     return (
       pathname === href ||
+      pathname.startsWith("/consistency-checks") ||
       pathname.startsWith("/features") ||
       pathname.startsWith("/user-stories")
     );
