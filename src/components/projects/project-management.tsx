@@ -38,12 +38,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toast";
 import { formatDateTime } from "@/lib/date-time";
 import {
   projectFormSchema,
   type ProjectFormValues,
 } from "@/lib/projects/schema";
+import { cn } from "@/lib/utils";
 
 type ProjectItem = {
   id: string;
@@ -59,6 +65,30 @@ type ProjectItem = {
 };
 
 const PAGE_SIZE = 20;
+
+function TruncatedText({
+  value,
+  className,
+}: {
+  value: string;
+  className?: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            className={cn("block w-full min-w-0 truncate", className)}
+            tabIndex={0}
+          />
+        }
+      >
+        {value}
+      </TooltipTrigger>
+      <TooltipContent className="max-w-md break-words">{value}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function ProjectManagement({
   projects,
@@ -140,7 +170,7 @@ export function ProjectManagement({
       size: 220,
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate font-medium">{row.original.name}</span>
+          <TruncatedText value={row.original.name} className="font-medium" />
           {row.original.id === currentProjectId ? (
             <Badge variant="secondary">当前项目</Badge>
           ) : null}
@@ -150,8 +180,14 @@ export function ProjectManagement({
     {
       accessorKey: "description",
       header: "描述",
-      meta: { cellClassName: "truncate text-muted-foreground" },
-      cell: ({ row }) => row.original.description || "—",
+      size: 300,
+      meta: { cellClassName: "min-w-0" },
+      cell: ({ row }) => (
+        <TruncatedText
+          value={row.original.description || "—"}
+          className="text-muted-foreground"
+        />
+      ),
     },
     {
       id: "business",
@@ -171,9 +207,14 @@ export function ProjectManagement({
       size: 190,
       meta: {
         headerClassName: "max-[1500px]:hidden",
-        cellClassName: "max-[1500px]:hidden truncate text-muted-foreground",
+        cellClassName: "max-[1500px]:hidden min-w-0",
       },
-      cell: ({ row }) => row.original.baseUrl || "未配置",
+      cell: ({ row }) => (
+        <TruncatedText
+          value={row.original.baseUrl || "未配置"}
+          className="text-muted-foreground"
+        />
+      ),
     },
     {
       accessorKey: "updatedAt",
@@ -205,7 +246,7 @@ export function ProjectManagement({
                   ]
                 : []),
               {
-                label: "设置",
+                label: "编辑",
                 disabled: isPending,
                 onClick: () => switchProject(project.id, "/project-settings"),
               },

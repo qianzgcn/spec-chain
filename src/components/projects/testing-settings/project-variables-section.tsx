@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { VariableKind } from "@/generated/prisma/enums";
+import { VariableFieldKind, VariableKind } from "@/generated/prisma/enums";
 import type {
   ProjectTestingSettingsFormValues,
   ProjectVariableFormValue,
@@ -30,18 +30,25 @@ const VARIABLE_KIND_LABELS: Record<VariableKind, string> = {
   [VariableKind.OBJECT]: "对象",
 };
 
+function formatVariableValue(input: {
+  value: string;
+  kind: VariableKind | VariableFieldKind;
+  encrypted: boolean;
+}) {
+  if (input.encrypted) return "••••••••";
+  if (!input.value) return "—";
+  return input.kind === VariableKind.STRING
+    ? JSON.stringify(input.value)
+    : input.value;
+}
+
 function VariableValue({ variable }: { variable: ProjectVariableFormValue }) {
   const displayValue =
     variable.kind === VariableKind.OBJECT
       ? variable.fields
-          .map(
-            (field) =>
-              `${field.name}:${field.encrypted ? "••••••••" : field.value || "—"}`,
-          )
+          .map((field) => `${field.name}:${formatVariableValue(field)}`)
           .join("; ")
-      : variable.encrypted
-        ? "••••••••"
-        : variable.value || "—";
+      : formatVariableValue(variable);
 
   return (
     <span className="block truncate font-mono" title={displayValue}>

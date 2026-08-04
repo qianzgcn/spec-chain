@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Controller, useFormContext } from "react-hook-form";
+import { Controller, useFormContext, useWatch } from "react-hook-form";
 
 import type { TypeScriptEditorProps } from "@/components/editors/typescript-editor";
 import { SettingsSection } from "@/components/projects/testing-settings/settings-section";
@@ -24,25 +24,31 @@ const TypeScriptEditor = dynamic<TypeScriptEditorProps>(
 
 export function LoginMethodSection() {
   const form = useFormContext<ProjectTestingSettingsFormValues>();
+  const loginMethodSource = useWatch({
+    control: form.control,
+    name: "loginMethodSource",
+  });
 
   return (
     <SettingsSection
       title="登录方法"
       help="封装项目公共登录流程；用例使用账号对象变量时由平台自动调用。"
       actions={
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            form.setValue("loginMethodSource", LOGIN_METHOD_TEMPLATE, {
-              shouldDirty: true,
-              shouldValidate: true,
-            })
-          }
-        >
-          载入示例
-        </Button>
+        !loginMethodSource.trim() ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              form.setValue("loginMethodSource", LOGIN_METHOD_TEMPLATE, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
+          >
+            载入示例
+          </Button>
+        ) : undefined
       }
     >
       <Controller

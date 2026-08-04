@@ -291,7 +291,7 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
   }
 
   await page.goto("/project-settings");
-  await expect(page.getByRole("heading", { name: "基础设置" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "基本信息" })).toBeVisible();
   await expect(page.getByRole("button", { name: "保存" })).toBeDisabled();
   await expect(page.getByText("当前设置已保存")).toHaveCount(0);
 
@@ -375,7 +375,9 @@ test("从登录到需求和测试用例的核心流程", async ({ page }) => {
 
   expect(encryptedCredential.githubPatEncrypted).not.toContain(githubPat);
 
-  await page.getByRole("button", { name: "删除", exact: true }).click();
+  await page
+    .getByRole("button", { name: "删除 GitHub 凭据", exact: true })
+    .click();
   const deletePatDialog = page.getByRole("alertdialog");
   await expect(deletePatDialog).toBeVisible();
   await deletePatDialog

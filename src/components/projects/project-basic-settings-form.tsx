@@ -64,7 +64,7 @@ export function ProjectBasicSettingsForm({
 
   return (
     <FormPage
-      title="基础设置"
+      title="基本信息"
       description="维护当前项目的名称和业务说明。"
       actions={
         <Button
@@ -85,10 +85,7 @@ export function ProjectBasicSettingsForm({
         id="project-basic-settings-form"
         onSubmit={form.handleSubmit(submit)}
       >
-        <PageSection
-          title="项目信息"
-          description="项目名称会显示在顶部项目切换器中。"
-        >
+        <PageSection>
           <FieldGroup className="max-w-4xl">
             <Field data-invalid={Boolean(form.formState.errors.name)}>
               <FieldLabel htmlFor="project-name">项目名称</FieldLabel>

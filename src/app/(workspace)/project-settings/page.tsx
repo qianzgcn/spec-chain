@@ -9,7 +9,7 @@ import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
 export const metadata: Metadata = {
-  title: "基础设置",
+  title: "基本信息",
 };
 
 export default async function ProjectBasicSettingsPage() {
@@ -18,7 +18,7 @@ export default async function ProjectBasicSettingsPage() {
   if (!currentProject) {
     return (
       <ProjectSettingsPage
-        title="基础设置"
+        title="基本信息"
         description="维护当前项目的名称和业务说明。"
       >
         <NoCurrentProject />

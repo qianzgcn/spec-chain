@@ -120,7 +120,7 @@ export async function updateProjectBasicSettingsAction(
   if (!parsed.success) {
     return {
       ok: false,
-      message: "请检查基础设置",
+      message: "请检查基本信息",
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -145,7 +145,7 @@ export async function updateProjectBasicSettingsAction(
   revalidatePath("/", "layout");
   revalidatePath("/project-settings");
   revalidatePath("/projects");
-  return { ok: true, message: "基础设置已保存" };
+  return { ok: true, message: "基本信息已保存" };
 }
 
 export async function updateProjectRepositoriesAction(input: unknown): Promise<

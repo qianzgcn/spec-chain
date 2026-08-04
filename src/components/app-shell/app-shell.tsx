@@ -233,7 +233,7 @@ export function AppShell({
       label: "项目设置",
       icon: SettingsIcon,
       children: [
-        { label: "基础设置", href: "/project-settings" },
+        { label: "基本信息", href: "/project-settings" },
         { label: "代码仓库", href: "/project-settings/repositories" },
         { label: "测试设置", href: "/project-settings/testing" },
       ],

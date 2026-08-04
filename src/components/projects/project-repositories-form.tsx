@@ -45,6 +45,11 @@ import {
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toast";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import {
@@ -149,20 +154,23 @@ function RepositoryCredentialCard({
                   验证账号
                 </Button>
               ) : null}
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                disabled={disabled}
-                onClick={onDelete}
-              >
-                {pending && account ? (
-                  <Spinner data-icon="inline-start" />
-                ) : (
-                  <Trash2Icon data-icon="inline-start" />
-                )}
-                删除
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon-sm"
+                      disabled={disabled}
+                      aria-label={`删除 ${label} 凭据`}
+                      onClick={onDelete}
+                    />
+                  }
+                >
+                  {pending && account ? <Spinner /> : <Trash2Icon />}
+                </TooltipTrigger>
+                <TooltipContent>删除凭据</TooltipContent>
+              </Tooltip>
             </div>
           </div>
         ) : (
@@ -506,14 +514,14 @@ export function ProjectRepositoriesForm({
             {fields.length ? (
               <div className="flex flex-col gap-2">
                 <div
-                  className="text-muted-foreground grid grid-cols-[minmax(320px,1fr)_180px_90px_112px_32px] gap-3 px-1 text-xs font-medium"
+                  className="text-muted-foreground grid grid-cols-[minmax(320px,1fr)_180px_90px_112px_56px] gap-3 px-1 text-xs font-medium"
                   aria-hidden
                 >
                   <span>Git 地址</span>
                   <span>目标分支</span>
                   <span>平台</span>
                   <span>连接</span>
-                  <span />
+                  <span>操作</span>
                 </div>
                 {fields.map((field, index) => {
                   const connectionResult = connectionResults[field.fieldKey];
@@ -527,7 +535,7 @@ export function ProjectRepositoriesForm({
                   return (
                     <div
                       key={field.fieldKey}
-                      className="bg-muted/40 grid grid-cols-[minmax(320px,1fr)_180px_90px_112px_32px] items-start gap-3 rounded-lg p-3"
+                      className="bg-muted/40 grid grid-cols-[minmax(320px,1fr)_180px_90px_112px_56px] items-start gap-3 rounded-lg p-3"
                     >
                       <input
                         type="hidden"
@@ -615,15 +623,16 @@ export function ProjectRepositoriesForm({
                       </Button>
                       <Button
                         type="button"
-                        variant="destructive"
-                        size="icon-sm"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         aria-label={`删除第 ${index + 1} 个仓库`}
                         onClick={() => {
                           remove(index);
                           clearConnectionResult(field.fieldKey);
                         }}
                       >
-                        <Trash2Icon />
+                        删除
                       </Button>
                       {connectionResult ? (
                         <Alert
