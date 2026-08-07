@@ -227,8 +227,10 @@ export function DataTable<TData>({
                     className={cn(
                       "h-12",
                       cell.column.getIsPinned() === "right"
-                        ? "z-[1] overflow-visible border-l bg-inherit"
-                        : "truncate",
+                        ? "z-[1] overflow-visible border-l bg-background group-hover/row:bg-muted group-has-aria-expanded/row:bg-muted group-data-[state=selected]/row:bg-muted"
+                        : cell.column.getIsPinned() === "left"
+                          ? "z-[1] overflow-visible border-r bg-background group-hover/row:bg-muted group-has-aria-expanded/row:bg-muted group-data-[state=selected]/row:bg-muted"
+                          : "truncate",
                       cell.column.columnDef.meta?.cellClassName,
                     )}
                   >
