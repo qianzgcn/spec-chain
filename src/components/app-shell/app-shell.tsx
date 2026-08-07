@@ -21,7 +21,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { logoutAction } from "@/app/actions/auth";
 import { switchProjectAction } from "@/app/actions/projects";
 import { useNavigationFeedback } from "@/components/app-shell/navigation-feedback";
-import { WorkspaceBreadcrumbs } from "@/components/app-shell/workspace-breadcrumbs";
 import { ChangePasswordModal } from "@/components/auth/change-password-modal";
 import { SpecChainMark } from "@/components/brand/specchain-mark";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -63,8 +62,8 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarProvider,
-  SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
@@ -122,6 +121,7 @@ function NavigationGroup({
   group: NavGroup;
   pathname: string;
 }) {
+  const { state } = useSidebar();
   const Icon = group.icon;
   const active =
     group.children?.some((item) => isPathActive(pathname, item.href)) ?? false;
@@ -140,6 +140,71 @@ function NavigationGroup({
           <Icon />
           <span>{group.label}</span>
         </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  const [hoverOpen, setHoverOpen] = useState(false);
+
+  // 当侧边栏处于折叠状态（icon mode）时，如果有二级菜单，鼠标移入时自动浮动展开下拉菜单
+  if (state === "collapsed") {
+    return (
+      <SidebarMenuItem>
+        <DropdownMenu open={hoverOpen} onOpenChange={setHoverOpen}>
+          <div
+            className="w-full"
+            onMouseEnter={() => setHoverOpen(true)}
+            onMouseLeave={() => setHoverOpen(false)}
+          >
+            <DropdownMenuTrigger
+              render={
+                <SidebarMenuButton
+                  isActive={active}
+                  tooltip={group.label}
+                />
+              }
+            >
+              <Icon />
+              <span>{group.label}</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="right"
+              align="start"
+              className="w-48"
+              onMouseEnter={() => setHoverOpen(true)}
+              onMouseLeave={() => setHoverOpen(false)}
+            >
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {group.children?.map((item) => {
+                  const itemActive = isPathActive(pathname, item.href);
+                  return (
+                    <DropdownMenuItem
+                      key={item.href}
+                      aria-selected={itemActive}
+                      className={cn(
+                        itemActive &&
+                          "bg-primary/15 font-semibold text-primary hover:bg-primary/20",
+                      )}
+                      render={
+                        <Link
+                          href={item.href}
+                          onClick={() => setHoverOpen(false)}
+                        />
+                      }
+                    >
+                      {itemActive ? (
+                        <span className="size-1.5 shrink-0 rounded-full bg-primary" />
+                      ) : null}
+                      <span>{item.label}</span>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </div>
+        </DropdownMenu>
       </SidebarMenuItem>
     );
   }
@@ -278,16 +343,17 @@ export function AppShell({
       >
         <Sidebar collapsible="icon">
           <SidebarHeader className="gap-2 border-b p-2">
-            <div className="flex h-9 items-center">
+            <div className="flex h-9 items-center justify-between gap-1 px-1 group-data-[collapsible=icon]:justify-center">
               <Link
                 href="/requirements"
-                className="flex min-w-0 items-center gap-2 px-2"
+                className="flex min-w-0 items-center gap-2 px-1 group-data-[collapsible=icon]:hidden"
               >
-                <SpecChainMark size={28} />
-                <span className="truncate text-base font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
+                <SpecChainMark size={26} />
+                <span className="truncate text-base font-semibold tracking-tight">
                   SpecChain
                 </span>
               </Link>
+              <SidebarTrigger />
             </div>
             <div className="flex flex-col gap-1 px-1 group-data-[collapsible=icon]:hidden">
               {projects.length ? (
@@ -399,14 +465,9 @@ export function AppShell({
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarFooter>
-          <SidebarRail />
         </Sidebar>
 
         <SidebarInset className="h-dvh min-h-0 overflow-hidden">
-          <header className="flex h-11 shrink-0 items-center gap-3 border-b px-5">
-            <SidebarTrigger />
-            <WorkspaceBreadcrumbs pathname={pathname} />
-          </header>
           <div
             className={cn(
               "flex min-h-0 flex-1 flex-col p-5",
