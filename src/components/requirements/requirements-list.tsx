@@ -190,9 +190,21 @@ export function RequirementsList({
 
         return (
           <div
-            className="flex min-w-0 items-center gap-2"
+            className="flex min-w-0 items-center gap-1.5"
             style={{ paddingLeft: row.depth * 20 }}
           >
+            <Link
+              href={href}
+              className="text-link min-w-0 truncate font-medium underline-offset-4 hover:underline"
+              title={item.title}
+            >
+              {item.title}
+            </Link>
+            {item.type === "FEATURE" ? (
+              <span className="text-muted-foreground shrink-0 text-xs">
+                {item.childCount ?? 0} 个 US
+              </span>
+            ) : null}
             {row.getCanExpand() ? (
               <Button
                 variant="ghost"
@@ -207,20 +219,6 @@ export function RequirementsList({
                   )}
                 />
               </Button>
-            ) : (
-              <span className="size-6 shrink-0" aria-hidden />
-            )}
-            <Link
-              href={href}
-              className="text-link min-w-0 truncate font-medium underline-offset-4 hover:underline"
-              title={item.title}
-            >
-              {item.title}
-            </Link>
-            {item.type === "FEATURE" ? (
-              <span className="text-muted-foreground shrink-0 text-xs">
-                {item.childCount ?? 0} 个 US
-              </span>
             ) : null}
           </div>
         );
@@ -281,7 +279,7 @@ export function RequirementsList({
     {
       id: "actions",
       header: "操作",
-      size: 204,
+      size: 248,
       meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => {
         const item = row.original;

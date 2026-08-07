@@ -8,7 +8,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
 import {
   EXECUTION_TASK_STATUS_META,
   EXECUTION_TASK_TYPE_LABELS,
@@ -17,7 +16,6 @@ import type {
   ExecutionTaskStatus,
   ExecutionTaskType,
 } from "@/lib/execution-tasks/types";
-import { cn } from "@/lib/utils";
 
 const TASK_TYPE_OPTIONS: Array<{
   label: string;
@@ -45,8 +43,6 @@ export function ExecutionTaskListFilters({
   searchValue,
   taskType,
   status,
-  resultCount,
-  fetching,
   hasFilters,
   onSearchValueChange,
   onSearch,
@@ -57,8 +53,8 @@ export function ExecutionTaskListFilters({
   searchValue: string;
   taskType: ExecutionTaskType | null;
   status: ExecutionTaskStatus | null;
-  resultCount: number;
-  fetching: boolean;
+  resultCount?: number;
+  fetching?: boolean;
   hasFilters: boolean;
   onSearchValueChange: (value: string) => void;
   onSearch: (value: string) => void;
@@ -115,19 +111,6 @@ export function ExecutionTaskListFilters({
           重置筛选
         </Button>
       ) : null}
-      <span className="text-muted-foreground ml-auto shrink-0 text-sm">
-        共 {resultCount} 个任务
-      </span>
-      <span
-        className={cn(
-          "text-muted-foreground flex min-w-28 shrink-0 items-center gap-2 text-xs",
-          !fetching && "invisible",
-        )}
-        aria-hidden={!fetching}
-      >
-        <Spinner />
-        正在更新状态…
-      </span>
     </>
   );
 }

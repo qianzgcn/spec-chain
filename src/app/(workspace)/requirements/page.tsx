@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import Link from "next/link";
 import { PackageOpenIcon } from "lucide-react";
 
 import { PageContainer } from "@/components/layout/page-container";
@@ -104,12 +105,21 @@ export default async function RequirementsPage({
         where: {
           projectId: project.id,
           deletedAt: null,
-          userStories: {
-            some: {
-              deliveryVersionId: currentDeliveryVersionId,
-              deletedAt: null,
+          OR: [
+            {
+              userStories: {
+                none: { deletedAt: null },
+              },
             },
-          },
+            {
+              userStories: {
+                some: {
+                  deliveryVersionId: currentDeliveryVersionId,
+                  deletedAt: null,
+                },
+              },
+            },
+          ],
         },
         select: {
           id: true,
@@ -274,14 +284,18 @@ export default async function RequirementsPage({
     <PageContainer table className="gap-5">
       <PageHeader
         title="需求列表"
-        description={`当前交付：${currentDeliveryVersion.code} · ${currentDeliveryVersion.name}`}
-        actions={
-          <ButtonLink
+        titleAccessory={
+          <Link
             href={`/delivery-versions/${currentDeliveryVersion.id}`}
-            variant="outline"
+            className="group inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/50 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted hover:text-foreground"
+            title="点击查看交付版本详情"
           >
-            查看版本详情
-          </ButtonLink>
+            <span className="size-1.5 rounded-full bg-emerald-500/80 group-hover:bg-emerald-500" />
+            <span>当前交付：</span>
+            <span className="font-semibold text-foreground group-hover:text-primary">
+              {currentDeliveryVersion.name}
+            </span>
+          </Link>
         }
       />
 

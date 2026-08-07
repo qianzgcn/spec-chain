@@ -22,8 +22,15 @@ export const metadata: Metadata = {
   title: "新建测试用例",
 };
 
-export default async function NewTestCasePage() {
-  const project = await getCurrentProject();
+export default async function NewTestCasePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ userStoryId?: string }>;
+}) {
+  const [params, project] = await Promise.all([
+    searchParams ?? Promise.resolve({}),
+    getCurrentProject(),
+  ]);
   if (!project) {
     return (
       <PageContainer className="flex flex-col gap-5">
@@ -81,6 +88,10 @@ export default async function NewTestCasePage() {
     );
   }
 
+  const matchedStory = params.userStoryId
+    ? userStories.find((s) => s.id === params.userStoryId)
+    : null;
+
   return (
     <TestCaseForm
       groups={groups}
@@ -90,6 +101,20 @@ export default async function NewTestCasePage() {
         title: story.title,
         featureName: story.feature?.name ?? null,
       }))}
+      initialValues={
+        matchedStory
+          ? {
+              userStoryId: matchedStory.id,
+              name: "",
+              groupId: groups[0]?.id ?? "",
+              priority: "P2" as any,
+              preconditions: "",
+              steps: "",
+              enabled: true,
+              script: "",
+            }
+          : undefined
+      }
     />
   );
 }

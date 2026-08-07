@@ -546,3 +546,33 @@ export async function getRequirementMarkdownAction(
     },
   };
 }
+
+export async function dismissTestCaseUpdateNoticeAction(
+  id: string,
+): Promise<ActionResult> {
+  const project = await requireCurrentProjectForAction();
+  if (!project) {
+    return { ok: false, message: "请先创建项目" };
+  }
+
+  const story = await db.userStory.findFirst({
+    where: { id, projectId: project.id, deletedAt: null },
+    select: { id: true, testCasesNeedUpdate: true },
+  });
+  if (!story) {
+    return { ok: false, message: "US 不存在或已删除" };
+  }
+
+  if (!story.testCasesNeedUpdate) {
+    return { ok: true, message: "提示已忽略" };
+  }
+
+  await db.userStory.update({
+    where: { id },
+    data: { testCasesNeedUpdate: false },
+  });
+
+  revalidatePath(`/user-stories/${id}`);
+  revalidatePath("/user-stories");
+  return { ok: true, message: "已忽略更新提示" };
+}

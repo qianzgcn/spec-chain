@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { createAiTestCaseExecutionAction } from "@/app/actions/execution-tasks";
 import { FormPage } from "@/components/layout/form-page";
 import { PageSection } from "@/components/layout/page-section";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -56,18 +57,24 @@ export function AiTestCaseGeneratorForm({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  const boundStory = initialUserStoryId
+    ? userStories.find((story) => story.id === initialUserStoryId) ?? null
+    : null;
+  const isBoundFromStory = Boolean(boundStory);
+
   const initialSourceMode =
     userStories.length > 0 ? ("USER_STORY" as const) : ("TEXT" as const);
+
   const form = useForm<AiTestCaseGeneratorFormValues>({
     resolver: zodResolver(aiTestCaseGeneratorFormSchema),
     defaultValues: {
-      sourceMode: initialSourceMode,
-      userStoryId: userStories.some((story) => story.id === initialUserStoryId)
-        ? initialUserStoryId
-        : null,
+      sourceMode: isBoundFromStory ? "USER_STORY" : initialSourceMode,
+      userStoryId: boundStory ? boundStory.id : null,
       requirementText: "",
     },
   });
+
   const sourceMode = useWatch({
     control: form.control,
     name: "sourceMode",
@@ -83,6 +90,7 @@ export function AiTestCaseGeneratorForm({
     userStories.some(
       (story) => story.id === selectedUserStoryId && story.hasTestCases,
     );
+
   const storyIds = userStories.map((story) => story.id);
   const storyLabels = new Map(
     userStories.map((story) => [
@@ -92,9 +100,11 @@ export function AiTestCaseGeneratorForm({
       }`,
     ]),
   );
+
   useUnsavedChanges(form.formState.isDirty);
 
   function changeSourceMode(values: readonly unknown[]) {
+    if (isBoundFromStory) return;
     const nextMode = values.at(-1);
     if (nextMode !== "USER_STORY" && nextMode !== "TEXT") return;
 
@@ -135,14 +145,26 @@ export function AiTestCaseGeneratorForm({
     }
   }
 
+  const pageTitle = isBoundFromStory
+    ? updating
+      ? "确认 AI 辅助更新测试用例"
+      : "确认 AI 辅助生成测试用例"
+    : updating
+      ? "AI辅助更新测试用例"
+      : "AI辅助生成测试用例";
+
+  const pageDescription = isBoundFromStory
+    ? updating
+      ? `即将针对需求 [${boundStory?.code}] 分析当前需求变更，并生成用例的新增/修改建议。`
+      : `即将针对需求 [${boundStory?.code}] 分析业务逻辑，并生成一组自然语言测试用例。`
+    : updating
+      ? "系统会比较当前 US 和已有用例，提出需要人工评审的新增、更新或删除建议。"
+      : "系统会结合需求和当前代码，生成一组需要人工评审的自然语言测试用例。";
+
   return (
     <FormPage
-      title={updating ? "AI辅助更新测试用例" : "AI辅助生成测试用例"}
-      description={
-        updating
-          ? "系统会比较当前 US 和已有用例，提出需要人工评审的新增、更新或删除建议。"
-          : "系统会结合需求和当前代码，生成一组需要人工评审的自然语言测试用例。"
-      }
+      title={pageTitle}
+      description={pageDescription}
       actions={
         <>
           <Button variant="outline" type="button" onClick={cancel}>
@@ -159,7 +181,13 @@ export function AiTestCaseGeneratorForm({
             ) : (
               <SparklesIcon data-icon="inline-start" />
             )}
-            {updating ? "开始更新" : "开始生成"}
+            {isBoundFromStory
+              ? updating
+                ? "确认并开始更新"
+                : "确认并开始生成"
+              : updating
+                ? "开始更新"
+                : "开始生成"}
           </Button>
         </>
       }
@@ -168,88 +196,117 @@ export function AiTestCaseGeneratorForm({
         id="ai-test-case-generator-form"
         onSubmit={form.handleSubmit(submit)}
       >
-        <PageSection title="生成来源">
+        <PageSection title={isBoundFromStory ? "确认需求信息" : "生成来源"}>
           <FieldGroup>
-            <Field>
-              <FieldLabel>选择生成来源</FieldLabel>
-              <ToggleGroup
-                variant="outline"
-                value={[sourceMode]}
-                onValueChange={changeSourceMode}
-              >
-                <ToggleGroupItem
-                  value="USER_STORY"
-                  disabled={userStories.length === 0}
-                >
-                  选择已有US
-                </ToggleGroupItem>
-                <ToggleGroupItem value="TEXT">输入需求内容</ToggleGroupItem>
-              </ToggleGroup>
-            </Field>
-
-            {sourceMode === "USER_STORY" ? (
-              <Controller
-                control={form.control}
-                name="userStoryId"
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="ai-test-case-user-story">
-                      选择 US
-                    </FieldLabel>
-                    <Combobox
-                      autoHighlight
-                      items={storyIds}
-                      value={field.value}
-                      itemToStringLabel={(storyId: string) =>
-                        storyLabels.get(storyId) ?? storyId
-                      }
-                      onValueChange={(value) => field.onChange(value ?? null)}
+            {isBoundFromStory && boundStory ? (
+              <Field>
+                <FieldLabel>已绑定的需求 (US)</FieldLabel>
+                <div className="bg-muted/40 flex flex-col gap-2 rounded-lg border p-4">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">US</Badge>
+                    <span className="font-mono text-xs font-semibold text-foreground">
+                      {boundStory.code}
+                    </span>
+                    {boundStory.featureName ? (
+                      <span className="text-muted-foreground text-xs">
+                        · {boundStory.featureName}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="text-sm font-medium text-foreground">
+                    {boundStory.title}
+                  </div>
+                  <div className="text-muted-foreground text-xs mt-1">
+                    {boundStory.hasTestCases
+                      ? "当前需求已关联测试用例。AI 将自动分析需求描述与最新代码，提出用例更新建议。"
+                      : "当前需求尚未关联测试用例。AI 将自动分析需求逻辑，为您自动生成测试用例组。"}
+                  </div>
+                </div>
+              </Field>
+            ) : (
+              <>
+                <Field>
+                  <FieldLabel>选择生成来源</FieldLabel>
+                  <ToggleGroup
+                    variant="outline"
+                    value={[sourceMode]}
+                    onValueChange={changeSourceMode}
+                  >
+                    <ToggleGroupItem
+                      value="USER_STORY"
+                      disabled={userStories.length === 0}
                     >
-                      <ComboboxInput
-                        id="ai-test-case-user-story"
-                        placeholder="搜索编号或标题"
-                        aria-invalid={fieldState.invalid}
-                      />
-                      <ComboboxContent>
-                        <ComboboxEmpty>没有匹配的 US</ComboboxEmpty>
-                        <ComboboxList>
-                          {(storyId: string) => (
-                            <ComboboxItem key={storyId} value={storyId}>
-                              {storyLabels.get(storyId)}
-                            </ComboboxItem>
-                          )}
-                        </ComboboxList>
-                      </ComboboxContent>
-                    </Combobox>
-                    <FieldError errors={[fieldState.error]} />
+                      选择已有US
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="TEXT">输入需求内容</ToggleGroupItem>
+                  </ToggleGroup>
+                </Field>
+
+                {sourceMode === "USER_STORY" ? (
+                  <Controller
+                    control={form.control}
+                    name="userStoryId"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor="ai-test-case-user-story">
+                          选择 US
+                        </FieldLabel>
+                        <Combobox
+                          autoHighlight
+                          items={storyIds}
+                          value={field.value}
+                          itemToStringLabel={(storyId: string) =>
+                            storyLabels.get(storyId) ?? storyId
+                          }
+                          onValueChange={(value) => field.onChange(value ?? null)}
+                        >
+                          <ComboboxInput
+                            id="ai-test-case-user-story"
+                            placeholder="搜索编号或标题"
+                            aria-invalid={fieldState.invalid}
+                          />
+                          <ComboboxContent>
+                            <ComboboxEmpty>没有匹配的 US</ComboboxEmpty>
+                            <ComboboxList>
+                              {(storyId: string) => (
+                                <ComboboxItem key={storyId} value={storyId}>
+                                  {storyLabels.get(storyId)}
+                                </ComboboxItem>
+                              )}
+                            </ComboboxList>
+                          </ComboboxContent>
+                        </Combobox>
+                        <FieldError errors={[fieldState.error]} />
+                      </Field>
+                    )}
+                  />
+                ) : (
+                  <Field
+                    data-invalid={Boolean(form.formState.errors.requirementText)}
+                  >
+                    <FieldLabel htmlFor="ai-test-case-requirement-text">
+                      需求内容
+                    </FieldLabel>
+                    <Textarea
+                      id="ai-test-case-requirement-text"
+                      className="min-h-72 resize-y"
+                      maxLength={10_000}
+                      placeholder="描述需要验证的业务行为、角色、输入、结果和重要约束"
+                      aria-invalid={Boolean(form.formState.errors.requirementText)}
+                      {...form.register("requirementText")}
+                    />
+                    <div className="flex items-start justify-between gap-4">
+                      <FieldDescription>
+                        信息不足或无法从代码中确认相关行为时，任务会明确失败。
+                      </FieldDescription>
+                      <span className="text-muted-foreground shrink-0 text-xs">
+                        {requirementText.length} / 10000
+                      </span>
+                    </div>
+                    <FieldError errors={[form.formState.errors.requirementText]} />
                   </Field>
                 )}
-              />
-            ) : (
-              <Field
-                data-invalid={Boolean(form.formState.errors.requirementText)}
-              >
-                <FieldLabel htmlFor="ai-test-case-requirement-text">
-                  需求内容
-                </FieldLabel>
-                <Textarea
-                  id="ai-test-case-requirement-text"
-                  className="min-h-72 resize-y"
-                  maxLength={10_000}
-                  placeholder="描述需要验证的业务行为、角色、输入、结果和重要约束"
-                  aria-invalid={Boolean(form.formState.errors.requirementText)}
-                  {...form.register("requirementText")}
-                />
-                <div className="flex items-start justify-between gap-4">
-                  <FieldDescription>
-                    信息不足或无法从代码中确认相关行为时，任务会明确失败。
-                  </FieldDescription>
-                  <span className="text-muted-foreground shrink-0 text-xs">
-                    {requirementText.length} / 10000
-                  </span>
-                </div>
-                <FieldError errors={[form.formState.errors.requirementText]} />
-              </Field>
+              </>
             )}
           </FieldGroup>
         </PageSection>

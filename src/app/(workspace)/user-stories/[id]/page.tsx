@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { notFound } from "next/navigation";
+import { PlusIcon, SparklesIcon } from "lucide-react";
 
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
@@ -8,9 +9,9 @@ import { PageSection } from "@/components/layout/page-section";
 import { MarkdownView } from "@/components/markdown/markdown-view";
 import { ButtonLink } from "@/components/navigation/button-link";
 import { RequirementDetailActions } from "@/components/requirements/requirement-detail-actions";
+import { TestCaseUpdateAlert } from "@/components/requirements/test-case-update-alert";
 import { UserStoryStatusSelect } from "@/components/requirements/user-story-status-select";
 import { UserStoryDeliveryVersionSelect } from "@/components/requirements/user-story-delivery-version-select";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -28,6 +29,59 @@ import { getCurrentProject } from "@/server/projects/current-project";
 export const metadata: Metadata = {
   title: "US 详情",
 };
+
+function UserStoryTestCaseActionButtons({
+  storyId,
+  hasTestCases,
+  hasDrafts,
+  contentLocked,
+}: {
+  storyId: string;
+  hasTestCases: boolean;
+  hasDrafts: boolean;
+  contentLocked: boolean;
+}) {
+  if (contentLocked) return null;
+
+  const aiHref = hasDrafts
+    ? "/test-cases/pending-review"
+    : `/test-cases/ai-generate?userStoryId=${storyId}`;
+
+  const manualHref = `/test-cases/new?userStoryId=${storyId}`;
+
+  if (!hasTestCases) {
+    return (
+      <div className="flex items-center gap-2">
+        <ButtonLink href={aiHref} variant="default">
+          <SparklesIcon data-icon="inline-start" className="size-4" />
+          创建用例-AI
+        </ButtonLink>
+        <ButtonLink href={manualHref} variant="outline">
+          <PlusIcon data-icon="inline-start" className="size-4" />
+          创建用例-人工
+        </ButtonLink>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <ButtonLink href={aiHref} variant="default">
+        <SparklesIcon data-icon="inline-start" className="size-4" />
+        更新用例-AI
+        {hasDrafts ? (
+          <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
+            待评审
+          </Badge>
+        ) : null}
+      </ButtonLink>
+      <ButtonLink href={manualHref} variant="outline">
+        <PlusIcon data-icon="inline-start" className="size-4" />
+        更新用例-人工
+      </ButtonLink>
+    </div>
+  );
+}
 
 export default async function UserStoryDetailPage({
   params,
@@ -95,6 +149,10 @@ export default async function UserStoryDetailPage({
   ]);
   if (!story) notFound();
 
+  const hasTestCases = story.testCases.length > 0;
+  const hasDrafts = story.proposedTestCaseDrafts.length > 0;
+  const contentLocked = Boolean(story.deliveryVersion.lockedAt);
+
   return (
     <PageContainer className="flex flex-col gap-5">
       <PageHeader
@@ -116,31 +174,11 @@ export default async function UserStoryDetailPage({
           </>
         }
         actions={
-          <>
-            {!story.deliveryVersion.lockedAt ? (
-              <ButtonLink
-                href={
-                  story.proposedTestCaseDrafts.length
-                    ? "/test-cases/pending-review"
-                    : `/test-cases/ai-generate?userStoryId=${story.id}`
-                }
-                variant={
-                  story.proposedTestCaseDrafts.length ? "outline" : "default"
-                }
-              >
-                {story.proposedTestCaseDrafts.length
-                  ? "评审测试用例变更"
-                  : story.testCases.length
-                    ? "AI更新测试用例"
-                    : "AI生成测试用例"}
-              </ButtonLink>
-            ) : null}
-            <RequirementDetailActions
-              type="USER_STORY"
-              id={story.id}
-              contentLocked={Boolean(story.deliveryVersion.lockedAt)}
-            />
-          </>
+          <RequirementDetailActions
+            type="USER_STORY"
+            id={story.id}
+            contentLocked={contentLocked}
+          />
         }
       />
 
@@ -225,37 +263,38 @@ export default async function UserStoryDetailPage({
           </div>
         </PageSection>
 
-        <PageSection title="业务规则">
-          <MarkdownView content={story.businessRules} />
-        </PageSection>
-
-        <PageSection title="非功能需求">
-          <MarkdownView content={story.nonFunctionalRequirements} />
-        </PageSection>
-
-        {!story.deliveryVersion.lockedAt &&
-        (story.testCasesNeedUpdate ||
-          story.proposedTestCaseDrafts.length > 0) ? (
-          <Alert
-            variant={
-              story.proposedTestCaseDrafts.length > 0 ? "info" : "warning"
-            }
-          >
-            <AlertTitle>
-              {story.proposedTestCaseDrafts.length > 0
-                ? "测试用例变更待评审"
-                : "测试用例需要更新"}
-            </AlertTitle>
-            <AlertDescription>
-              {story.proposedTestCaseDrafts.length > 0
-                ? "AI 已根据当前 US 提出用例变更，请完成评审后再执行用例。"
-                : "US 内容已修改，请使用 AI 对现有用例进行新增、更新或删除判断。"}
-            </AlertDescription>
-          </Alert>
+        {story.businessRules?.trim() ? (
+          <PageSection title="业务规则">
+            <MarkdownView content={story.businessRules} />
+          </PageSection>
         ) : null}
 
-        <PageSection title="关联测试用例">
-          {story.testCases.length ? (
+        {story.nonFunctionalRequirements?.trim() ? (
+          <PageSection title="非功能需求">
+            <MarkdownView content={story.nonFunctionalRequirements} />
+          </PageSection>
+        ) : null}
+
+        {!contentLocked ? (
+          <TestCaseUpdateAlert
+            userStoryId={story.id}
+            hasDrafts={hasDrafts}
+            testCasesNeedUpdate={story.testCasesNeedUpdate}
+          />
+        ) : null}
+
+        <PageSection
+          title="关联测试用例"
+          actions={
+            <UserStoryTestCaseActionButtons
+              storyId={story.id}
+              hasTestCases={hasTestCases}
+              hasDrafts={hasDrafts}
+              contentLocked={contentLocked}
+            />
+          }
+        >
+          {hasTestCases ? (
             <Table containerClassName="rounded-lg border">
               <TableHeader className="bg-muted/50 text-muted-foreground text-xs">
                 <TableRow>
@@ -298,7 +337,19 @@ export default async function UserStoryDetailPage({
               </TableBody>
             </Table>
           ) : (
-            <p className="text-muted-foreground text-sm">暂无关联测试用例。</p>
+            <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
+              <p className="text-muted-foreground text-sm">
+                当前需求尚未关联任何测试用例。
+              </p>
+              {!contentLocked ? (
+                <UserStoryTestCaseActionButtons
+                  storyId={story.id}
+                  hasTestCases={false}
+                  hasDrafts={hasDrafts}
+                  contentLocked={contentLocked}
+                />
+              ) : null}
+            </div>
           )}
         </PageSection>
       </div>
