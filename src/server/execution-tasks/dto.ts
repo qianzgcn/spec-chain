@@ -15,11 +15,29 @@ import {
   type AiExecutionTaskDetail,
   type AiExecutionResult,
   type ExecutionTaskSummary,
+  type ExecutionTaskType,
   type ImplementationReviewEvidence,
 } from "@/lib/execution-tasks/types";
 import { db } from "@/server/db";
 
 const SUMMARY_LIMIT = 100;
+
+function deriveExecutionTaskType(
+  capability: AiCapability,
+  drafts?: Array<{ changeType?: string; targetTestCaseId?: string | null }>,
+): ExecutionTaskType {
+  if (capability === AiCapability.GENERATE_TEST_CASES) {
+    const firstDraft = drafts?.[0];
+    if (
+      firstDraft?.changeType === "UPDATE" ||
+      Boolean(firstDraft?.targetTestCaseId)
+    ) {
+      return "GENERATE_TEST_CASES_UPDATE";
+    }
+    return "GENERATE_TEST_CASES_CREATE";
+  }
+  return capability;
+}
 
 function toAiTaskContent(execution: {
   capability: AiCapability;
@@ -66,12 +84,24 @@ export async function getExecutionTaskSummaries(
       requestedBy: { select: { username: true } },
       testCase: { select: { code: true, name: true } },
       deliveryVersion: { select: { code: true, name: true } },
+      testCaseDraftBatch: {
+        select: {
+          drafts: {
+            where: { deletedAt: null },
+            select: { changeType: true, targetTestCaseId: true },
+            take: 1,
+          },
+        },
+      },
     },
   });
 
   return aiExecutions.map((execution): ExecutionTaskSummary => ({
     id: execution.id,
-    type: execution.capability,
+    type: deriveExecutionTaskType(
+      execution.capability,
+      execution.testCaseDraftBatch?.drafts,
+    ),
     status: mapAiExecutionStatus(execution.status),
     stageLabel: getAiExecutionStageLabel(execution.capability, execution.stage),
     content: toAiTaskContent(execution),
@@ -173,7 +203,7 @@ const AI_EXECUTION_DETAIL_SELECT = {
       deletedAt: true,
       drafts: {
         where: { deletedAt: null },
-        select: { status: true },
+        select: { status: true, changeType: true, targetTestCaseId: true },
       },
     },
   },
@@ -294,7 +324,10 @@ function toAiExecutionTaskDetail(
 ): AiExecutionTaskDetail {
   return {
     id: execution.id,
-    type: execution.capability,
+    type: deriveExecutionTaskType(
+      execution.capability,
+      execution.testCaseDraftBatch?.drafts,
+    ),
     capability: execution.capability,
     status: mapAiExecutionStatus(execution.status),
     stage: execution.stage,

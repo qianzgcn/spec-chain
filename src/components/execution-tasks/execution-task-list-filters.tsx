@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AiCapability } from "@/generated/prisma/enums";
 import {
   EXECUTION_TASK_STATUS_META,
   EXECUTION_TASK_TYPE_LABELS,
@@ -22,10 +23,23 @@ const TASK_TYPE_OPTIONS: Array<{
   value: ExecutionTaskType | null;
 }> = [
   { label: "全部任务类型", value: null },
-  ...Object.entries(EXECUTION_TASK_TYPE_LABELS).map(([value, label]) => ({
-    label,
-    value: value as ExecutionTaskType,
-  })),
+  { label: "创建US", value: AiCapability.GENERATE_USER_STORY },
+  {
+    label: "创建用例",
+    value: "GENERATE_TEST_CASES_CREATE" as ExecutionTaskType,
+  },
+  {
+    label: "更新用例",
+    value: "GENERATE_TEST_CASES_UPDATE" as ExecutionTaskType,
+  },
+  {
+    label: "生成用例自动化脚本",
+    value: AiCapability.GENERATE_AUTOMATION_SCRIPT,
+  },
+  {
+    label: "需求实现审查",
+    value: AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION,
+  },
 ];
 
 const STATUS_OPTIONS: Array<{

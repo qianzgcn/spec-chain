@@ -278,7 +278,7 @@ export function AppShell({
       ],
     },
     {
-      label: "执行任务",
+      label: "AI执行任务",
       icon: HistoryIcon,
       href: "/execution-tasks",
     },

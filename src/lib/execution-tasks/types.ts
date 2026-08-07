@@ -11,7 +11,10 @@ import type {
   TestCoverageStatus,
 } from "@/generated/prisma/enums";
 
-export type ExecutionTaskType = AiCapability;
+export type ExecutionTaskType =
+  | AiCapability
+  | "GENERATE_TEST_CASES_CREATE"
+  | "GENERATE_TEST_CASES_UPDATE";
 
 export type ExecutionTaskStatus = "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED";
 

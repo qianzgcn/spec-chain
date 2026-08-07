@@ -8,7 +8,7 @@ import { getExecutionTaskSummaries } from "@/server/execution-tasks/dto";
 import { getCurrentProject } from "@/server/projects/current-project";
 
 export const metadata: Metadata = {
-  title: "执行任务",
+  title: "AI执行任务",
 };
 
 export default async function ExecutionTasksPage() {
@@ -16,7 +16,7 @@ export default async function ExecutionTasksPage() {
   if (!project) {
     return (
       <PageContainer className="flex flex-col gap-5">
-        <PageHeader title="执行任务" description="请先创建项目。" />
+        <PageHeader title="AI执行任务" description="请先创建项目。" />
         <ProjectRequiredState />
       </PageContainer>
     );
@@ -26,7 +26,7 @@ export default async function ExecutionTasksPage() {
   return (
     <PageContainer table className="gap-5">
       <PageHeader
-        title="执行任务"
+        title="AI执行任务"
         description="查看当前项目的 AI 辅助生成任务。"
       />
 

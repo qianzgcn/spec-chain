@@ -11,10 +11,12 @@ import {
 
 type BadgeVariant = "info" | "success" | "warning" | "destructive" | "outline";
 
-export const EXECUTION_TASK_TYPE_LABELS: Record<ExecutionTaskType, string> = {
-  [AiCapability.GENERATE_USER_STORY]: "AI辅助生成US",
-  [AiCapability.GENERATE_TEST_CASES]: "AI辅助生成测试用例",
-  [AiCapability.GENERATE_AUTOMATION_SCRIPT]: "AI辅助生成自动化脚本",
+export const EXECUTION_TASK_TYPE_LABELS: Record<string, string> = {
+  [AiCapability.GENERATE_USER_STORY]: "创建US",
+  [AiCapability.GENERATE_TEST_CASES]: "创建用例",
+  GENERATE_TEST_CASES_CREATE: "创建用例",
+  GENERATE_TEST_CASES_UPDATE: "更新用例",
+  [AiCapability.GENERATE_AUTOMATION_SCRIPT]: "生成用例自动化脚本",
   [AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION]: "需求实现审查",
 };
 
