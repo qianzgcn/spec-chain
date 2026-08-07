@@ -102,7 +102,7 @@ export function createExecutionTaskColumns(input: {
     {
       id: "actions",
       header: "操作",
-      size: 176,
+      size: 110,
       meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => {
         const task = row.original;

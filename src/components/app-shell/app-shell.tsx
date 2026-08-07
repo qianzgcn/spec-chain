@@ -278,11 +278,6 @@ export function AppShell({
       ],
     },
     {
-      label: "AI执行任务",
-      icon: HistoryIcon,
-      href: "/execution-tasks",
-    },
-    {
       label: "测试用例",
       icon: ClipboardCheckIcon,
       children: [
@@ -290,6 +285,11 @@ export function AppShell({
         { label: "待评审用例", href: "/test-cases/pending-review" },
         { label: "分组管理", href: "/test-case-groups" },
       ],
+    },
+    {
+      label: "AI执行任务",
+      icon: HistoryIcon,
+      href: "/execution-tasks",
     },
     {
       label: "项目设置",
