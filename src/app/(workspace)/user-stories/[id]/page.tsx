@@ -9,6 +9,7 @@ import { MarkdownView } from "@/components/markdown/markdown-view";
 import { ButtonLink } from "@/components/navigation/button-link";
 import { RequirementDetailActions } from "@/components/requirements/requirement-detail-actions";
 import { UserStoryStatusSelect } from "@/components/requirements/user-story-status-select";
+import { UserStoryDeliveryVersionSelect } from "@/components/requirements/user-story-delivery-version-select";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -34,31 +35,52 @@ export default async function UserStoryDetailPage({
   const [{ id }, project] = await Promise.all([params, getCurrentProject()]);
   if (!project) notFound();
 
-  const story = await db.userStory.findFirst({
-    where: { id, projectId: project.id, deletedAt: null },
-    include: {
-      feature: {
-        select: { id: true, code: true, name: true },
-      },
-      acceptanceCriteria: {
-        where: { deletedAt: null },
-        orderBy: { position: "asc" },
-      },
-      testCases: {
-        where: { deletedAt: null },
-        orderBy: { updatedAt: "desc" },
-        select: {
-          id: true,
-          code: true,
-          name: true,
-          priority: true,
-          enabled: true,
-          updatedAt: true,
-          group: { select: { name: true } },
+  const [story, movableVersions] = await Promise.all([
+    db.userStory.findFirst({
+      where: { id, projectId: project.id, deletedAt: null },
+      include: {
+        feature: {
+          select: { id: true, code: true, name: true },
+        },
+        deliveryVersion: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            lockedAt: true,
+            status: true,
+          },
+        },
+        acceptanceCriteria: {
+          where: { deletedAt: null },
+          orderBy: { position: "asc" },
+        },
+        testCases: {
+          where: { deletedAt: null },
+          orderBy: { updatedAt: "desc" },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            priority: true,
+            enabled: true,
+            updatedAt: true,
+            group: { select: { name: true } },
+          },
         },
       },
-    },
-  });
+    }),
+    db.deliveryVersion.findMany({
+      where: {
+        projectId: project.id,
+        deletedAt: null,
+        lockedAt: null,
+        status: { not: "DELIVERED" },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, code: true, name: true },
+    }),
+  ]);
   if (!story) notFound();
 
   return (
@@ -68,8 +90,15 @@ export default async function UserStoryDetailPage({
         meta={
           <>
             <Badge variant="outline">US</Badge>
-            <Badge variant="secondary">v{story.currentVersion}</Badge>
             <span className="font-mono text-xs">{story.code}</span>
+            <ButtonLink
+              href={`/delivery-versions/${story.deliveryVersion.id}`}
+              variant="link"
+              size="sm"
+              className="h-auto p-0"
+            >
+              {story.deliveryVersion.code} · {story.deliveryVersion.name}
+            </ButtonLink>
             {story.feature ? (
               <ButtonLink
                 href={`/features/${story.feature.id}`}
@@ -84,20 +113,27 @@ export default async function UserStoryDetailPage({
         }
         actions={
           <>
-            <ButtonLink
-              href={`/test-cases/ai-generate?userStoryId=${story.id}`}
-              variant="outline"
-            >
-              AI生成测试用例
-            </ButtonLink>
-            <ButtonLink
-              href={`/user-stories/${story.id}/versions`}
-              variant="outline"
-            >
-              版本历史
-            </ButtonLink>
+            {!story.deliveryVersion.lockedAt ? (
+              <UserStoryDeliveryVersionSelect
+                userStoryId={story.id}
+                value={story.deliveryVersion.id}
+                versions={movableVersions}
+              />
+            ) : null}
+            {!story.deliveryVersion.lockedAt ? (
+              <ButtonLink
+                href={`/test-cases/ai-generate?userStoryId=${story.id}`}
+                variant="outline"
+              >
+                AI生成测试用例
+              </ButtonLink>
+            ) : null}
             <UserStoryStatusSelect id={story.id} status={story.status} />
-            <RequirementDetailActions type="USER_STORY" id={story.id} />
+            <RequirementDetailActions
+              type="USER_STORY"
+              id={story.id}
+              contentLocked={Boolean(story.deliveryVersion.lockedAt)}
+            />
           </>
         }
       />

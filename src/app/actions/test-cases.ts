@@ -3,13 +3,15 @@
 import { revalidatePath } from "next/cache";
 
 import {
-  AiDraftStatus,
   AiExecutionStatus,
   RunStatus,
   TestCaseScriptSource,
-  VersionSource,
 } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
+import {
+  isDeliveryVersionContentLocked,
+  type DeliveryVersionContentState,
+} from "@/lib/delivery-versions/rules";
 import {
   validateScriptVariableReferences,
   validateTestCaseVariableReferences,
@@ -24,9 +26,18 @@ import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 import { getProjectVariableMetadata } from "@/server/projects/project-variables";
 import { generateBusinessCode } from "@/server/requirements/business-code";
-import { recordTestCaseVersion } from "@/server/versions/content-version";
 
-class ContentVersionChangedError extends Error {}
+class RecordChangedError extends Error {}
+
+type GroupAndStoryValidation =
+  | { ok: false; message: string }
+  | {
+      ok: true;
+      userStory: {
+        id: string;
+        deliveryVersion: DeliveryVersionContentState;
+      } | null;
+    };
 
 async function requireCurrentProjectForAction() {
   await requireUser();
@@ -38,7 +49,7 @@ async function validateGroupAndStory(
   groupId: string,
   userStoryId: string | null,
   retainedUserStoryId: string | null = null,
-): Promise<ActionResult | { ok: true }> {
+): Promise<GroupAndStoryValidation> {
   const [group, userStory] = await Promise.all([
     db.testCaseGroup.findFirst({
       where: { id: groupId, projectId, deletedAt: null },
@@ -51,7 +62,10 @@ async function validateGroupAndStory(
             projectId,
             ...(userStoryId === retainedUserStoryId ? {} : { deletedAt: null }),
           },
-          select: { id: true },
+          select: {
+            id: true,
+            deliveryVersion: { select: { lockedAt: true, status: true } },
+          },
         })
       : null,
   ]);
@@ -62,7 +76,17 @@ async function validateGroupAndStory(
   if (userStoryId && !userStory) {
     return { ok: false, message: "关联 US 不存在或已删除" };
   }
-  return { ok: true };
+  return { ok: true, userStory };
+}
+
+function isStoryLocked(
+  userStory: {
+    deliveryVersion: DeliveryVersionContentState;
+  } | null,
+) {
+  return Boolean(
+    userStory && isDeliveryVersionContentLocked(userStory.deliveryVersion),
+  );
 }
 
 async function validateTestCaseVariables(
@@ -220,7 +244,6 @@ export async function createTestCaseAction(
   input: unknown,
 ): Promise<ActionResult<{ id: string }>> {
   const project = await requireCurrentProjectForAction();
-  const user = await requireUser();
   if (!project) {
     return { ok: false, message: "请先创建项目" };
   }
@@ -240,6 +263,9 @@ export async function createTestCaseAction(
     parsed.data.userStoryId,
   );
   if (!validation.ok) return validation;
+  if (isStoryLocked(validation.userStory)) {
+    return { ok: false, message: "所属交付版本已锁定，不能新增需求用例" };
+  }
   const variableValidation = await validateTestCaseVariables(
     project.id,
     parsed.data,
@@ -248,29 +274,21 @@ export async function createTestCaseAction(
   const script = parsed.data.script.trim() || null;
 
   const code = await generateBusinessCode("TC");
-  const testCase = await db.$transaction(async (transaction) => {
-    const created = await transaction.testCase.create({
-      data: {
-        projectId: project.id,
-        groupId: parsed.data.groupId,
-        code,
-        name: parsed.data.name,
-        priority: parsed.data.priority,
-        preconditions: parsed.data.preconditions || null,
-        steps: parsed.data.steps,
-        enabled: parsed.data.enabled,
-        script,
-        scriptSource: script ? TestCaseScriptSource.MANUAL : null,
-        userStoryId: parsed.data.userStoryId,
-      },
-      select: { id: true },
-    });
-    await recordTestCaseVersion(transaction, created.id, {
-      source: VersionSource.MANUAL,
-      createdById: user.id,
-      changeSummary: "创建测试用例",
-    });
-    return created;
+  const testCase = await db.testCase.create({
+    data: {
+      projectId: project.id,
+      groupId: parsed.data.groupId,
+      code,
+      name: parsed.data.name,
+      priority: parsed.data.priority,
+      preconditions: parsed.data.preconditions || null,
+      steps: parsed.data.steps,
+      enabled: parsed.data.enabled,
+      script,
+      scriptSource: script ? TestCaseScriptSource.MANUAL : null,
+      userStoryId: parsed.data.userStoryId,
+    },
+    select: { id: true },
   });
 
   revalidatePath("/test-cases");
@@ -281,10 +299,9 @@ export async function createTestCaseAction(
 export async function updateTestCaseAction(
   id: string,
   input: unknown,
-  expectedVersion: number,
+  expectedUpdatedAt: string,
 ): Promise<ActionResult> {
   const project = await requireCurrentProjectForAction();
-  const user = await requireUser();
   if (!project) {
     return { ok: false, message: "请先创建项目" };
   }
@@ -297,8 +314,9 @@ export async function updateTestCaseAction(
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
-  if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
-    return { ok: false, message: "测试用例版本无效，请刷新后重试" };
+  const expectedTimestamp = new Date(expectedUpdatedAt);
+  if (Number.isNaN(expectedTimestamp.getTime())) {
+    return { ok: false, message: "测试用例数据无效，请刷新后重试" };
   }
 
   const testCase = await db.testCase.findFirst({
@@ -314,14 +332,19 @@ export async function updateTestCaseAction(
       enabled: true,
       script: true,
       scriptSource: true,
-      currentVersion: true,
+      updatedAt: true,
+      userStory: {
+        select: {
+          deliveryVersion: { select: { lockedAt: true, status: true } },
+        },
+      },
     },
   });
 
   if (!testCase) {
     return { ok: false, message: "测试用例不存在或已删除" };
   }
-  if (testCase.currentVersion !== expectedVersion) {
+  if (testCase.updatedAt.getTime() !== expectedTimestamp.getTime()) {
     return { ok: false, message: "测试用例内容已被更新，请刷新后重试" };
   }
   const validation = await validateGroupAndStory(
@@ -345,7 +368,14 @@ export async function updateTestCaseAction(
     testCase.name !== parsed.data.name ||
     testCase.priority !== parsed.data.priority ||
     testCase.preconditions !== nextPreconditions ||
-    testCase.steps !== parsed.data.steps;
+    testCase.steps !== parsed.data.steps ||
+    testCase.enabled !== parsed.data.enabled;
+  if (
+    contentChanged &&
+    (isStoryLocked(testCase.userStory) || isStoryLocked(validation.userStory))
+  ) {
+    return { ok: false, message: "所属交付版本已锁定，不能修改需求用例" };
+  }
   const automationContentChanged =
     testCase.name !== parsed.data.name ||
     testCase.preconditions !== nextPreconditions ||
@@ -363,7 +393,7 @@ export async function updateTestCaseAction(
           id,
           projectId: project.id,
           deletedAt: null,
-          currentVersion: expectedVersion,
+          updatedAt: expectedTimestamp,
         },
         data: {
           groupId: parsed.data.groupId,
@@ -374,7 +404,6 @@ export async function updateTestCaseAction(
           steps: parsed.data.steps,
           enabled: parsed.data.enabled,
           script: nextScript,
-          ...(contentChanged ? { currentVersion: { increment: 1 } } : {}),
           ...(scriptChanged || clearUnchangedManualScript
             ? {
                 scriptSource: nextScript ? TestCaseScriptSource.MANUAL : null,
@@ -382,36 +411,12 @@ export async function updateTestCaseAction(
                 scriptGeneratedAt: null,
               }
             : {}),
-          ...(parsed.data.enabled
-            ? {
-                retiredAt: null,
-                retirementReason: null,
-                retiredById: null,
-                retirementExecutionId: null,
-              }
-            : {}),
         },
       });
-      if (updated.count !== 1) throw new ContentVersionChangedError();
-
-      if (contentChanged) {
-        await recordTestCaseVersion(transaction, id, {
-          source: VersionSource.MANUAL,
-          createdById: user.id,
-          changeSummary: "人工更新测试用例内容",
-        });
-        await transaction.testCaseDraft.updateMany({
-          where: {
-            targetTestCaseId: id,
-            status: AiDraftStatus.PENDING,
-            deletedAt: null,
-          },
-          data: { status: AiDraftStatus.SUPERSEDED },
-        });
-      }
+      if (updated.count !== 1) throw new RecordChangedError();
     });
   } catch (error) {
-    if (error instanceof ContentVersionChangedError) {
+    if (error instanceof RecordChangedError) {
       return { ok: false, message: "测试用例内容已被更新，请刷新后重试" };
     }
     throw error;
@@ -434,25 +439,25 @@ export async function setTestCaseEnabledAction(
 
   const testCase = await db.testCase.findFirst({
     where: { id, projectId: project.id, deletedAt: null },
-    select: { id: true },
+    select: {
+      id: true,
+      userStory: {
+        select: {
+          deliveryVersion: { select: { lockedAt: true, status: true } },
+        },
+      },
+    },
   });
   if (!testCase) {
     return { ok: false, message: "测试用例不存在或已删除" };
   }
+  if (isStoryLocked(testCase.userStory)) {
+    return { ok: false, message: "所属交付版本已锁定，不能变更用例状态" };
+  }
 
   await db.testCase.update({
     where: { id },
-    data: {
-      enabled,
-      ...(enabled
-        ? {
-            retiredAt: null,
-            retirementReason: null,
-            retiredById: null,
-            retirementExecutionId: null,
-          }
-        : {}),
-    },
+    data: { enabled },
   });
   revalidatePath("/test-cases");
   revalidatePath(`/test-cases/${id}`);
@@ -469,6 +474,11 @@ export async function deleteTestCaseAction(id: string): Promise<ActionResult> {
     where: { id, projectId: project.id, deletedAt: null },
     select: {
       id: true,
+      userStory: {
+        select: {
+          deliveryVersion: { select: { lockedAt: true, status: true } },
+        },
+      },
       _count: {
         select: {
           runs: {
@@ -490,6 +500,9 @@ export async function deleteTestCaseAction(id: string): Promise<ActionResult> {
   });
   if (!testCase) {
     return { ok: false, message: "测试用例不存在或已删除" };
+  }
+  if (isStoryLocked(testCase.userStory)) {
+    return { ok: false, message: "所属交付版本已锁定，不能删除需求用例" };
   }
   if (testCase._count.runs + testCase._count.aiExecutions > 0) {
     return { ok: false, message: "请先停止正在排队或运行的任务" };

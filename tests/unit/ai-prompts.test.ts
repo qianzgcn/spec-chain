@@ -10,6 +10,11 @@ import {
   buildUserStoryDraftPrompt,
   generateUserStorySystemPrompt,
 } from "@/ai/prompts/generate-user-story";
+import {
+  buildImplementationReviewCodeSelectionPrompt,
+  buildImplementationReviewPrompt,
+  reviewRequirementImplementationSystemPrompt,
+} from "@/ai/prompts/review-requirement-implementation";
 import { renderPromptTemplate } from "@/ai/prompts/template";
 import { builtInSkillResolver } from "@/ai/skills";
 import {
@@ -87,7 +92,7 @@ describe("AI 生成测试用例提示词", () => {
       AiCapability.GENERATE_TEST_CASES,
     );
 
-    expect(skill.version).toBe("1.0.0");
+    expect(skill.version).toBe("1.1.0");
     expect(skill.instructions).toBe(generateTestCasesSystemPrompt);
     expect(skill.instructions).toContain("最少用例集合");
     expect(skill.instructions).toContain(
@@ -96,6 +101,7 @@ describe("AI 生成测试用例提示词", () => {
     expect(skill.instructions).toContain(
       "不绑定 CSS 选择器、DOM、坐标、按钮位置",
     );
+    expect(skill.instructions).toContain("尽量控制在 15 个字以内");
   });
 
   it("代码定位与草稿提示词分别注入需求、仓库和代码证据", () => {
@@ -153,6 +159,7 @@ describe("AI 生成测试用例提示词", () => {
     expect(generationPrompt).toContain("认证与会话");
     expect(generationPrompt).toContain("无法明确归类时返回 `null`");
     expect(generationPrompt).toContain("ADMIN.username");
+    expect(generationPrompt).toContain("尽量控制在 15 个字以内");
   });
 });
 
@@ -165,5 +172,53 @@ describe("AI 自动化脚本提示词", () => {
     expect(skill.version).toBe("1.1.0");
     expect(skill.instructions).toContain("代码只能帮助确认可能的入口");
     expect(skill.instructions).toContain("不能替代真实页面探测");
+  });
+});
+
+describe("需求实现审查提示词", () => {
+  it("以需求为权威且不允许代码反向改写需求", () => {
+    const skill = builtInSkillResolver.resolve(
+      AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION,
+    );
+
+    expect(skill.version).toBe("1.0.0");
+    expect(skill.instructions).toBe(
+      reviewRequirementImplementationSystemPrompt,
+    );
+    expect(skill.instructions).toContain("需求规格是唯一权威");
+    expect(skill.instructions).toContain("绝不根据代码改写需求、测试用例");
+    expect(skill.instructions).toContain("明确 Bug");
+  });
+
+  it("代码定位和审查提示词固定仓库提交并约束真实证据", () => {
+    const specification = "US-001：项目成员可以查看需求创建人";
+    const selectionPrompt = buildImplementationReviewCodeSelectionPrompt({
+      specification,
+      repository: "team/spec-chain",
+      branch: "main",
+      commitSha: "abc123",
+      candidatePaths: ["src/components/requirements/requirements-list.tsx"],
+    });
+    const reviewPrompt = buildImplementationReviewPrompt({
+      specification,
+      codeEvidence: [
+        {
+          repository: "team/spec-chain",
+          path: "src/components/requirements/requirements-list.tsx",
+          commitSha: "abc123",
+          selectionReason: "核实需求列表字段",
+          content: "export function RequirementsList() {}",
+        },
+      ],
+    });
+
+    expect(selectionPrompt).toContain(specification);
+    expect(selectionPrompt).toContain("abc123");
+    expect(selectionPrompt).toContain(
+      '"src/components/requirements/requirements-list.tsx"',
+    );
+    expect(reviewPrompt).toContain("需求规格");
+    expect(reviewPrompt).toContain("abc123");
+    expect(reviewPrompt).toContain("真实存在的仓库、提交、路径和行号");
   });
 });

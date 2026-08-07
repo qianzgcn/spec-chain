@@ -33,6 +33,7 @@ import {
   type RepositoryConnectionSummary,
   verifyGitCredential,
 } from "@/server/projects/repository-connection";
+import { generateBusinessCodeInTransaction } from "@/server/requirements/business-code";
 
 type CredentialStatus = {
   hasGithubPat: boolean;
@@ -58,7 +59,7 @@ function getCredentialStatus(project: {
 export async function createProjectAction(
   input: unknown,
 ): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const user = await requireUser();
   const parsed = projectSchema.safeParse(input);
 
   if (!parsed.success) {
@@ -69,12 +70,28 @@ export async function createProjectAction(
     };
   }
 
-  const project = await db.project.create({
-    data: {
-      name: parsed.data.name,
-      description: parsed.data.description || null,
-    },
-    select: { id: true },
+  const project = await db.$transaction(async (transaction) => {
+    const created = await transaction.project.create({
+      data: {
+        name: parsed.data.name,
+        description: parsed.data.description || null,
+      },
+      select: { id: true },
+    });
+    const deliveryVersion = await transaction.deliveryVersion.create({
+      data: {
+        projectId: created.id,
+        createdById: user.id,
+        code: await generateBusinessCodeInTransaction(transaction, "DV"),
+        name: "初始交付",
+      },
+      select: { id: true },
+    });
+    await transaction.project.update({
+      where: { id: created.id },
+      data: { currentDeliveryVersionId: deliveryVersion.id },
+    });
+    return created;
   });
 
   (await cookies()).set(CURRENT_PROJECT_COOKIE, project.id, {

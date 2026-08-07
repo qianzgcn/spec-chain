@@ -15,7 +15,7 @@ export const EXECUTION_TASK_TYPE_LABELS: Record<ExecutionTaskType, string> = {
   [AiCapability.GENERATE_USER_STORY]: "AI辅助生成US",
   [AiCapability.GENERATE_TEST_CASES]: "AI辅助生成测试用例",
   [AiCapability.GENERATE_AUTOMATION_SCRIPT]: "AI辅助生成自动化脚本",
-  [AiCapability.CHECK_CONSISTENCY]: "一致性检查",
+  [AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION]: "需求实现审查",
 };
 
 export const EXECUTION_TASK_STATUS_META: Record<
@@ -43,6 +43,7 @@ export const AI_EXECUTION_STAGE_LABELS: Record<AiExecutionStage, string> = {
   [AiExecutionStage.CHECKING_REPOSITORIES]: "检查并读取代码仓库",
   [AiExecutionStage.SELECTING_CODE]: "定位相关代码",
   [AiExecutionStage.GENERATING_DRAFT]: "生成结构化草稿",
+  [AiExecutionStage.REVIEWING_IMPLEMENTATION]: "审查需求实现",
   [AiExecutionStage.PREPARING_AUTHENTICATION]: "准备登录环境",
   [AiExecutionStage.PROBING_PAGE]: "探测真实页面",
   [AiExecutionStage.GENERATING_SCRIPT]: "生成自动化脚本",
@@ -72,9 +73,7 @@ export function getAiExecutionStageLabel(
     ? "生成结构化 US"
     : capability === AiCapability.GENERATE_TEST_CASES
       ? "生成自然语言测试用例"
-      : capability === AiCapability.CHECK_CONSISTENCY
-        ? "比较需求、用例与代码"
-        : AI_EXECUTION_STAGE_LABELS[stage];
+      : AI_EXECUTION_STAGE_LABELS[stage];
 }
 
 export function mapAiExecutionStatus(

@@ -22,10 +22,25 @@ type BreadcrumbEntry = {
 function buildBreadcrumbs(pathname: string): BreadcrumbEntry[] {
   const segments = pathname.split("/").filter(Boolean);
 
-  if (pathname === "/consistency-checks/new") {
+  if (pathname === "/delivery-versions/new") {
     return [
-      { label: "需求列表", href: "/requirements" },
-      { label: "一致性检查" },
+      { label: "交付版本", href: "/delivery-versions" },
+      { label: "新建交付版本" },
+    ];
+  }
+
+  if (segments[0] === "delivery-versions" && segments[1]) {
+    const versionPath = `/delivery-versions/${segments[1]}`;
+    if (segments[2] === "edit") {
+      return [
+        { label: "交付版本", href: "/delivery-versions" },
+        { label: "版本详情", href: versionPath },
+        { label: "编辑交付版本" },
+      ];
+    }
+    return [
+      { label: "交付版本", href: "/delivery-versions" },
+      { label: "版本详情" },
     ];
   }
 
@@ -87,13 +102,6 @@ function buildBreadcrumbs(pathname: string): BreadcrumbEntry[] {
         { label: "编辑US" },
       ];
     }
-    if (segments[2] === "versions") {
-      return [
-        { label: "需求列表", href: "/requirements" },
-        { label: "US 详情", href: storyPath },
-        { label: "版本历史" },
-      ];
-    }
     return [{ label: "需求列表", href: "/requirements" }, { label: "US 详情" }];
   }
 
@@ -148,13 +156,6 @@ function buildBreadcrumbs(pathname: string): BreadcrumbEntry[] {
         { label: "用例列表", href: "/test-cases" },
         { label: "用例详情", href: testCasePath },
         { label: "执行记录" },
-      ];
-    }
-    if (segments[2] === "versions") {
-      return [
-        { label: "用例列表", href: "/test-cases" },
-        { label: "用例详情", href: testCasePath },
-        { label: "版本历史" },
       ];
     }
     return [{ label: "用例列表", href: "/test-cases" }, { label: "用例详情" }];

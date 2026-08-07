@@ -31,7 +31,7 @@ export type { UserStoryFormValues };
 
 type UserStoryFormProps = {
   userStoryId?: string;
-  currentVersion?: number;
+  expectedUpdatedAt?: string;
   code?: string;
   feature?: {
     id: string;
@@ -56,7 +56,7 @@ function createEmptyUserStory(): UserStoryFormValues {
 
 export function UserStoryForm({
   userStoryId,
-  currentVersion,
+  expectedUpdatedAt,
   code,
   feature,
   initialValues,
@@ -76,7 +76,11 @@ export function UserStoryForm({
   function submit(values: UserStoryFormValues) {
     startTransition(async () => {
       const result = userStoryId
-        ? await updateUserStoryAction(userStoryId, values, currentVersion ?? 0)
+        ? await updateUserStoryAction(
+            userStoryId,
+            values,
+            expectedUpdatedAt ?? "",
+          )
         : await createUserStoryAction({
             ...values,
             featureId: feature?.id ?? null,

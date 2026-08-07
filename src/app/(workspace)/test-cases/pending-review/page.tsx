@@ -7,11 +7,7 @@ import {
   PendingTestCasesList,
   type PendingTestCaseListItem,
 } from "@/components/test-cases/pending-test-cases-list";
-import {
-  AiCapability,
-  AiDraftStatus,
-  AiExecutionStatus,
-} from "@/generated/prisma/enums";
+import { AiDraftStatus, AiExecutionStatus } from "@/generated/prisma/enums";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -73,9 +69,6 @@ export default async function PendingReviewTestCasesPage({
     select: {
       id: true,
       name: true,
-      operation: true,
-      baseVersion: true,
-      changeReason: true,
       priority: true,
       groupId: true,
       createdAt: true,
@@ -86,7 +79,6 @@ export default async function PendingReviewTestCasesPage({
         select: {
           sourceExecution: {
             select: {
-              capability: true,
               requirementText: true,
               sourceUserStory: {
                 select: {
@@ -106,16 +98,10 @@ export default async function PendingReviewTestCasesPage({
   const items: PendingTestCaseListItem[] = drafts.map((draft) => ({
     id: draft.id,
     name: draft.name,
-    operation: draft.operation,
-    baseVersion: draft.baseVersion,
-    changeReason: draft.changeReason,
     priority: draft.priority,
     groupId:
       draft.groupId && activeGroupIds.has(draft.groupId) ? draft.groupId : null,
-    requirementText:
-      draft.batch.sourceExecution.capability === AiCapability.CHECK_CONSISTENCY
-        ? "平台用例"
-        : draft.batch.sourceExecution.requirementText,
+    requirementText: draft.batch.sourceExecution.requirementText,
     sourceUserStory:
       (draft.proposedUserStory ?? draft.batch.sourceExecution.sourceUserStory)
         ? {

@@ -105,9 +105,9 @@ const DEFAULT_MODEL_CONFIGS = [
     ariaLabel: "生成自动化脚本默认模型",
   },
   {
-    capability: AiCapability.CHECK_CONSISTENCY,
-    label: "一致性检查",
-    ariaLabel: "一致性检查默认模型",
+    capability: AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION,
+    label: "需求实现审查",
+    ariaLabel: "需求实现审查默认模型",
   },
 ] as const;
 
@@ -272,27 +272,7 @@ export function AiSettingsManagement({
     {
       accessorKey: "name",
       header: "模型名称",
-      cell: ({ row }) => (
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate font-medium">{row.original.name}</span>
-          {row.original.id ===
-          defaultProfileIds[AiCapability.GENERATE_USER_STORY] ? (
-            <Badge variant="secondary">生成 US</Badge>
-          ) : null}
-          {row.original.id ===
-          defaultProfileIds[AiCapability.GENERATE_TEST_CASES] ? (
-            <Badge variant="secondary">生成测试用例</Badge>
-          ) : null}
-          {row.original.id ===
-          defaultProfileIds[AiCapability.GENERATE_AUTOMATION_SCRIPT] ? (
-            <Badge variant="secondary">生成自动化脚本</Badge>
-          ) : null}
-          {row.original.id ===
-          defaultProfileIds[AiCapability.CHECK_CONSISTENCY] ? (
-            <Badge variant="secondary">一致性检查</Badge>
-          ) : null}
-        </div>
-      ),
+      meta: { cellClassName: "truncate font-medium" },
     },
     {
       accessorKey: "baseUrl",
@@ -329,26 +309,19 @@ export function AiSettingsManagement({
       id: "apiKey",
       header: "API Key",
       size: 96,
-      meta: {
-        headerClassName: "max-[1500px]:hidden",
-        cellClassName:
-          "max-[1500px]:hidden font-mono text-xs text-muted-foreground",
-      },
+      meta: { cellClassName: "font-mono text-xs text-muted-foreground" },
       cell: () => "••••••••",
     },
     {
       accessorKey: "updatedAt",
       header: "更新时间",
       size: 140,
-      meta: {
-        headerClassName: "max-[1650px]:hidden",
-        cellClassName: "max-[1650px]:hidden text-muted-foreground",
-      },
+      meta: { cellClassName: "text-muted-foreground" },
       cell: ({ row }) => formatCompactDateTime(row.original.updatedAt),
     },
     {
       id: "actions",
-      header: () => <span className="sr-only">操作</span>,
+      header: "操作",
       size: 176,
       meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => (

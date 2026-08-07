@@ -18,6 +18,7 @@ export const getActiveProjects = cache(async () => {
       id: true,
       name: true,
       baseUrl: true,
+      currentDeliveryVersionId: true,
     },
     orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
   });

@@ -36,6 +36,7 @@ export function createQueuedAiExecutionRecord(
     featureId?: string | null;
     sourceUserStoryId?: string | null;
     testCaseId?: string | null;
+    deliveryVersionId?: string | null;
     origin?: AiExecutionOrigin;
   },
 ) {
@@ -46,6 +47,7 @@ export function createQueuedAiExecutionRecord(
       featureId: input.featureId ?? null,
       sourceUserStoryId: input.sourceUserStoryId ?? null,
       testCaseId: input.testCaseId ?? null,
+      deliveryVersionId: input.deliveryVersionId ?? null,
       capability: input.capability,
       origin: input.origin ?? AiExecutionOrigin.USER,
       status: AiExecutionStatus.QUEUED,

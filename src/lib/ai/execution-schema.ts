@@ -70,6 +70,10 @@ export const createAutomationScriptExecutionSchema = z.object({
   testCaseId: z.string().min(1),
 });
 
+export const createImplementationReviewExecutionSchema = z.object({
+  deliveryVersionId: z.string().min(1),
+});
+
 export type AiUserStoryGeneratorFormValues = z.infer<
   typeof aiUserStoryGeneratorFormSchema
 >;

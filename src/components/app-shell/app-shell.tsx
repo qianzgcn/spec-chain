@@ -75,6 +75,7 @@ import { cn } from "@/lib/utils";
 const TABLE_PAGE_PATHS = new Set([
   "/requirements",
   "/requirements/pending-review",
+  "/delivery-versions",
   "/execution-tasks",
   "/ai-settings",
   "/test-cases",
@@ -100,7 +101,6 @@ function isPathActive(pathname: string, href: string) {
   if (href === "/requirements") {
     return (
       pathname === href ||
-      pathname.startsWith("/consistency-checks") ||
       pathname.startsWith("/features") ||
       pathname.startsWith("/user-stories")
     );
@@ -209,6 +209,7 @@ export function AppShell({
       children: [
         { label: "需求列表", href: "/requirements" },
         { label: "待评审需求", href: "/requirements/pending-review" },
+        { label: "交付版本", href: "/delivery-versions" },
       ],
     },
     {

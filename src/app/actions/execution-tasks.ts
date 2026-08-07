@@ -10,10 +10,12 @@ import {
   AiExecutionStatus,
 } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
+import { isDeliveryVersionContentLocked } from "@/lib/delivery-versions/rules";
 import {
   createAiTestCaseExecutionSchema,
   createAiUserStoryExecutionSchema,
   createAutomationScriptExecutionSchema,
+  createImplementationReviewExecutionSchema,
   deleteExecutionTaskSchema,
   retryExecutionTaskSchema,
 } from "@/lib/ai/execution-schema";
@@ -77,6 +79,7 @@ async function createQueuedExecution(input: {
   featureId?: string | null;
   sourceUserStoryId?: string | null;
   testCaseId?: string | null;
+  deliveryVersionId?: string | null;
 }) {
   const execution = await createQueuedAiExecutionRecord(db, input);
 
@@ -243,6 +246,7 @@ export async function createAiTestCaseExecutionAction(
       soThat: true,
       businessRules: true,
       nonFunctionalRequirements: true,
+      deliveryVersion: { select: { lockedAt: true, status: true } },
       acceptanceCriteria: {
         where: { deletedAt: null },
         orderBy: { position: "asc" },
@@ -275,6 +279,9 @@ export async function createAiTestCaseExecutionAction(
   if (!userStory) {
     return { ok: false, message: "所选 US 不存在或已删除" };
   }
+  if (isDeliveryVersionContentLocked(userStory.deliveryVersion)) {
+    return { ok: false, message: "所属交付版本已锁定，不能新增需求用例" };
+  }
 
   return createQueuedExecution({
     projectId: project.id,
@@ -285,19 +292,44 @@ export async function createAiTestCaseExecutionAction(
   });
 }
 
-export async function createConsistencyCheckExecutionAction(): Promise<
-  ActionResult<{ id: string }>
-> {
+export async function createImplementationReviewExecutionAction(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
   const { user, project } = await getCurrentActionContext();
   if (!project) {
     return { ok: false, message: "请先创建项目" };
+  }
+
+  const parsed = createImplementationReviewExecutionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: "交付版本 ID 不正确" };
+  }
+
+  const version = await db.deliveryVersion.findFirst({
+    where: {
+      id: parsed.data.deliveryVersionId,
+      projectId: project.id,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      _count: { select: { userStories: { where: { deletedAt: null } } } },
+    },
+  });
+  if (!version) {
+    return { ok: false, message: "交付版本不存在或已删除" };
+  }
+  if (version._count.userStories === 0) {
+    return { ok: false, message: "当前交付版本没有可审查的 US" };
   }
 
   const created = await db.$transaction(async (transaction) => {
     const active = await transaction.aiExecution.findFirst({
       where: {
         projectId: project.id,
-        capability: AiCapability.CHECK_CONSISTENCY,
+        capability: AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION,
         status: {
           in: [AiExecutionStatus.QUEUED, AiExecutionStatus.RUNNING],
         },
@@ -310,13 +342,13 @@ export async function createConsistencyCheckExecutionAction(): Promise<
     return createQueuedAiExecutionRecord(transaction, {
       projectId: project.id,
       requestedById: user.id,
-      capability: AiCapability.CHECK_CONSISTENCY,
-      requirementText:
-        "检查当前代码与测试/完成态 US、需求用例及平台用例的一致性",
+      deliveryVersionId: version.id,
+      capability: AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION,
+      requirementText: `审查交付版本 ${version.code} · ${version.name} 中的需求是否被当前代码正确实现`,
     });
   });
   if (!created) {
-    return { ok: false, message: "当前项目已有一致性检查正在执行" };
+    return { ok: false, message: "当前项目已有需求实现审查正在执行" };
   }
 
   if (!startTaskScheduler()) {
@@ -331,7 +363,7 @@ export async function createConsistencyCheckExecutionAction(): Promise<
   revalidatePath("/execution-tasks");
   return {
     ok: true,
-    message: "一致性检查已进入队列",
+    message: "需求实现审查已进入队列",
     data: created,
   };
 }
@@ -384,12 +416,14 @@ export async function retryExecutionTaskAction(
         message: "只有失败的任务可以重新运行",
       };
     }
-    if (execution.capability === AiCapability.CHECK_CONSISTENCY) {
-      const activeConsistencyCheck = await transaction.aiExecution.findFirst({
+    if (
+      execution.capability === AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION
+    ) {
+      const activeReview = await transaction.aiExecution.findFirst({
         where: {
           id: { not: parsed.data.taskId },
           projectId: project.id,
-          capability: AiCapability.CHECK_CONSISTENCY,
+          capability: AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION,
           status: {
             in: [AiExecutionStatus.QUEUED, AiExecutionStatus.RUNNING],
           },
@@ -397,33 +431,11 @@ export async function retryExecutionTaskAction(
         },
         select: { id: true },
       });
-      if (activeConsistencyCheck) {
+      if (activeReview) {
         return {
           ok: false as const,
-          message: "当前项目已有一致性检查正在执行",
+          message: "当前项目已有需求实现审查正在执行",
         };
-      }
-
-      await transaction.consistencyCheckItem.deleteMany({
-        where: { executionId: parsed.data.taskId },
-      });
-      await transaction.draftAcceptanceCriterion.deleteMany({
-        where: { draft: { sourceExecutionId: parsed.data.taskId } },
-      });
-      await transaction.userStoryDraft.deleteMany({
-        where: { sourceExecutionId: parsed.data.taskId },
-      });
-      const batches = await transaction.testCaseDraftBatch.findMany({
-        where: { sourceExecutionId: parsed.data.taskId },
-        select: { id: true },
-      });
-      if (batches.length) {
-        await transaction.testCaseDraft.deleteMany({
-          where: { batchId: { in: batches.map((batch) => batch.id) } },
-        });
-        await transaction.testCaseDraftBatch.deleteMany({
-          where: { id: { in: batches.map((batch) => batch.id) } },
-        });
       }
     }
 

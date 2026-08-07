@@ -20,10 +20,12 @@ export function RequirementDetailActions({
   type,
   id,
   childCount = 0,
+  contentLocked = false,
 }: {
   type: "FEATURE" | "USER_STORY";
   id: string;
   childCount?: number;
+  contentLocked?: boolean;
 }) {
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -86,18 +88,22 @@ export function RequirementDetailActions({
           )}
           复制内容
         </Button>
-        <ButtonLink href={`${basePath}/edit`} variant="outline">
-          <PencilIcon data-icon="inline-start" />
-          编辑
-        </ButtonLink>
-        <Button
-          variant="destructive"
-          disabled={isPending}
-          onClick={() => setConfirmOpen(true)}
-        >
-          <Trash2Icon data-icon="inline-start" />
-          删除
-        </Button>
+        {!contentLocked ? (
+          <>
+            <ButtonLink href={`${basePath}/edit`} variant="outline">
+              <PencilIcon data-icon="inline-start" />
+              编辑
+            </ButtonLink>
+            <Button
+              variant="destructive"
+              disabled={isPending}
+              onClick={() => setConfirmOpen(true)}
+            >
+              <Trash2Icon data-icon="inline-start" />
+              删除
+            </Button>
+          </>
+        ) : null}
       </div>
 
       <ConfirmDialog

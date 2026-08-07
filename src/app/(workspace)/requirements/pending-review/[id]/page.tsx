@@ -33,9 +33,6 @@ export default async function PendingReviewRequirementPage({
     },
     select: {
       id: true,
-      operation: true,
-      baseVersion: true,
-      changeReason: true,
       title: true,
       asA: true,
       iWant: true,
@@ -43,21 +40,6 @@ export default async function PendingReviewRequirementPage({
       businessRules: true,
       nonFunctionalRequirements: true,
       feature: { select: { id: true, code: true, name: true } },
-      targetUserStory: {
-        select: {
-          title: true,
-          asA: true,
-          iWant: true,
-          soThat: true,
-          businessRules: true,
-          nonFunctionalRequirements: true,
-          acceptanceCriteria: {
-            where: { deletedAt: null },
-            orderBy: { position: "asc" },
-            select: { given: true, when: true, then: true },
-          },
-        },
-      },
       acceptanceCriteria: {
         where: { deletedAt: null },
         orderBy: { position: "asc" },
@@ -75,10 +57,6 @@ export default async function PendingReviewRequirementPage({
   return (
     <PendingRequirementForm
       draftId={draft.id}
-      operation={draft.operation}
-      baseVersion={draft.baseVersion}
-      changeReason={draft.changeReason}
-      currentValues={draft.targetUserStory}
       feature={draft.feature}
       initialValues={{
         title: draft.title,

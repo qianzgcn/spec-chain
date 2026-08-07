@@ -107,7 +107,7 @@ export default async function TestCasesPage({
       priority: true,
       enabled: true,
       script: true,
-      userStoryId: true,
+      userStory: { select: { id: true, code: true } },
       updatedAt: true,
       group: { select: { name: true } },
       runs: {
@@ -139,7 +139,8 @@ export default async function TestCasesPage({
       priority: testCase.priority,
       enabled: testCase.enabled,
       hasScript: Boolean(testCase.script?.trim()),
-      type: testCase.userStoryId ? "REQUIREMENT" : "PLATFORM",
+      type: testCase.userStory ? "REQUIREMENT" : "PLATFORM",
+      userStory: testCase.userStory,
       lastRunStatus: lastRun?.status ?? null,
       lastRunStage: lastRun?.stage ?? null,
       lastEditedAt: testCase.updatedAt.toISOString(),

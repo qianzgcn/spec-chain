@@ -52,6 +52,10 @@ export type TestCaseListItem = {
   enabled: boolean;
   hasScript: boolean;
   type: "REQUIREMENT" | "PLATFORM";
+  userStory: {
+    id: string;
+    code: string;
+  } | null;
   lastRunStatus: RunStatus | null;
   lastRunStage: TestRunStage | null;
   lastEditedAt: string;
@@ -184,6 +188,7 @@ export function TestCasesList({
     {
       accessorKey: "name",
       header: "用例名称",
+      size: 200,
       cell: ({ row }) => (
         <Link
           href={`/test-cases/${row.original.id}`}
@@ -197,30 +202,41 @@ export function TestCasesList({
     {
       accessorKey: "code",
       header: "编号",
-      size: 180,
+      size: 168,
       meta: {
-        headerClassName: "max-[1440px]:hidden",
-        cellClassName:
-          "max-[1440px]:hidden font-mono text-xs text-muted-foreground",
+        cellClassName: "font-mono text-xs text-muted-foreground",
       },
     },
     {
       accessorKey: "type",
-      header: "类型",
-      size: 92,
-      cell: ({ row }) =>
-        row.original.type === "REQUIREMENT" ? "需求用例" : "平台用例",
+      header: "用例归属",
+      size: 168,
+      cell: ({ row }) => {
+        const userStory = row.original.userStory;
+
+        return userStory ? (
+          <Link
+            href={`/user-stories/${userStory.id}`}
+            className="text-link block truncate font-mono text-xs underline-offset-4 hover:underline"
+            title={userStory.code}
+          >
+            {userStory.code}
+          </Link>
+        ) : (
+          "平台用例"
+        );
+      },
     },
     {
       accessorKey: "groupName",
       header: "分组",
-      size: 128,
+      size: 96,
       meta: { cellClassName: "truncate" },
     },
     {
       accessorKey: "priority",
       header: "优先级",
-      size: 76,
+      size: 72,
       cell: ({ row }) => {
         const meta = TEST_PRIORITY_META[row.original.priority];
         return <Badge variant={meta.badgeVariant}>{meta.label}</Badge>;
@@ -229,11 +245,7 @@ export function TestCasesList({
     {
       accessorKey: "hasScript",
       header: "脚本状态",
-      size: 96,
-      meta: {
-        headerClassName: "max-[1599px]:hidden",
-        cellClassName: "max-[1599px]:hidden",
-      },
+      size: 88,
       cell: ({ row }) =>
         row.original.hasScript ? (
           <Badge variant="success">已配置</Badge>
@@ -244,7 +256,7 @@ export function TestCasesList({
     {
       accessorKey: "lastRunStatus",
       header: "运行状态",
-      size: 96,
+      size: 88,
       cell: ({ row }) => {
         const status = row.original.lastRunStatus;
         if (!status) {
@@ -262,7 +274,7 @@ export function TestCasesList({
     {
       accessorKey: "enabled",
       header: "启用",
-      size: 64,
+      size: 56,
       cell: ({ row }) => (
         <Switch
           size="sm"
@@ -276,14 +288,14 @@ export function TestCasesList({
     {
       accessorKey: "lastEditedAt",
       header: "最后编辑时间",
-      size: 138,
+      size: 128,
       meta: { cellClassName: "text-muted-foreground" },
       cell: ({ row }) => formatCompactDateTime(row.original.lastEditedAt),
     },
     {
       accessorKey: "lastRunAt",
       header: "最新运行时间",
-      size: 138,
+      size: 128,
       meta: { cellClassName: "text-muted-foreground" },
       cell: ({ row }) =>
         row.original.lastRunAt
@@ -292,7 +304,7 @@ export function TestCasesList({
     },
     {
       id: "actions",
-      header: () => <span className="sr-only">操作</span>,
+      header: "操作",
       size: 200,
       meta: {
         headerClassName: "text-left",

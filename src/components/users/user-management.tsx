@@ -235,7 +235,7 @@ export function UserManagement({
     },
     {
       id: "actions",
-      header: () => <span className="sr-only">操作</span>,
+      header: "操作",
       // 三个文字操作按钮及单元格内边距需要完整空间，避免操作区溢出表格容器。
       size: 176,
       meta: { headerClassName: "text-left", cellClassName: "text-left" },

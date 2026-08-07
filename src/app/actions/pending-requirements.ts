@@ -1,14 +1,13 @@
 "use server";
 
-import { z } from "zod";
-
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 import {
   AiDraftStatus,
-  DraftOperation,
+  AiExecutionStatus,
+  DeliveryVersionStatus,
   RequirementStatus,
-  VersionSource,
 } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
 import { userStoryDraftInputSchema } from "@/lib/requirements/user-story-schema";
@@ -16,15 +15,17 @@ import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 import { generateBusinessCodeInTransaction } from "@/server/requirements/business-code";
-import { recordUserStoryVersion } from "@/server/versions/content-version";
 
 const idSchema = z.string().min(1);
 
 class DraftStateChangedError extends Error {}
 
-async function requireCurrentProjectForAction() {
-  await requireUser();
-  return getCurrentProject();
+async function getActionContext() {
+  const [user, project] = await Promise.all([
+    requireUser(),
+    getCurrentProject(),
+  ]);
+  return { user, project };
 }
 
 export async function updatePendingRequirementAction(
@@ -40,15 +41,11 @@ export async function updatePendingRequirementAction(
     }>;
   }>
 > {
-  const project = await requireCurrentProjectForAction();
-  if (!project) {
-    return { ok: false, message: "请先创建项目" };
-  }
+  const { project } = await getActionContext();
+  if (!project) return { ok: false, message: "请先创建项目" };
 
-  const [parsedId, parsedInput] = [
-    idSchema.safeParse(draftId),
-    userStoryDraftInputSchema.safeParse(input),
-  ];
+  const parsedId = idSchema.safeParse(draftId);
+  const parsedInput = userStoryDraftInputSchema.safeParse(input);
   if (!parsedId.success || !parsedInput.success) {
     return {
       ok: false,
@@ -60,33 +57,19 @@ export async function updatePendingRequirementAction(
   }
 
   const draft = await db.userStoryDraft.findFirst({
-    where: {
-      id: parsedId.data,
-      projectId: project.id,
-      deletedAt: null,
-    },
+    where: { id: parsedId.data, projectId: project.id, deletedAt: null },
     select: {
       id: true,
       status: true,
-      operation: true,
-      title: true,
       acceptanceCriteria: {
         where: { deletedAt: null },
         select: { id: true },
       },
     },
   });
-  if (!draft) {
-    return { ok: false, message: "待评审需求不存在或已删除" };
-  }
+  if (!draft) return { ok: false, message: "待评审需求不存在或已删除" };
   if (draft.status !== AiDraftStatus.PENDING) {
     return { ok: false, message: "该需求已经完成评审，不能再修改" };
-  }
-  if (
-    draft.operation === DraftOperation.UPDATE &&
-    parsedInput.data.title !== draft.title
-  ) {
-    return { ok: false, message: "已有 US 的标题不可修改" };
   }
 
   const inputCriterionIds = new Set(
@@ -109,9 +92,7 @@ export async function updatePendingRequirementAction(
     await transaction.userStoryDraft.update({
       where: { id: draft.id },
       data: {
-        ...(draft.operation === DraftOperation.CREATE
-          ? { title: parsedInput.data.title }
-          : {}),
+        title: parsedInput.data.title,
         asA: parsedInput.data.asA,
         iWant: parsedInput.data.iWant,
         soThat: parsedInput.data.soThat,
@@ -160,12 +141,7 @@ export async function updatePendingRequirementAction(
     return transaction.draftAcceptanceCriterion.findMany({
       where: { draftId: draft.id, deletedAt: null },
       orderBy: { position: "asc" },
-      select: {
-        id: true,
-        given: true,
-        when: true,
-        then: true,
-      },
+      select: { id: true, given: true, when: true, then: true },
     });
   });
 
@@ -181,37 +157,24 @@ export async function updatePendingRequirementAction(
 export async function confirmPendingRequirementAction(
   draftId: string,
 ): Promise<ActionResult<{ id: string }>> {
-  const project = await requireCurrentProjectForAction();
-  const user = await requireUser();
-  if (!project) {
-    return { ok: false, message: "请先创建项目" };
-  }
+  const { user, project } = await getActionContext();
+  if (!project) return { ok: false, message: "请先创建项目" };
 
   const parsedId = idSchema.safeParse(draftId);
-  if (!parsedId.success) {
-    return { ok: false, message: "待评审需求无效" };
-  }
+  if (!parsedId.success) return { ok: false, message: "待评审需求无效" };
 
   const draft = await db.userStoryDraft.findFirst({
-    where: {
-      id: parsedId.data,
-      projectId: project.id,
-      deletedAt: null,
-    },
+    where: { id: parsedId.data, projectId: project.id, deletedAt: null },
     include: {
       feature: { select: { id: true, deletedAt: true } },
-      sourceExecution: {
-        select: { repositorySnapshot: true, status: true },
-      },
+      sourceExecution: { select: { status: true } },
       acceptanceCriteria: {
         where: { deletedAt: null },
         orderBy: { position: "asc" },
       },
     },
   });
-  if (!draft) {
-    return { ok: false, message: "待评审需求不存在或已删除" };
-  }
+  if (!draft) return { ok: false, message: "待评审需求不存在或已删除" };
   if (draft.status !== AiDraftStatus.PENDING) {
     return { ok: false, message: "该需求已经完成评审" };
   }
@@ -221,47 +184,29 @@ export async function confirmPendingRequirementAction(
   if (draft.acceptanceCriteria.length === 0) {
     return { ok: false, message: "待评审需求至少需要一条验收标准" };
   }
-  if (draft.sourceExecution.status !== "SUCCEEDED") {
+  if (draft.sourceExecution.status !== AiExecutionStatus.SUCCEEDED) {
     return { ok: false, message: "来源任务尚未成功完成" };
   }
-  if (
-    draft.operation !== DraftOperation.CREATE &&
-    draft.operation !== DraftOperation.UPDATE
-  ) {
-    return { ok: false, message: "待评审需求类型无效" };
-  }
 
-  let result: { kind: "SUCCESS"; story: { id: string } } | { kind: "CONFLICT" };
+  let story: { id: string };
   try {
-    result = await db.$transaction(async (transaction) => {
-      const expectedTargetVersion = draft.baseVersion;
-      if (draft.operation === DraftOperation.UPDATE) {
-        const target = draft.targetUserStoryId
-          ? await transaction.userStory.findFirst({
-              where: {
-                id: draft.targetUserStoryId,
-                projectId: draft.projectId,
-                deletedAt: null,
-              },
-              select: { title: true, currentVersion: true },
-            })
-          : null;
-        if (
-          !target ||
-          expectedTargetVersion === null ||
-          target.currentVersion !== expectedTargetVersion ||
-          target.title !== draft.title
-        ) {
-          await transaction.userStoryDraft.updateMany({
-            where: {
-              id: draft.id,
-              status: AiDraftStatus.PENDING,
-              deletedAt: null,
-            },
-            data: { status: AiDraftStatus.SUPERSEDED },
-          });
-          return { kind: "CONFLICT" as const };
-        }
+    story = await db.$transaction(async (transaction) => {
+      const currentProject = await transaction.project.findUnique({
+        where: { id: project.id },
+        select: {
+          currentDeliveryVersion: {
+            select: { id: true, lockedAt: true, status: true, deletedAt: true },
+          },
+        },
+      });
+      const currentVersion = currentProject?.currentDeliveryVersion;
+      if (
+        !currentVersion ||
+        currentVersion.deletedAt ||
+        currentVersion.lockedAt ||
+        currentVersion.status === DeliveryVersionStatus.DELIVERED
+      ) {
+        throw new Error("CURRENT_VERSION_REQUIRED");
       }
 
       const claimed = await transaction.userStoryDraft.updateMany({
@@ -271,175 +216,78 @@ export async function confirmPendingRequirementAction(
           deletedAt: null,
           confirmedUserStoryId: null,
         },
-        data: {
-          status: AiDraftStatus.CONFIRMED,
-          confirmedAt: new Date(),
-        },
+        data: { status: AiDraftStatus.CONFIRMED, confirmedAt: new Date() },
       });
-      if (claimed.count === 0) {
-        throw new DraftStateChangedError();
-      }
+      if (claimed.count !== 1) throw new DraftStateChangedError();
 
-      let story: { id: string };
-      if (draft.operation === DraftOperation.CREATE) {
-        story = await transaction.userStory.create({
-          data: {
-            projectId: draft.projectId,
-            featureId: draft.featureId,
-            createdById: user.id,
-            code: await generateBusinessCodeInTransaction(transaction, "US"),
-            title: draft.title,
-            asA: draft.asA,
-            iWant: draft.iWant,
-            soThat: draft.soThat,
-            status: RequirementStatus.DESIGN,
-            businessRules: draft.businessRules,
-            nonFunctionalRequirements: draft.nonFunctionalRequirements,
-            acceptanceCriteria: {
-              create: draft.acceptanceCriteria.map((criterion, position) => ({
-                position,
-                given: criterion.given,
-                when: criterion.when,
-                then: criterion.then,
-              })),
-            },
-          },
-          select: { id: true },
-        });
-        await recordUserStoryVersion(transaction, story.id, {
-          source: VersionSource.AI_GENERATION,
+      const created = await transaction.userStory.create({
+        data: {
+          projectId: draft.projectId,
+          deliveryVersionId: currentVersion.id,
+          featureId: draft.featureId,
           createdById: user.id,
-          sourceExecutionId: draft.sourceExecutionId,
-          repositorySnapshot: draft.sourceExecution.repositorySnapshot,
-        });
-      } else {
-        const targetId = draft.targetUserStoryId;
-        if (!targetId || expectedTargetVersion === null) {
-          await transaction.userStoryDraft.update({
-            where: { id: draft.id },
-            data: {
-              status: AiDraftStatus.SUPERSEDED,
-              confirmedAt: null,
-            },
-          });
-          return { kind: "CONFLICT" as const };
-        }
-        const updated = await transaction.userStory.updateMany({
-          where: {
-            id: targetId,
-            projectId: draft.projectId,
-            deletedAt: null,
-            title: draft.title,
-            currentVersion: expectedTargetVersion,
-          },
-          data: {
-            asA: draft.asA,
-            iWant: draft.iWant,
-            soThat: draft.soThat,
-            businessRules: draft.businessRules,
-            nonFunctionalRequirements: draft.nonFunctionalRequirements,
-            currentVersion: { increment: 1 },
-          },
-        });
-        if (updated.count !== 1) {
-          await transaction.userStoryDraft.update({
-            where: { id: draft.id },
-            data: {
-              status: AiDraftStatus.SUPERSEDED,
-              confirmedAt: null,
-            },
-          });
-          return { kind: "CONFLICT" as const };
-        }
-        await transaction.acceptanceCriterion.updateMany({
-          where: { userStoryId: targetId, deletedAt: null },
-          data: { deletedAt: new Date() },
-        });
-        for (const [
-          position,
-          criterion,
-        ] of draft.acceptanceCriteria.entries()) {
-          await transaction.acceptanceCriterion.create({
-            data: {
-              userStoryId: targetId,
+          code: await generateBusinessCodeInTransaction(transaction, "US"),
+          title: draft.title,
+          asA: draft.asA,
+          iWant: draft.iWant,
+          soThat: draft.soThat,
+          status: RequirementStatus.DESIGN,
+          businessRules: draft.businessRules,
+          nonFunctionalRequirements: draft.nonFunctionalRequirements,
+          acceptanceCriteria: {
+            create: draft.acceptanceCriteria.map((criterion, position) => ({
               position,
               given: criterion.given,
               when: criterion.when,
               then: criterion.then,
-            },
-          });
-        }
-        story = { id: targetId };
-        await recordUserStoryVersion(transaction, story.id, {
-          source: VersionSource.CONSISTENCY_CHECK,
-          createdById: user.id,
-          sourceExecutionId: draft.sourceExecutionId,
-          repositorySnapshot: draft.sourceExecution.repositorySnapshot,
-          changeSummary: draft.changeReason,
-        });
-      }
-
+            })),
+          },
+        },
+        select: { id: true },
+      });
       await transaction.userStoryDraft.update({
         where: { id: draft.id },
-        data: { confirmedUserStoryId: story.id },
+        data: { confirmedUserStoryId: created.id },
       });
-      return { kind: "SUCCESS" as const, story };
+      return created;
     });
   } catch (error) {
     if (error instanceof DraftStateChangedError) {
       return { ok: false, message: "需求状态已变化，请刷新后重试" };
     }
+    if (
+      error instanceof Error &&
+      error.message === "CURRENT_VERSION_REQUIRED"
+    ) {
+      return { ok: false, message: "请先设置一个未锁定的当前交付版本" };
+    }
     throw error;
-  }
-
-  if (result.kind === "CONFLICT") {
-    revalidatePath("/requirements/pending-review");
-    return {
-      ok: false,
-      message: "正式需求已在评审期间更新，该草稿已过期",
-    };
   }
 
   revalidatePath("/requirements");
   revalidatePath("/requirements/pending-review");
   revalidatePath(`/requirements/pending-review/${draft.id}`);
+  revalidatePath("/delivery-versions");
   revalidatePath("/execution-tasks");
   revalidatePath(`/execution-tasks/${draft.sourceExecutionId}`);
-  if (draft.featureId) {
-    revalidatePath(`/features/${draft.featureId}`);
-  }
-  return {
-    ok: true,
-    message:
-      draft.operation === DraftOperation.CREATE ? "US 已创建" : "US 已更新",
-    data: result.story,
-  };
+  if (draft.featureId) revalidatePath(`/features/${draft.featureId}`);
+  return { ok: true, message: "US 已创建", data: story };
 }
 
 export async function deletePendingRequirementAction(
   draftId: string,
 ): Promise<ActionResult> {
-  const project = await requireCurrentProjectForAction();
-  if (!project) {
-    return { ok: false, message: "请先创建项目" };
-  }
+  const { project } = await getActionContext();
+  if (!project) return { ok: false, message: "请先创建项目" };
 
   const parsedId = idSchema.safeParse(draftId);
-  if (!parsedId.success) {
-    return { ok: false, message: "待评审需求无效" };
-  }
+  if (!parsedId.success) return { ok: false, message: "待评审需求无效" };
 
   const draft = await db.userStoryDraft.findFirst({
-    where: {
-      id: parsedId.data,
-      projectId: project.id,
-      deletedAt: null,
-    },
+    where: { id: parsedId.data, projectId: project.id, deletedAt: null },
     select: { id: true, status: true, sourceExecutionId: true },
   });
-  if (!draft) {
-    return { ok: false, message: "待评审需求不存在或已删除" };
-  }
+  if (!draft) return { ok: false, message: "待评审需求不存在或已删除" };
   if (draft.status !== AiDraftStatus.PENDING) {
     return { ok: false, message: "已确认的需求不能删除" };
   }
@@ -450,10 +298,7 @@ export async function deletePendingRequirementAction(
       where: { draftId: draft.id, deletedAt: null },
       data: { deletedAt },
     }),
-    db.userStoryDraft.update({
-      where: { id: draft.id },
-      data: { deletedAt },
-    }),
+    db.userStoryDraft.update({ where: { id: draft.id }, data: { deletedAt } }),
   ]);
 
   revalidatePath("/requirements/pending-review");

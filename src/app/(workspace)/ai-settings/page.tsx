@@ -34,7 +34,7 @@ export default async function AiSettingsPage() {
             AiCapability.GENERATE_USER_STORY,
             AiCapability.GENERATE_TEST_CASES,
             AiCapability.GENERATE_AUTOMATION_SCRIPT,
-            AiCapability.CHECK_CONSISTENCY,
+            AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION,
           ],
         },
       },
@@ -66,8 +66,10 @@ export default async function AiSettingsPage() {
           [AiCapability.GENERATE_AUTOMATION_SCRIPT]:
             bindingByCapability.get(AiCapability.GENERATE_AUTOMATION_SCRIPT) ??
             null,
-          [AiCapability.CHECK_CONSISTENCY]:
-            bindingByCapability.get(AiCapability.CHECK_CONSISTENCY) ?? null,
+          [AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION]:
+            bindingByCapability.get(
+              AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION,
+            ) ?? null,
         }}
       />
     </PageContainer>

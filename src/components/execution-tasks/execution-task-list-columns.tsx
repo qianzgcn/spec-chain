@@ -30,16 +30,8 @@ export function createExecutionTaskColumns(input: {
       header: "任务内容",
       size: 320,
       cell: ({ row }) => (
-        <div className="min-w-0">
-          <div className="truncate font-medium" title={row.original.content}>
-            {row.original.content}
-          </div>
-          <div
-            className="text-muted-foreground truncate font-mono text-xs min-[1441px]:hidden"
-            title={row.original.id}
-          >
-            {row.original.id}
-          </div>
+        <div className="truncate font-medium" title={row.original.content}>
+          {row.original.content}
         </div>
       ),
     },
@@ -47,10 +39,6 @@ export function createExecutionTaskColumns(input: {
       accessorKey: "id",
       header: "任务 ID",
       size: 190,
-      meta: {
-        headerClassName: "max-[1440px]:hidden",
-        cellClassName: "max-[1440px]:hidden",
-      },
       cell: ({ row }) => (
         <span
           className="block truncate font-mono text-xs"
@@ -79,28 +67,17 @@ export function createExecutionTaskColumns(input: {
       accessorKey: "stageLabel",
       header: "当前阶段",
       size: 150,
-      meta: {
-        headerClassName: "max-[1480px]:hidden",
-        cellClassName: "max-[1480px]:hidden",
-      },
     },
     {
       accessorKey: "requestedBy",
       header: "发起用户",
       size: 110,
-      meta: {
-        headerClassName: "max-[1600px]:hidden",
-        cellClassName: "max-[1600px]:hidden",
-      },
     },
     {
       accessorKey: "queuedAt",
       header: "发起时间",
       size: 170,
-      meta: {
-        headerClassName: "max-[1740px]:hidden",
-        cellClassName: "max-[1740px]:hidden text-muted-foreground",
-      },
+      meta: { cellClassName: "text-muted-foreground" },
       cell: ({ row }) => formatDateTime(row.original.queuedAt),
     },
     {
@@ -119,15 +96,12 @@ export function createExecutionTaskColumns(input: {
       accessorKey: "durationMs",
       header: "执行耗时",
       size: 90,
-      meta: {
-        headerClassName: "max-[1520px]:hidden",
-        cellClassName: "max-[1520px]:hidden text-muted-foreground",
-      },
+      meta: { cellClassName: "text-muted-foreground" },
       cell: ({ row }) => formatDuration(row.original.durationMs),
     },
     {
       id: "actions",
-      header: () => <span className="sr-only">操作</span>,
+      header: "操作",
       size: 176,
       meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => {

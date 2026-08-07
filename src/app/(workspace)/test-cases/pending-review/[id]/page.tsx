@@ -9,11 +9,7 @@ import { PageSection } from "@/components/layout/page-section";
 import { PendingTestCaseDetailActions } from "@/components/test-cases/pending-test-case-detail-actions";
 import { PendingTestCaseReview } from "@/components/test-cases/pending-test-case-review";
 import { Badge } from "@/components/ui/badge";
-import {
-  AiCapability,
-  AiDraftStatus,
-  AiExecutionStatus,
-} from "@/generated/prisma/enums";
+import { AiDraftStatus, AiExecutionStatus } from "@/generated/prisma/enums";
 import { formatDetailedDateTime } from "@/lib/date-time";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
 import { db } from "@/server/db";
@@ -44,9 +40,6 @@ export default async function PendingReviewTestCasePage({
     },
     select: {
       id: true,
-      operation: true,
-      baseVersion: true,
-      changeReason: true,
       name: true,
       priority: true,
       preconditions: true,
@@ -58,16 +51,6 @@ export default async function PendingReviewTestCasePage({
           deletedAt: true,
         },
       },
-      targetTestCase: {
-        select: {
-          name: true,
-          priority: true,
-          preconditions: true,
-          steps: true,
-          group: { select: { name: true } },
-          userStory: { select: { code: true, title: true } },
-        },
-      },
       proposedUserStory: {
         select: { id: true, code: true, title: true, deletedAt: true },
       },
@@ -75,7 +58,6 @@ export default async function PendingReviewTestCasePage({
         select: {
           sourceExecution: {
             select: {
-              capability: true,
               requirementText: true,
               sourceUserStory: {
                 select: {
@@ -106,13 +88,7 @@ export default async function PendingReviewTestCasePage({
         meta={
           <>
             <Badge variant="warning">待评审</Badge>
-            <Badge variant="secondary">
-              {draft.operation === "CREATE"
-                ? "新增"
-                : draft.operation === "UPDATE"
-                  ? "更新"
-                  : "停用"}
-            </Badge>
+            <Badge variant="secondary">AI 生成</Badge>
             <Badge variant={priorityMeta.badgeVariant}>
               {priorityMeta.label}
             </Badge>
@@ -123,30 +99,13 @@ export default async function PendingReviewTestCasePage({
         actions={
           <PendingTestCaseDetailActions
             id={draft.id}
-            hasGroup={draft.operation === "RETIRE" || Boolean(activeGroup)}
+            hasGroup={Boolean(activeGroup)}
           />
         }
       />
 
       <PendingTestCaseReview
         draftId={draft.id}
-        operation={draft.operation}
-        baseVersion={draft.baseVersion}
-        changeReason={draft.changeReason}
-        current={
-          draft.targetTestCase
-            ? {
-                name: draft.targetTestCase.name,
-                priority: draft.targetTestCase.priority,
-                groupName: draft.targetTestCase.group.name,
-                userStoryLabel: draft.targetTestCase.userStory
-                  ? `${draft.targetTestCase.userStory.code} · ${draft.targetTestCase.userStory.title}`
-                  : "平台用例",
-                preconditions: draft.targetTestCase.preconditions,
-                steps: draft.targetTestCase.steps,
-              }
-            : null
-        }
         proposed={{
           name: draft.name,
           priority: draft.priority,
@@ -175,10 +134,7 @@ export default async function PendingReviewTestCasePage({
           )
         ) : (
           <p className="text-sm leading-6 break-words whitespace-pre-wrap">
-            {draft.batch.sourceExecution.capability ===
-            AiCapability.CHECK_CONSISTENCY
-              ? "平台用例"
-              : draft.batch.sourceExecution.requirementText}
+            {draft.batch.sourceExecution.requirementText}
           </p>
         )}
       </PageSection>

@@ -155,7 +155,7 @@ export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
     },
     {
       id: "actions",
-      header: () => <span className="sr-only">操作</span>,
+      header: "操作",
       size: 96,
       meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => (

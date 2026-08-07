@@ -1,12 +1,13 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 import {
   flexRender,
   getCoreRowModel,
   getExpandedRowModel,
   useReactTable,
+  type Column,
   type ColumnDef,
   type ExpandedState,
   type OnChangeFn,
@@ -30,20 +31,60 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-function getColumnLayoutStyle(
-  columnId: string,
-  baseWidth: number,
-  fluidColumnId: string | undefined,
-): CSSProperties {
-  // 主内容列吸收剩余空间，其他列保持稳定宽度，避免长内容改变整张表的布局。
-  if (columnId === fluidColumnId) {
-    return { minWidth: baseWidth };
+const FIXED_UTILITY_COLUMN_IDS = new Set(["actions", "selection"]);
+
+type SizedColumn = {
+  id: string;
+  minimumWidth: number;
+};
+
+function distributeColumnWidths(
+  columns: SizedColumn[],
+  containerWidth: number,
+) {
+  const minimumTableWidth = columns.reduce(
+    (total, column) => total + column.minimumWidth,
+    0,
+  );
+  const flexibleColumns = columns.filter(
+    (column) => !FIXED_UTILITY_COLUMN_IDS.has(column.id),
+  );
+  const flexibleMinimumWidth = flexibleColumns.reduce(
+    (total, column) => total + column.minimumWidth,
+    0,
+  );
+  const remainingWidth = Math.max(0, containerWidth - minimumTableWidth);
+  const widths = new Map<string, number>();
+
+  for (const column of columns) {
+    const canGrow =
+      flexibleMinimumWidth > 0 && !FIXED_UTILITY_COLUMN_IDS.has(column.id);
+    const extraWidth = canGrow
+      ? remainingWidth * (column.minimumWidth / flexibleMinimumWidth)
+      : 0;
+
+    widths.set(column.id, column.minimumWidth + extraWidth);
   }
 
   return {
-    width: baseWidth,
-    minWidth: baseWidth,
-    maxWidth: baseWidth,
+    tableWidth: Math.max(containerWidth, minimumTableWidth),
+    widths,
+  };
+}
+
+function getColumnStyle<TData>(
+  column: Column<TData>,
+  width: number,
+): CSSProperties {
+  const pinnedSide = column.getIsPinned();
+
+  return {
+    left: pinnedSide === "left" ? `${column.getStart("left")}px` : undefined,
+    right: pinnedSide === "right" ? `${column.getAfter("right")}px` : undefined,
+    position: pinnedSide ? "sticky" : undefined,
+    width,
+    minWidth: width,
+    maxWidth: width,
   };
 }
 
@@ -77,6 +118,9 @@ export function DataTable<TData>({
   onExpandedChange?: OnChangeFn<ExpandedState>;
   rowClassName?: (row: Row<TData>) => string | undefined;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
   // TanStack Table 的实例由库内部管理，React Compiler 不应尝试记忆化它。
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -86,37 +130,69 @@ export function DataTable<TData>({
     getSubRows,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
+    initialState: {
+      columnPinning: { right: ["actions"] },
+    },
     state: {
       ...(expanded === undefined ? {} : { expanded }),
     },
     onExpandedChange,
   });
 
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateWidth = () => {
+      setContainerWidth((currentWidth) => {
+        const nextWidth = container.clientWidth;
+        return currentWidth === nextWidth ? currentWidth : nextWidth;
+      });
+    };
+    const observer = new ResizeObserver(updateWidth);
+
+    updateWidth();
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
   const rows = table.getRowModel().rows;
-  const fluidColumnId = table
-    .getVisibleLeafColumns()
-    .find((column) => column.id !== "actions" && column.id !== "selection")?.id;
+  const visibleColumns = table.getVisibleLeafColumns();
+  const { tableWidth, widths } = distributeColumnWidths(
+    visibleColumns.map((column) => ({
+      id: column.id,
+      minimumWidth: column.getSize(),
+    })),
+    containerWidth,
+  );
 
   return (
     <div className="relative min-h-0 flex-1">
       <Table
+        containerRef={containerRef}
         containerClassName="h-full overflow-auto"
-        className="table-fixed"
+        className="table-fixed border-separate border-spacing-0"
+        style={{ width: tableWidth }}
         data-testid="data-table"
       >
-        <TableHeader className="bg-muted/95 sticky top-0 z-10 backdrop-blur-sm">
+        <colgroup>
+          {visibleColumns.map((column) => (
+            <col key={column.id} style={{ width: widths.get(column.id) }} />
+          ))}
+        </colgroup>
+        <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id} className="hover:bg-transparent">
               {headerGroup.headers.map((header) => (
                 <TableHead
                   key={header.id}
-                  style={getColumnLayoutStyle(
-                    header.column.id,
-                    header.getSize(),
-                    fluidColumnId,
+                  style={getColumnStyle(
+                    header.column,
+                    widths.get(header.column.id) ?? header.column.getSize(),
                   )}
                   className={cn(
-                    "truncate",
+                    "bg-muted sticky top-0 z-10 overflow-hidden align-middle text-ellipsis",
+                    header.column.getIsPinned() === "right" && "z-20 border-l",
                     header.column.columnDef.meta?.headerClassName,
                   )}
                 >
@@ -136,7 +212,7 @@ export function DataTable<TData>({
             rows.map((row) => (
               <TableRow
                 key={row.id}
-                className={rowClassName?.(row)}
+                className={cn("group/row bg-background", rowClassName?.(row))}
                 aria-expanded={
                   row.getCanExpand() ? row.getIsExpanded() : undefined
                 }
@@ -144,15 +220,14 @@ export function DataTable<TData>({
                 {row.getVisibleCells().map((cell) => (
                   <TableCell
                     key={cell.id}
-                    style={getColumnLayoutStyle(
-                      cell.column.id,
-                      cell.column.getSize(),
-                      fluidColumnId,
+                    style={getColumnStyle(
+                      cell.column,
+                      widths.get(cell.column.id) ?? cell.column.getSize(),
                     )}
                     className={cn(
                       "h-12",
-                      cell.column.id === "actions"
-                        ? "overflow-visible"
+                      cell.column.getIsPinned() === "right"
+                        ? "z-[1] overflow-visible border-l bg-inherit"
                         : "truncate",
                       cell.column.columnDef.meta?.cellClassName,
                     )}
@@ -165,7 +240,7 @@ export function DataTable<TData>({
           ) : (
             <TableRow className="hover:bg-transparent">
               <TableCell
-                colSpan={columns.length}
+                colSpan={visibleColumns.length}
                 className="h-64 whitespace-normal"
               >
                 <Empty>

@@ -239,6 +239,13 @@ describe("AI 生成测试用例工作流", () => {
       decisionSchema.safeParse({
         sufficient: true,
         failureReason: "",
+        testCases: [{ ...baseCase, name: "用".repeat(16) }],
+      }).success,
+    ).toBe(true);
+    expect(
+      decisionSchema.safeParse({
+        sufficient: true,
+        failureReason: "",
         testCases: [baseCase, { ...baseCase, name: "管理员 登录" }],
       }).success,
     ).toBe(false);

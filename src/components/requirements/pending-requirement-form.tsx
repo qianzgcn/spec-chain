@@ -14,13 +14,11 @@ import {
 } from "@/app/actions/pending-requirements";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { FormPage } from "@/components/layout/form-page";
-import { PageSection } from "@/components/layout/page-section";
 import { UserStoryFields } from "@/components/requirements/user-story-fields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
-import { DraftOperation } from "@/generated/prisma/enums";
 import {
   confirmLeaveIfDirty,
   useUnsavedChanges,
@@ -32,26 +30,10 @@ import {
 
 export function PendingRequirementForm({
   draftId,
-  operation,
-  baseVersion,
-  changeReason,
-  currentValues,
   feature,
   initialValues,
 }: {
   draftId: string;
-  operation: DraftOperation;
-  baseVersion: number | null;
-  changeReason: string | null;
-  currentValues: {
-    title: string;
-    asA: string;
-    iWant: string;
-    soThat: string;
-    businessRules: string | null;
-    nonFunctionalRequirements: string | null;
-    acceptanceCriteria: Array<{ given: string; when: string; then: string }>;
-  } | null;
   feature: { id: string; code: string; name: string } | null;
   initialValues: UserStoryFormValues;
 }) {
@@ -140,21 +122,10 @@ export function PendingRequirementForm({
     <>
       <FormPage
         title="评审需求"
-        description={
-          operation === DraftOperation.UPDATE
-            ? "比较当前版本与建议版本，确认后更新原 US。"
-            : "检查并完善 AI 生成的内容；确认后才会创建正式 US。"
-        }
+        description="检查并完善 AI 生成的内容；确认后才会创建正式 US。"
         meta={
           <>
             <Badge variant="secondary">AI 生成</Badge>
-            <Badge
-              variant={
-                operation === DraftOperation.UPDATE ? "info" : "secondary"
-              }
-            >
-              {operation === DraftOperation.UPDATE ? "代码更新" : "新建"}
-            </Badge>
             <Badge variant="warning">待评审</Badge>
             {feature ? (
               <span>
@@ -198,9 +169,7 @@ export function PendingRequirementForm({
               {isPending && pendingAction === "confirm" ? (
                 <Spinner data-icon="inline-start" />
               ) : null}
-              {operation === DraftOperation.UPDATE
-                ? "确认更新US"
-                : "确认创建US"}
+              确认创建US
             </Button>
           </>
         }
@@ -211,70 +180,7 @@ export function PendingRequirementForm({
             className="flex w-full flex-col gap-4"
             onSubmit={form.handleSubmit(save)}
           >
-            {operation === DraftOperation.UPDATE && currentValues ? (
-              <PageSection title={`当前版本 v${baseVersion ?? 1}`}>
-                <div className="grid gap-4 text-sm md:grid-cols-3">
-                  <div>
-                    <div className="text-muted-foreground text-xs">As</div>
-                    <p className="mt-1 whitespace-pre-wrap">
-                      {currentValues.asA}
-                    </p>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground text-xs">I want</div>
-                    <p className="mt-1 whitespace-pre-wrap">
-                      {currentValues.iWant}
-                    </p>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground text-xs">so that</div>
-                    <p className="mt-1 whitespace-pre-wrap">
-                      {currentValues.soThat}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-4 text-sm md:grid-cols-2">
-                  <div className="bg-muted/40 rounded-lg p-4">
-                    <div className="text-muted-foreground text-xs">
-                      业务规则
-                    </div>
-                    <p className="mt-1 whitespace-pre-wrap">
-                      {currentValues.businessRules ?? "无"}
-                    </p>
-                  </div>
-                  <div className="bg-muted/40 rounded-lg p-4">
-                    <div className="text-muted-foreground text-xs">
-                      非功能需求
-                    </div>
-                    <p className="mt-1 whitespace-pre-wrap">
-                      {currentValues.nonFunctionalRequirements ?? "无"}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 flex flex-col gap-2">
-                  <div className="text-muted-foreground text-xs">验收标准</div>
-                  {currentValues.acceptanceCriteria.map((criterion, index) => (
-                    <p
-                      key={`${index}-${criterion.given}-${criterion.when}-${criterion.then}`}
-                      className="bg-muted/40 rounded-lg p-3 text-sm whitespace-pre-wrap"
-                    >
-                      {index + 1}. Given {criterion.given}；When{" "}
-                      {criterion.when}； Then {criterion.then}
-                    </p>
-                  ))}
-                </div>
-                <div className="bg-muted/40 mt-4 rounded-lg p-4 text-sm">
-                  <div className="text-muted-foreground text-xs">变更依据</div>
-                  <p className="mt-1 whitespace-pre-wrap">
-                    {changeReason ?? "—"}
-                  </p>
-                </div>
-              </PageSection>
-            ) : null}
-            <UserStoryFields
-              showStatus={false}
-              lockTitle={operation === DraftOperation.UPDATE}
-            />
+            <UserStoryFields showStatus={false} />
           </form>
         </FormProvider>
       </FormPage>

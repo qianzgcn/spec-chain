@@ -275,15 +275,12 @@ export function RequirementsList({
       accessorKey: "updatedAt",
       header: "更新时间",
       size: 140,
-      meta: {
-        headerClassName: "max-[1440px]:hidden",
-        cellClassName: "max-[1440px]:hidden text-muted-foreground",
-      },
+      meta: { cellClassName: "text-muted-foreground" },
       cell: ({ row }) => formatCompactDateTime(row.original.updatedAt),
     },
     {
       id: "actions",
-      header: () => <span className="sr-only">操作</span>,
+      header: "操作",
       size: 204,
       meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => {
@@ -417,7 +414,7 @@ export function RequirementsList({
           columns={columns}
           data={items}
           loading={isPending || isNavigating}
-          emptyText="还没有需求"
+          emptyText="当前交付版本还没有需求"
           getRowId={(item) => `${item.type}-${item.id}`}
           getSubRows={(item) => item.children}
           expanded={expanded}
@@ -433,7 +430,7 @@ export function RequirementsList({
         title={`删除${deleteTarget?.type === "FEATURE" ? " FE" : " US"}`}
         description={
           deleteTarget?.type === "FEATURE"
-            ? `将同时删除 ${deleteTarget.childCount ?? 0} 个关联 US，且不能恢复。`
+            ? "将同时删除该 FE 下的关联 US，且不能恢复。"
             : "删除后不能恢复，不会影响已关联的测试用例。"
         }
         confirmLabel="删除"

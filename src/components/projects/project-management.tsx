@@ -205,10 +205,7 @@ export function ProjectManagement({
       accessorKey: "baseUrl",
       header: "Base URL",
       size: 190,
-      meta: {
-        headerClassName: "max-[1500px]:hidden",
-        cellClassName: "max-[1500px]:hidden min-w-0",
-      },
+      meta: { cellClassName: "min-w-0" },
       cell: ({ row }) => (
         <TruncatedText
           value={row.original.baseUrl || "未配置"}
@@ -220,15 +217,12 @@ export function ProjectManagement({
       accessorKey: "updatedAt",
       header: "更新时间",
       size: 180,
-      meta: {
-        headerClassName: "max-[1700px]:hidden",
-        cellClassName: "max-[1700px]:hidden text-muted-foreground",
-      },
+      meta: { cellClassName: "text-muted-foreground" },
       cell: ({ row }) => formatDateTime(row.original.updatedAt),
     },
     {
       id: "actions",
-      header: () => <span className="sr-only">操作</span>,
+      header: "操作",
       size: 136,
       meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => {

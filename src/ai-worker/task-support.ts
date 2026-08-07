@@ -72,10 +72,9 @@ function getStageStartedMessage(
       if (capability === AiCapability.GENERATE_USER_STORY) {
         return "正在根据需求和代码生成结构化 US 草稿。";
       }
-      if (capability === AiCapability.CHECK_CONSISTENCY) {
-        return "正在比较正式内容与当前代码。";
-      }
       return "正在根据需求和代码生成自然语言测试用例草稿。";
+    case AiExecutionStage.REVIEWING_IMPLEMENTATION:
+      return "正在依据需求审查代码实现与测试覆盖。";
     case AiExecutionStage.PROBING_PAGE:
       return "正在使用独立浏览器会话探测真实页面。";
     case AiExecutionStage.PREPARING_AUTHENTICATION:

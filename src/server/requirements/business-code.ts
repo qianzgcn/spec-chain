@@ -30,7 +30,7 @@ function formatShanghaiTimestamp(timestamp: number) {
   ].join("");
 }
 
-type BusinessCodePrefix = "FE" | "US" | "TC";
+type BusinessCodePrefix = "DV" | "FE" | "US" | "TC";
 
 async function reserveTimestamp(
   transaction: Prisma.TransactionClient,

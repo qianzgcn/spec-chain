@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { PackageOpenIcon } from "lucide-react";
+
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { ButtonLink } from "@/components/navigation/button-link";
@@ -8,6 +10,14 @@ import {
   RequirementsList,
   type RequirementListItem,
 } from "@/components/requirements/requirements-list";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { RequirementStatus } from "@/generated/prisma/enums";
 import { deriveFeatureStatus } from "@/lib/requirements/status";
 import { db } from "@/server/db";
@@ -52,45 +62,95 @@ export default async function RequirementsPage({
     );
   }
 
-  const [features, independentStories] = await Promise.all([
-    db.feature.findMany({
-      where: { projectId: project.id, deletedAt: null },
-      select: {
-        id: true,
-        code: true,
-        name: true,
-        createdBy: { select: { username: true } },
-        updatedAt: true,
-        userStories: {
-          where: { deletedAt: null },
-          orderBy: [{ updatedAt: "desc" }, { createdAt: "asc" }],
-          select: {
-            id: true,
-            code: true,
-            title: true,
-            status: true,
-            createdBy: { select: { username: true } },
-            updatedAt: true,
+  if (!project.currentDeliveryVersionId) {
+    return (
+      <PageContainer className="flex flex-col gap-5">
+        <PageHeader
+          title="需求列表"
+          description="需求列表仅展示当前交付版本中的需求。"
+        />
+        <div className="bg-card grid min-h-72 place-items-center rounded-lg border">
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <PackageOpenIcon />
+              </EmptyMedia>
+              <EmptyTitle>当前没有交付版本</EmptyTitle>
+              <EmptyDescription>
+                请先创建交付版本，或将一个未锁定版本设为当前版本。
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <ButtonLink href="/delivery-versions">前往交付版本</ButtonLink>
+            </EmptyContent>
+          </Empty>
+        </div>
+      </PageContainer>
+    );
+  }
+
+  const currentDeliveryVersionId = project.currentDeliveryVersionId;
+  const [currentDeliveryVersion, features, independentStories] =
+    await Promise.all([
+      db.deliveryVersion.findFirstOrThrow({
+        where: {
+          id: currentDeliveryVersionId,
+          projectId: project.id,
+          deletedAt: null,
+        },
+        select: { id: true, code: true, name: true },
+      }),
+      db.feature.findMany({
+        where: {
+          projectId: project.id,
+          deletedAt: null,
+          userStories: {
+            some: {
+              deliveryVersionId: currentDeliveryVersionId,
+              deletedAt: null,
+            },
           },
         },
-      },
-    }),
-    db.userStory.findMany({
-      where: {
-        projectId: project.id,
-        featureId: null,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        code: true,
-        title: true,
-        status: true,
-        createdBy: { select: { username: true } },
-        updatedAt: true,
-      },
-    }),
-  ]);
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          createdBy: { select: { username: true } },
+          updatedAt: true,
+          userStories: {
+            where: {
+              deliveryVersionId: currentDeliveryVersionId,
+              deletedAt: null,
+            },
+            orderBy: [{ updatedAt: "desc" }, { createdAt: "asc" }],
+            select: {
+              id: true,
+              code: true,
+              title: true,
+              status: true,
+              createdBy: { select: { username: true } },
+              updatedAt: true,
+            },
+          },
+        },
+      }),
+      db.userStory.findMany({
+        where: {
+          projectId: project.id,
+          featureId: null,
+          deliveryVersionId: currentDeliveryVersionId,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          code: true,
+          title: true,
+          status: true,
+          createdBy: { select: { username: true } },
+          updatedAt: true,
+        },
+      }),
+    ]);
 
   const query = params.q?.trim().toLocaleLowerCase("zh-CN") ?? "";
   const type =
@@ -102,7 +162,6 @@ export default async function RequirementsPage({
   )
     ? (params.status as RequirementStatus)
     : "";
-
   const featureItems = features.flatMap<RequirementListItem>((feature) => {
     const featureStatus = deriveFeatureStatus(
       feature.userStories.map((story) => story.status),
@@ -119,10 +178,11 @@ export default async function RequirementsPage({
         updatedAt: story.updatedAt.toISOString(),
       }),
     );
-    const matchingChildren = allChildren.filter(
-      (story) =>
-        matchesText(story.code, story.title, query) &&
-        (!status || story.status === status),
+    const eligibleChildren = allChildren.filter(
+      (story) => !status || story.status === status,
+    );
+    const matchingChildren = eligibleChildren.filter((story) =>
+      matchesText(story.code, story.title, query),
     );
     const featureTextMatches = matchesText(feature.code, feature.name, query);
     const featureMatches =
@@ -161,7 +221,7 @@ export default async function RequirementsPage({
 
     const children =
       type === "FEATURE" || (!query && !status) || featureTextMatches
-        ? allChildren.filter((story) => !status || story.status === status)
+        ? eligibleChildren
         : matchingChildren;
 
     return [
@@ -214,8 +274,14 @@ export default async function RequirementsPage({
     <PageContainer table className="gap-5">
       <PageHeader
         title="需求列表"
+        description={`当前交付：${currentDeliveryVersion.code} · ${currentDeliveryVersion.name}`}
         actions={
-          <ButtonLink href="/consistency-checks/new">一致性检查</ButtonLink>
+          <ButtonLink
+            href={`/delivery-versions/${currentDeliveryVersion.id}`}
+            variant="outline"
+          >
+            查看版本详情
+          </ButtonLink>
         }
       />
 

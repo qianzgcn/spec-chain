@@ -9,15 +9,11 @@ import { DataTablePagination } from "@/components/data-table/data-table-paginati
 import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { Badge } from "@/components/ui/badge";
-import type { DraftOperation } from "@/generated/prisma/enums";
 import { formatCompactDateTime, formatDetailedDateTime } from "@/lib/date-time";
 
 export type PendingRequirementListItem = {
   id: string;
   title: string;
-  operation: DraftOperation;
-  baseVersion: number | null;
-  changeReason: string | null;
   feature: { code: string; name: string } | null;
   createdBy: string;
   createdAt: string;
@@ -39,48 +35,9 @@ const columns: ColumnDef<PendingRequirementListItem>[] = [
     ),
   },
   {
-    accessorKey: "operation",
-    header: "类型",
-    size: 110,
-    cell: ({ row }) => (
-      <Badge
-        variant={row.original.operation === "UPDATE" ? "info" : "secondary"}
-      >
-        {row.original.operation === "UPDATE" ? "代码更新" : "新建"}
-      </Badge>
-    ),
-  },
-  {
-    id: "targetVersion",
-    header: "目标版本",
-    size: 96,
-    cell: ({ row }) =>
-      row.original.operation === "UPDATE" && row.original.baseVersion
-        ? `v${row.original.baseVersion + 1}`
-        : "v1",
-  },
-  {
-    accessorKey: "changeReason",
-    header: "变更摘要",
-    size: 220,
-    meta: {
-      headerClassName: "max-[1500px]:hidden",
-      cellClassName: "max-[1500px]:hidden",
-    },
-    cell: ({ row }) => (
-      <span className="block truncate" title={row.original.changeReason ?? ""}>
-        {row.original.changeReason ?? "—"}
-      </span>
-    ),
-  },
-  {
     accessorKey: "feature",
     header: "所属 FE",
     size: 230,
-    meta: {
-      headerClassName: "max-xl:hidden",
-      cellClassName: "max-xl:hidden",
-    },
     cell: ({ row }) =>
       row.original.feature ? (
         <span
@@ -97,10 +54,7 @@ const columns: ColumnDef<PendingRequirementListItem>[] = [
     accessorKey: "createdAt",
     header: "生成时间",
     size: 170,
-    meta: {
-      headerClassName: "max-[1360px]:hidden",
-      cellClassName: "max-[1360px]:hidden text-muted-foreground",
-    },
+    meta: { cellClassName: "text-muted-foreground" },
     cell: ({ row }) => formatDetailedDateTime(row.original.createdAt),
   },
   {
@@ -125,7 +79,7 @@ const columns: ColumnDef<PendingRequirementListItem>[] = [
   },
   {
     id: "actions",
-    header: () => <span className="sr-only">操作</span>,
+    header: "操作",
     size: 56,
     meta: { headerClassName: "text-left", cellClassName: "text-left" },
     cell: ({ row }) => (

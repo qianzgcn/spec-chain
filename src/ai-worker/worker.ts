@@ -1,7 +1,7 @@
 import { builtInSkillResolver } from "@/ai/skills";
 import { AiWorkflowError } from "@/ai/workflow";
 import { executeAutomationScriptTask } from "@/ai-worker/automation-task";
-import { executeConsistencyTask } from "@/ai-worker/consistency-task";
+import { executeImplementationReviewTask } from "@/ai-worker/implementation-review-task";
 import { executeRepositoryTask } from "@/ai-worker/repository-task";
 import {
   findAiTaskExecution,
@@ -25,7 +25,7 @@ import { failPendingScriptGenerationRun } from "@/automation/script-generation-r
 import { decryptTaskSecret, taskDb } from "@/task-runtime/runtime";
 
 const DEFAULT_TASK_TIMEOUT_MS = 10 * 60 * 1_000;
-const CONSISTENCY_TASK_TIMEOUT_MS = 60 * 60 * 1_000;
+const IMPLEMENTATION_REVIEW_TIMEOUT_MS = 60 * 60 * 1_000;
 
 function getCapabilityName(capability: AiCapability) {
   switch (capability) {
@@ -35,8 +35,8 @@ function getCapabilityName(capability: AiCapability) {
       return "生成测试用例";
     case AiCapability.GENERATE_AUTOMATION_SCRIPT:
       return "生成自动化脚本";
-    case AiCapability.CHECK_CONSISTENCY:
-      return "一致性检查";
+    case AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION:
+      return "需求实现审查";
   }
 }
 
@@ -114,8 +114,8 @@ async function executeTask(executionId: string, ownerId: string) {
     initialStage: execution.stage,
   });
   const timeoutSignal = AbortSignal.timeout(
-    execution.capability === AiCapability.CHECK_CONSISTENCY
-      ? CONSISTENCY_TASK_TIMEOUT_MS
+    execution.capability === AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION
+      ? IMPLEMENTATION_REVIEW_TIMEOUT_MS
       : DEFAULT_TASK_TIMEOUT_MS,
   );
   const ownership = watchAiTaskOwnership(execution.id, ownerId);
@@ -146,8 +146,10 @@ async function executeTask(executionId: string, ownerId: string) {
     };
     if (execution.capability === AiCapability.GENERATE_AUTOMATION_SCRIPT) {
       await executeAutomationScriptTask(taskInput);
-    } else if (execution.capability === AiCapability.CHECK_CONSISTENCY) {
-      await executeConsistencyTask(taskInput);
+    } else if (
+      execution.capability === AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION
+    ) {
+      await executeImplementationReviewTask(taskInput);
     } else {
       await executeRepositoryTask(taskInput);
     }

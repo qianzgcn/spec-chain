@@ -5,11 +5,11 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 
 import {
-  AiDraftStatus,
+  DeliveryVersionStatus,
   RequirementStatus,
-  VersionSource,
 } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
+import { isDeliveryVersionContentLocked } from "@/lib/delivery-versions/rules";
 import { featureSchema } from "@/lib/requirements/feature-schema";
 import {
   buildFeatureMarkdown,
@@ -20,9 +20,8 @@ import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 import { generateBusinessCode } from "@/server/requirements/business-code";
-import { recordUserStoryVersion } from "@/server/versions/content-version";
 
-class ContentVersionChangedError extends Error {}
+class RecordChangedError extends Error {}
 
 async function requireCurrentProjectForAction() {
   await requireUser();
@@ -114,6 +113,24 @@ export async function deleteFeatureAction(id: string): Promise<ActionResult> {
     return { ok: false, message: "FE 不存在或已删除" };
   }
 
+  const lockedStory = await db.userStory.findFirst({
+    where: {
+      featureId: id,
+      deletedAt: null,
+      OR: [
+        { deliveryVersion: { lockedAt: { not: null } } },
+        { deliveryVersion: { status: DeliveryVersionStatus.DELIVERED } },
+      ],
+    },
+    select: { code: true },
+  });
+  if (lockedStory) {
+    return {
+      ok: false,
+      message: `FE 包含已锁定版本中的 US ${lockedStory.code}，不能删除`,
+    };
+  }
+
   const deletedAt = new Date();
   await db.$transaction([
     db.userStory.updateMany({
@@ -165,39 +182,47 @@ export async function createUserStoryAction(
     }
   }
 
-  const code = await generateBusinessCode("US");
-  const story = await db.$transaction(async (transaction) => {
-    const created = await transaction.userStory.create({
-      data: {
-        projectId: project.id,
-        featureId: parsed.data.featureId ?? null,
-        createdById: user.id,
-        code,
-        title: parsed.data.title,
-        asA: parsed.data.asA,
-        iWant: parsed.data.iWant,
-        soThat: parsed.data.soThat,
-        status: parsed.data.status,
-        businessRules: parsed.data.businessRules || null,
-        nonFunctionalRequirements:
-          parsed.data.nonFunctionalRequirements || null,
-        acceptanceCriteria: {
-          create: parsed.data.acceptanceCriteria.map((criterion, position) => ({
-            position,
-            given: criterion.given,
-            when: criterion.when,
-            then: criterion.then,
-          })),
-        },
+  const currentVersion = await db.project.findUnique({
+    where: { id: project.id },
+    select: {
+      currentDeliveryVersion: {
+        select: { id: true, lockedAt: true, status: true, deletedAt: true },
       },
-      select: { id: true },
-    });
-    await recordUserStoryVersion(transaction, created.id, {
-      source: VersionSource.MANUAL,
+    },
+  });
+  if (
+    !currentVersion?.currentDeliveryVersion ||
+    currentVersion.currentDeliveryVersion.deletedAt ||
+    isDeliveryVersionContentLocked(currentVersion.currentDeliveryVersion)
+  ) {
+    return { ok: false, message: "请先设置一个未锁定的当前交付版本" };
+  }
+
+  const code = await generateBusinessCode("US");
+  const story = await db.userStory.create({
+    data: {
+      projectId: project.id,
+      deliveryVersionId: currentVersion.currentDeliveryVersion.id,
+      featureId: parsed.data.featureId ?? null,
       createdById: user.id,
-      changeSummary: "创建 US",
-    });
-    return created;
+      code,
+      title: parsed.data.title,
+      asA: parsed.data.asA,
+      iWant: parsed.data.iWant,
+      soThat: parsed.data.soThat,
+      status: parsed.data.status,
+      businessRules: parsed.data.businessRules || null,
+      nonFunctionalRequirements: parsed.data.nonFunctionalRequirements || null,
+      acceptanceCriteria: {
+        create: parsed.data.acceptanceCriteria.map((criterion, position) => ({
+          position,
+          given: criterion.given,
+          when: criterion.when,
+          then: criterion.then,
+        })),
+      },
+    },
+    select: { id: true },
   });
 
   revalidatePath("/requirements");
@@ -207,10 +232,9 @@ export async function createUserStoryAction(
 export async function updateUserStoryAction(
   id: string,
   input: unknown,
-  expectedVersion: number,
+  expectedUpdatedAt: string,
 ): Promise<ActionResult> {
   const project = await requireCurrentProjectForAction();
-  const user = await requireUser();
   if (!project) {
     return { ok: false, message: "请先创建项目" };
   }
@@ -226,8 +250,9 @@ export async function updateUserStoryAction(
     };
   }
 
-  if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
-    return { ok: false, message: "US 版本无效，请刷新后重试" };
+  const expectedTimestamp = new Date(expectedUpdatedAt);
+  if (Number.isNaN(expectedTimestamp.getTime())) {
+    return { ok: false, message: "US 数据无效，请刷新后重试" };
   }
 
   const story = await db.userStory.findFirst({
@@ -241,8 +266,9 @@ export async function updateUserStoryAction(
       status: true,
       businessRules: true,
       nonFunctionalRequirements: true,
-      currentVersion: true,
+      updatedAt: true,
       featureId: true,
+      deliveryVersion: { select: { lockedAt: true, status: true } },
       acceptanceCriteria: {
         where: { deletedAt: null },
         orderBy: { position: "asc" },
@@ -253,11 +279,11 @@ export async function updateUserStoryAction(
   if (!story) {
     return { ok: false, message: "US 不存在或已删除" };
   }
+  if (story.updatedAt.getTime() !== expectedTimestamp.getTime()) {
+    return { ok: false, message: "US 内容已被更新，请刷新后重试" };
+  }
   if (story.title !== parsed.data.title) {
     return { ok: false, message: "US 标题创建后不能修改" };
-  }
-  if (story.currentVersion !== expectedVersion) {
-    return { ok: false, message: "US 内容已被更新，请刷新后重试" };
   }
 
   const inputIds = new Set(
@@ -292,6 +318,9 @@ export async function updateUserStoryAction(
     (story.nonFunctionalRequirements ?? "") !==
       parsed.data.nonFunctionalRequirements ||
     JSON.stringify(currentCriteria) !== JSON.stringify(nextCriteria);
+  if (contentChanged && isDeliveryVersionContentLocked(story.deliveryVersion)) {
+    return { ok: false, message: "所属交付版本已锁定，不能修改 US 内容" };
+  }
 
   try {
     await db.$transaction(async (transaction) => {
@@ -300,7 +329,7 @@ export async function updateUserStoryAction(
           id,
           projectId: project.id,
           deletedAt: null,
-          currentVersion: expectedVersion,
+          updatedAt: expectedTimestamp,
         },
         data: {
           asA: parsed.data.asA,
@@ -310,10 +339,9 @@ export async function updateUserStoryAction(
           businessRules: parsed.data.businessRules || null,
           nonFunctionalRequirements:
             parsed.data.nonFunctionalRequirements || null,
-          ...(contentChanged ? { currentVersion: { increment: 1 } } : {}),
         },
       });
-      if (claimed.count !== 1) throw new ContentVersionChangedError();
+      if (claimed.count !== 1) throw new RecordChangedError();
 
       if (!contentChanged) return;
 
@@ -352,23 +380,9 @@ export async function updateUserStoryAction(
           });
         }
       }
-
-      await recordUserStoryVersion(transaction, id, {
-        source: VersionSource.MANUAL,
-        createdById: user.id,
-        changeSummary: "人工更新 US 内容",
-      });
-      await transaction.userStoryDraft.updateMany({
-        where: {
-          targetUserStoryId: id,
-          status: AiDraftStatus.PENDING,
-          deletedAt: null,
-        },
-        data: { status: AiDraftStatus.SUPERSEDED },
-      });
     });
   } catch (error) {
-    if (error instanceof ContentVersionChangedError) {
+    if (error instanceof RecordChangedError) {
       return { ok: false, message: "US 内容已被更新，请刷新后重试" };
     }
     throw error;
@@ -425,10 +439,17 @@ export async function deleteUserStoryAction(id: string): Promise<ActionResult> {
 
   const story = await db.userStory.findFirst({
     where: { id, projectId: project.id, deletedAt: null },
-    select: { id: true, featureId: true },
+    select: {
+      id: true,
+      featureId: true,
+      deliveryVersion: { select: { lockedAt: true, status: true } },
+    },
   });
   if (!story) {
     return { ok: false, message: "US 不存在或已删除" };
+  }
+  if (isDeliveryVersionContentLocked(story.deliveryVersion)) {
+    return { ok: false, message: "所属交付版本已锁定，不能删除 US" };
   }
 
   await db.userStory.update({

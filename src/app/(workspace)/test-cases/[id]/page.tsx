@@ -11,7 +11,6 @@ import {
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageSection } from "@/components/layout/page-section";
-import { ButtonLink } from "@/components/navigation/button-link";
 import { TestCaseDetailActions } from "@/components/test-cases/test-case-detail-actions";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -112,7 +111,6 @@ export default async function TestCaseDetailPage({
         meta={
           <>
             <span className="font-mono text-xs">{testCase.code}</span>
-            <Badge variant="secondary">v{testCase.currentVersion}</Badge>
             <Badge variant={priorityMeta.badgeVariant}>
               {priorityMeta.label}
             </Badge>
@@ -124,12 +122,6 @@ export default async function TestCaseDetailPage({
         }
         actions={
           <>
-            <ButtonLink
-              href={`/test-cases/${testCase.id}/versions`}
-              variant="outline"
-            >
-              版本历史
-            </ButtonLink>
             <TestCaseDetailActions
               id={testCase.id}
               scriptStatus={scriptStatus}
@@ -178,14 +170,6 @@ export default async function TestCaseDetailPage({
           <span className="text-muted-foreground text-sm">平台用例</span>
         )}
       </PageSection>
-
-      {testCase.retiredAt && testCase.retirementReason ? (
-        <PageSection title="停用信息">
-          <p className="text-sm leading-6 whitespace-pre-wrap">
-            {testCase.retirementReason}
-          </p>
-        </PageSection>
-      ) : null}
 
       <PageSection
         title="Playwright TypeScript 脚本"

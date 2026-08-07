@@ -87,7 +87,7 @@ export default async function EditTestCasePage({
   return (
     <TestCaseForm
       testCaseId={testCase.id}
-      currentVersion={testCase.currentVersion}
+      expectedUpdatedAt={testCase.updatedAt.toISOString()}
       code={testCase.code}
       groups={groups}
       userStories={selectableStories}

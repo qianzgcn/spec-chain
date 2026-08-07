@@ -57,15 +57,8 @@ function getAiResultHref(task: AiExecutionTaskDetail) {
         : null;
     case "AUTOMATION_SCRIPT":
       return `/test-cases/${task.result.testCaseId}`;
-    case "CONSISTENCY_CHECK":
-      return task.result.requirementDraftCount > 0
-        ? "/requirements/pending-review"
-        : task.result.testCaseCreateCount +
-              task.result.testCaseUpdateCount +
-              task.result.testCaseRetireCount >
-            0
-          ? "/test-cases/pending-review"
-          : null;
+    case "IMPLEMENTATION_REVIEW":
+      return `/delivery-versions/${task.result.deliveryVersion.id}`;
   }
 }
 

@@ -69,7 +69,7 @@ export type { TestCaseFormValues };
 
 type TestCaseFormProps = {
   testCaseId?: string;
-  currentVersion?: number;
+  expectedUpdatedAt?: string;
   code?: string;
   groups: Array<{ id: string; name: string }>;
   userStories: Array<{
@@ -89,7 +89,7 @@ const PRIORITY_OPTIONS = Object.values(TestPriority).map((priority) => ({
 
 export function TestCaseForm({
   testCaseId,
-  currentVersion,
+  expectedUpdatedAt,
   code,
   groups,
   userStories,
@@ -131,7 +131,11 @@ export function TestCaseForm({
   function submit(values: TestCaseFormValues) {
     startTransition(async () => {
       const result = testCaseId
-        ? await updateTestCaseAction(testCaseId, values, currentVersion ?? 0)
+        ? await updateTestCaseAction(
+            testCaseId,
+            values,
+            expectedUpdatedAt ?? "",
+          )
         : await createTestCaseAction(values);
       if (!result.ok) {
         toast.add({ type: "error", description: result.message });

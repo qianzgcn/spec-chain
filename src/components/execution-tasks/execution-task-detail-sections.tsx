@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 
 import { AiExecutionTaskLog } from "@/components/execution-tasks/execution-task-log";
+import { ImplementationReviewResult } from "@/components/execution-tasks/implementation-review-result";
 import { PageSection } from "@/components/layout/page-section";
 import { ButtonLink } from "@/components/navigation/button-link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -182,65 +183,8 @@ export function ExecutionTaskBody({
 
       <ExecutionInformation task={task} />
 
-      {task.result?.kind === "CONSISTENCY_CHECK" ? (
-        <PageSection title="检查结果">
-          <dl className="grid grid-cols-2 gap-4 min-[1440px]:grid-cols-4">
-            {[
-              ["检查对象", task.result.totalCount],
-              ["无变化", task.result.unchangedCount],
-              ["需求更新", task.result.requirementDraftCount],
-              ["用例新增", task.result.testCaseCreateCount],
-              ["用例更新", task.result.testCaseUpdateCount],
-              ["建议停用", task.result.testCaseRetireCount],
-              ["需人工处理", task.result.attentionCount],
-            ].map(([label, value]) => (
-              <div key={label} className="bg-muted/40 rounded-lg p-3">
-                <dt className="text-muted-foreground text-xs">{label}</dt>
-                <dd className="mt-1 text-lg font-semibold">{value}</dd>
-              </div>
-            ))}
-          </dl>
-          {task.result.requirementDraftCount > 0 ||
-          task.result.testCaseCreateCount +
-            task.result.testCaseUpdateCount +
-            task.result.testCaseRetireCount >
-            0 ? (
-            <div className="mt-4 flex gap-2">
-              {task.result.requirementDraftCount > 0 ? (
-                <ButtonLink
-                  href="/requirements/pending-review"
-                  variant="outline"
-                >
-                  查看待评审需求
-                </ButtonLink>
-              ) : null}
-              {task.result.testCaseCreateCount +
-                task.result.testCaseUpdateCount +
-                task.result.testCaseRetireCount >
-              0 ? (
-                <ButtonLink href="/test-cases/pending-review" variant="outline">
-                  查看待评审用例
-                </ButtonLink>
-              ) : null}
-            </div>
-          ) : null}
-          {task.result.attentionItems.length > 0 ? (
-            <div className="mt-5 flex flex-col gap-2">
-              <h3 className="text-sm font-medium">需人工处理</h3>
-              {task.result.attentionItems.map((item, index) => (
-                <div
-                  key={`${item.label}-${index}`}
-                  className="bg-warning/10 rounded-lg p-3 text-sm"
-                >
-                  <div className="font-medium">{item.label}</div>
-                  <p className="text-muted-foreground mt-1 whitespace-pre-wrap">
-                    {item.reason}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </PageSection>
+      {task.result?.kind === "IMPLEMENTATION_REVIEW" ? (
+        <ImplementationReviewResult result={task.result} />
       ) : null}
 
       <AiExecutionTaskLog

@@ -3,6 +3,12 @@ import type {
   AiDraftStatus,
   AiExecutionLogLevel,
   AiExecutionStage,
+  AcceptanceCriterionReviewStatus,
+  ImplementationFindingSeverity,
+  ImplementationFindingType,
+  ImplementationReviewConclusion,
+  RequirementImplementationStatus,
+  TestCoverageStatus,
 } from "@/generated/prisma/enums";
 
 export type ExecutionTaskType = AiCapability;
@@ -44,24 +50,58 @@ export type AiExecutionAutomationScriptResult = {
   deleted: boolean;
 };
 
-export type AiExecutionConsistencyResult = {
-  kind: "CONSISTENCY_CHECK";
+export type ImplementationReviewEvidence = {
+  repository: string;
+  commitSha: string;
+  path: string;
+  lineStart: number;
+  lineEnd: number;
+  summary: string;
+};
+
+export type AiExecutionImplementationReviewResult = {
+  kind: "IMPLEMENTATION_REVIEW";
   deleted: false;
+  deliveryVersion: { id: string; code: string; name: string };
+  conclusion: ImplementationReviewConclusion;
   totalCount: number;
-  unchangedCount: number;
-  requirementDraftCount: number;
-  testCaseCreateCount: number;
-  testCaseUpdateCount: number;
-  testCaseRetireCount: number;
-  attentionCount: number;
-  attentionItems: Array<{ label: string; reason: string }>;
+  implementedCount: number;
+  partialCount: number;
+  notImplementedCount: number;
+  unconfirmedCount: number;
+  coverageGapCount: number;
+  findingCount: number;
+  items: Array<{
+    userStoryId: string;
+    code: string;
+    title: string;
+    implementationStatus: RequirementImplementationStatus;
+    coverageStatus: TestCoverageStatus;
+    summary: string;
+    criteria: Array<{
+      position: number;
+      given: string;
+      when: string;
+      then: string;
+      status: AcceptanceCriterionReviewStatus;
+      reason: string;
+      evidence: ImplementationReviewEvidence[];
+    }>;
+    findings: Array<{
+      type: ImplementationFindingType;
+      severity: ImplementationFindingSeverity;
+      title: string;
+      detail: string;
+      evidence: ImplementationReviewEvidence[];
+    }>;
+  }>;
 };
 
 export type AiExecutionResult =
   | AiExecutionUserStoryResult
   | AiExecutionTestCaseResult
   | AiExecutionAutomationScriptResult
-  | AiExecutionConsistencyResult;
+  | AiExecutionImplementationReviewResult;
 
 export type AiExecutionLogEntry = {
   position: number;
@@ -98,6 +138,7 @@ export type AiExecutionTaskDetail = ExecutionTaskDetailBase & {
     name: string;
     deleted: boolean;
   } | null;
+  deliveryVersion: { id: string; code: string; name: string } | null;
   result: AiExecutionResult | null;
   logs: AiExecutionLogEntry[];
 };

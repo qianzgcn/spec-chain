@@ -1,7 +1,12 @@
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
-import { AiCapability, AiExecutionOrigin } from "@/generated/prisma/enums";
+import {
+  AiCapability,
+  AiExecutionOrigin,
+  RequirementImplementationStatus,
+  TestCoverageStatus,
+} from "@/generated/prisma/enums";
 import {
   getAiExecutionStageLabel,
   mapAiExecutionStatus,
@@ -10,6 +15,7 @@ import {
   type AiExecutionTaskDetail,
   type AiExecutionResult,
   type ExecutionTaskSummary,
+  type ImplementationReviewEvidence,
 } from "@/lib/execution-tasks/types";
 import { db } from "@/server/db";
 
@@ -19,12 +25,19 @@ function toAiTaskContent(execution: {
   capability: AiCapability;
   requirementText: string;
   testCase: { code: string; name: string } | null;
+  deliveryVersion: { code: string; name: string } | null;
 }) {
   if (
     execution.capability === AiCapability.GENERATE_AUTOMATION_SCRIPT &&
     execution.testCase
   ) {
     return `${execution.testCase.code} · ${execution.testCase.name}`;
+  }
+  if (
+    execution.capability === AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION &&
+    execution.deliveryVersion
+  ) {
+    return `${execution.deliveryVersion.code} · ${execution.deliveryVersion.name}`;
   }
   return execution.requirementText;
 }
@@ -52,6 +65,7 @@ export async function getExecutionTaskSummaries(
       durationMs: true,
       requestedBy: { select: { username: true } },
       testCase: { select: { code: true, name: true } },
+      deliveryVersion: { select: { code: true, name: true } },
     },
   });
 
@@ -95,6 +109,7 @@ const AI_EXECUTION_DETAIL_SELECT = {
   testCase: {
     select: { id: true, code: true, name: true, deletedAt: true },
   },
+  deliveryVersion: { select: { id: true, code: true, name: true } },
   logs: {
     orderBy: { position: "asc" },
     select: {
@@ -114,15 +129,41 @@ const AI_EXECUTION_DETAIL_SELECT = {
       confirmedUserStoryId: true,
     },
   },
-  consistencyItems: {
+  implementationReview: {
     select: {
-      outcome: true,
-      reason: true,
-      userStory: { select: { code: true, title: true } },
-      testCase: { select: { code: true, name: true } },
-      userStoryDraft: { select: { status: true } },
-      testCaseDraft: {
-        select: { operation: true, status: true },
+      conclusion: true,
+      items: {
+        orderBy: { userStoryCodeSnapshot: "asc" },
+        select: {
+          userStoryId: true,
+          userStoryCodeSnapshot: true,
+          titleSnapshot: true,
+          implementationStatus: true,
+          coverageStatus: true,
+          summary: true,
+          criteria: {
+            orderBy: { position: "asc" },
+            select: {
+              position: true,
+              givenSnapshot: true,
+              whenSnapshot: true,
+              thenSnapshot: true,
+              status: true,
+              reason: true,
+              evidence: true,
+            },
+          },
+          findings: {
+            orderBy: { createdAt: "asc" },
+            select: {
+              type: true,
+              severity: true,
+              title: true,
+              detail: true,
+              evidence: true,
+            },
+          },
+        },
       },
     },
   },
@@ -145,40 +186,70 @@ type AiExecutionDetailRecord = Prisma.AiExecutionGetPayload<{
 function toAiExecutionResult(
   execution: AiExecutionDetailRecord,
 ): AiExecutionResult | null {
-  if (execution.capability === AiCapability.CHECK_CONSISTENCY) {
-    const requirementDraftCount = execution.consistencyItems.filter(
-      (item) => item.userStoryDraft,
-    ).length;
+  if (
+    execution.capability === AiCapability.REVIEW_REQUIREMENT_IMPLEMENTATION &&
+    execution.implementationReview &&
+    execution.deliveryVersion
+  ) {
+    const items = execution.implementationReview.items;
     return {
-      kind: "CONSISTENCY_CHECK",
+      kind: "IMPLEMENTATION_REVIEW",
       deleted: false,
-      totalCount: execution.consistencyItems.length,
-      unchangedCount: execution.consistencyItems.filter(
-        (item) => item.outcome === "UNCHANGED",
+      deliveryVersion: execution.deliveryVersion,
+      conclusion: execution.implementationReview.conclusion,
+      totalCount: items.length,
+      implementedCount: items.filter(
+        (item) =>
+          item.implementationStatus ===
+          RequirementImplementationStatus.IMPLEMENTED,
       ).length,
-      requirementDraftCount,
-      testCaseCreateCount: execution.consistencyItems.filter(
-        (item) => item.testCaseDraft?.operation === "CREATE",
+      partialCount: items.filter(
+        (item) =>
+          item.implementationStatus ===
+          RequirementImplementationStatus.PARTIALLY_IMPLEMENTED,
       ).length,
-      testCaseUpdateCount: execution.consistencyItems.filter(
-        (item) => item.testCaseDraft?.operation === "UPDATE",
+      notImplementedCount: items.filter(
+        (item) =>
+          item.implementationStatus ===
+          RequirementImplementationStatus.NOT_IMPLEMENTED,
       ).length,
-      testCaseRetireCount: execution.consistencyItems.filter(
-        (item) => item.testCaseDraft?.operation === "RETIRE",
+      unconfirmedCount: items.filter(
+        (item) =>
+          item.implementationStatus ===
+          RequirementImplementationStatus.UNCONFIRMED,
       ).length,
-      attentionCount: execution.consistencyItems.filter(
-        (item) => item.outcome === "NEEDS_ATTENTION",
+      coverageGapCount: items.filter(
+        (item) => item.coverageStatus === TestCoverageStatus.INSUFFICIENT,
       ).length,
-      attentionItems: execution.consistencyItems
-        .filter((item) => item.outcome === "NEEDS_ATTENTION")
-        .map((item) => ({
-          label: item.testCase
-            ? `${item.testCase.code} · ${item.testCase.name}`
-            : item.userStory
-              ? `${item.userStory.code} · ${item.userStory.title}`
-              : "未映射对象",
-          reason: item.reason,
+      findingCount: items.reduce(
+        (count, item) => count + item.findings.length,
+        0,
+      ),
+      items: items.map((item) => ({
+        userStoryId: item.userStoryId,
+        code: item.userStoryCodeSnapshot,
+        title: item.titleSnapshot,
+        implementationStatus: item.implementationStatus,
+        coverageStatus: item.coverageStatus,
+        summary: item.summary,
+        criteria: item.criteria.map((criterion) => ({
+          position: criterion.position,
+          given: criterion.givenSnapshot,
+          when: criterion.whenSnapshot,
+          then: criterion.thenSnapshot,
+          status: criterion.status,
+          reason: criterion.reason,
+          evidence: JSON.parse(
+            criterion.evidence,
+          ) as ImplementationReviewEvidence[],
         })),
+        findings: item.findings.map((finding) => ({
+          ...finding,
+          evidence: JSON.parse(
+            finding.evidence,
+          ) as ImplementationReviewEvidence[],
+        })),
+      })),
     };
   }
   const userStoryDraft = execution.userStoryDrafts[0];
@@ -259,6 +330,7 @@ function toAiExecutionTaskDetail(
           deleted: Boolean(execution.testCase.deletedAt),
         }
       : null,
+    deliveryVersion: execution.deliveryVersion,
     result: toAiExecutionResult(execution),
     logs: execution.logs
       .filter((log) => log.createdAt.getTime() >= execution.queuedAt.getTime())
