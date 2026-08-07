@@ -414,13 +414,9 @@ async function applyDraftChange(
     return { id: target.id };
   }
 
-  const automationContentChanged =
-    target.name !== draft.name ||
-    target.preconditions !== draft.preconditions ||
-    target.steps !== draft.steps;
-  const clearManualScript =
-    automationContentChanged &&
-    target.scriptSource === TestCaseScriptSource.MANUAL;
+  // 只看测试步骤是否发生了变化
+  const stepsChanged = target.steps.trim() !== draft.steps.trim();
+
   const updated = await transaction.testCase.updateMany({
     where: {
       id: target.id,
@@ -434,7 +430,7 @@ async function applyDraftChange(
       priority: draft.priority,
       preconditions: draft.preconditions,
       steps: draft.steps,
-      ...(clearManualScript
+      ...(stepsChanged
         ? {
             script: null,
             scriptSource: null,
@@ -445,6 +441,19 @@ async function applyDraftChange(
     },
   });
   if (updated.count !== 1) throw new DraftStateChangedError();
+
+  if (stepsChanged) {
+    // 当通过评审修改测试步骤时，软删除针对旧步骤的已运行记录，使运行状态重置为待运行（尚未运行）
+    await transaction.testRun.updateMany({
+      where: {
+        testCaseId: target.id,
+        deletedAt: null,
+      },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
+  }
   return { id: target.id };
 }
 

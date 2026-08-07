@@ -376,15 +376,11 @@ export async function updateTestCaseAction(
   ) {
     return { ok: false, message: "所属交付版本已锁定，不能修改需求用例" };
   }
-  const automationContentChanged =
-    testCase.name !== parsed.data.name ||
-    testCase.preconditions !== nextPreconditions ||
-    testCase.steps !== parsed.data.steps;
-  const clearUnchangedManualScript =
-    automationContentChanged &&
-    testCase.scriptSource === TestCaseScriptSource.MANUAL &&
-    !scriptChanged;
-  const nextScript = clearUnchangedManualScript ? null : script;
+  // 只看测试步骤是否发生了变化
+  const stepsChanged = testCase.steps.trim() !== parsed.data.steps.trim();
+  const resetScriptOnStepsChange = stepsChanged && !scriptChanged;
+  const clearScriptMetadata = scriptChanged || resetScriptOnStepsChange;
+  const nextScript = resetScriptOnStepsChange ? null : script;
 
   try {
     await db.$transaction(async (transaction) => {
@@ -404,7 +400,7 @@ export async function updateTestCaseAction(
           steps: parsed.data.steps,
           enabled: parsed.data.enabled,
           script: nextScript,
-          ...(scriptChanged || clearUnchangedManualScript
+          ...(clearScriptMetadata
             ? {
                 scriptSource: nextScript ? TestCaseScriptSource.MANUAL : null,
                 aiScriptFingerprint: null,
@@ -414,6 +410,20 @@ export async function updateTestCaseAction(
         },
       });
       if (updated.count !== 1) throw new RecordChangedError();
+
+      if (stepsChanged) {
+        // 当测试步骤发生变化时，以前针对旧步骤执行的 TestRun 历史记录失效，
+        // 软删除关联的 TestRun 记录，使测试用例的运行状态重置为待运行（尚未运行）
+        await transaction.testRun.updateMany({
+          where: {
+            testCaseId: id,
+            deletedAt: null,
+          },
+          data: {
+            deletedAt: new Date(),
+          },
+        });
+      }
     });
   } catch (error) {
     if (error instanceof RecordChangedError) {
