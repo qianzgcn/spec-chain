@@ -466,13 +466,13 @@ export function TestCasesList({
               </Button>
             ) : null}
             <div className="ml-auto flex items-center gap-2">
-              <ButtonLink href="/test-cases/ai-generate" variant="outline">
+              <ButtonLink href="/test-cases/ai-generate">
                 <SparklesIcon data-icon="inline-start" />
-                AI辅助生成测试用例
+                创建用例-AI
               </ButtonLink>
-              <ButtonLink href="/test-cases/new">
+              <ButtonLink href="/test-cases/new" variant="outline">
                 <PlusIcon data-icon="inline-start" />
-                新建用例
+                创建用例-人工
               </ButtonLink>
             </div>
           </>
