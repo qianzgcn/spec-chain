@@ -92,7 +92,7 @@ describe("AI 生成测试用例提示词", () => {
       AiCapability.GENERATE_TEST_CASES,
     );
 
-    expect(skill.version).toBe("1.1.0");
+    expect(skill.version).toBe("1.2.0");
     expect(skill.instructions).toBe(generateTestCasesSystemPrompt);
     expect(skill.instructions).toContain("最少用例集合");
     expect(skill.instructions).toContain(
@@ -116,6 +116,7 @@ describe("AI 生成测试用例提示词", () => {
       requirementText: "管理员使用错误密码时应登录失败",
       groups: [{ id: "group-auth", name: "认证与会话" }],
       allowEmptyResult: true,
+      hasExistingTestCases: true,
       variables: [
         {
           name: "ADMIN",
@@ -152,7 +153,8 @@ describe("AI 生成测试用例提示词", () => {
     expect(selectionPrompt).toContain("管理员使用错误密码时应登录失败");
     expect(selectionPrompt).toContain("team/spec-chain");
     expect(selectionPrompt).toContain('"src/app/login/page.tsx"');
-    expect(generationPrompt).toContain("0～20 条用例");
+    expect(generationPrompt).toContain("0～20 条变更");
+    expect(generationPrompt).toContain("CREATE、UPDATE、DELETE");
     expect(generationPrompt).toContain("src/app/login/page.tsx");
     expect(generationPrompt).toContain("LoginPage");
     expect(generationPrompt).toContain("group-auth");

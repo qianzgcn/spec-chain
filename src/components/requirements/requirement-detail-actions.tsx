@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 
 import {
   deleteFeatureAction,
-  deleteUserStoryAction,
   getRequirementMarkdownAction,
 } from "@/app/actions/requirements";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
@@ -54,10 +53,7 @@ export function RequirementDetailActions({
 
   function remove() {
     startTransition(async () => {
-      const result =
-        type === "FEATURE"
-          ? await deleteFeatureAction(id)
-          : await deleteUserStoryAction(id);
+      const result = await deleteFeatureAction(id);
       if (!result.ok) {
         toast.add({ type: "error", description: result.message });
         return;
@@ -89,37 +85,35 @@ export function RequirementDetailActions({
           复制内容
         </Button>
         {!contentLocked ? (
-          <>
-            <ButtonLink href={`${basePath}/edit`} variant="outline">
-              <PencilIcon data-icon="inline-start" />
-              编辑
-            </ButtonLink>
-            <Button
-              variant="destructive"
-              disabled={isPending}
-              onClick={() => setConfirmOpen(true)}
-            >
-              <Trash2Icon data-icon="inline-start" />
-              删除
-            </Button>
-          </>
+          <ButtonLink href={`${basePath}/edit`} variant="outline">
+            <PencilIcon data-icon="inline-start" />
+            编辑
+          </ButtonLink>
+        ) : null}
+        {type === "FEATURE" && !contentLocked ? (
+          <Button
+            variant="destructive"
+            disabled={isPending}
+            onClick={() => setConfirmOpen(true)}
+          >
+            <Trash2Icon data-icon="inline-start" />
+            删除
+          </Button>
         ) : null}
       </div>
 
-      <ConfirmDialog
-        open={confirmOpen}
-        title={`删除${type === "FEATURE" ? " FE" : " US"}`}
-        description={
-          type === "FEATURE"
-            ? `将同时删除 ${childCount} 个关联 US，且不能恢复。`
-            : "删除后不能恢复，不会影响测试用例。"
-        }
-        confirmLabel="删除"
-        destructive
-        pending={isPending}
-        onOpenChange={setConfirmOpen}
-        onConfirm={remove}
-      />
+      {type === "FEATURE" ? (
+        <ConfirmDialog
+          open={confirmOpen}
+          title="删除 FE"
+          description={`将同时删除 ${childCount} 个关联 US，且不能恢复。`}
+          confirmLabel="删除"
+          destructive
+          pending={isPending}
+          onOpenChange={setConfirmOpen}
+          onConfirm={remove}
+        />
+      ) : null}
     </>
   );
 }

@@ -40,7 +40,11 @@ export function PendingTestCaseDetailActions({
         }
 
         toast.add({ type: "success", description: result.message });
-        router.push(`/test-cases/${result.data.id}`);
+        router.push(
+          result.data.deleted
+            ? "/test-cases/pending-review"
+            : `/test-cases/${result.data.id}`,
+        );
         router.refresh();
       } catch {
         toast.add({ type: "error", description: "评审测试用例失败" });

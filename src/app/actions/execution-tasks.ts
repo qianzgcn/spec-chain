@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import {
   AiCapability,
+  AiDraftStatus,
   AiExecutionOrigin,
   AiExecutionLogLevel,
   AiExecutionStage,
@@ -19,6 +20,10 @@ import {
   deleteExecutionTaskSchema,
   retryExecutionTaskSchema,
 } from "@/lib/ai/execution-schema";
+import {
+  createTestCaseSetFingerprint,
+  createUserStoryTestDesignFingerprint,
+} from "@/lib/test-cases/sync-fingerprint";
 import { formatUserStoryForTestCaseGeneration } from "@/ai/test-case-requirement";
 import { requireUser } from "@/server/auth/session";
 import { db } from "@/server/db";
@@ -80,6 +85,8 @@ async function createQueuedExecution(input: {
   sourceUserStoryId?: string | null;
   testCaseId?: string | null;
   deliveryVersionId?: string | null;
+  sourceFingerprint?: string | null;
+  testCaseSnapshotFingerprint?: string | null;
 }) {
   const execution = await createQueuedAiExecutionRecord(db, input);
 
@@ -268,10 +275,13 @@ export async function createAiTestCaseExecutionAction(
         orderBy: { code: "asc" },
         select: {
           code: true,
+          groupId: true,
           name: true,
+          priority: true,
           preconditions: true,
           steps: true,
           enabled: true,
+          updatedAt: true,
         },
       },
     },
@@ -280,7 +290,35 @@ export async function createAiTestCaseExecutionAction(
     return { ok: false, message: "所选 US 不存在或已删除" };
   }
   if (isDeliveryVersionContentLocked(userStory.deliveryVersion)) {
-    return { ok: false, message: "所属交付版本已锁定，不能新增需求用例" };
+    return { ok: false, message: "所属交付版本已锁定，不能变更需求用例" };
+  }
+
+  const [activeExecution, pendingDraft] = await Promise.all([
+    db.aiExecution.findFirst({
+      where: {
+        projectId: project.id,
+        sourceUserStoryId: userStory.id,
+        capability: AiCapability.GENERATE_TEST_CASES,
+        status: { in: [AiExecutionStatus.QUEUED, AiExecutionStatus.RUNNING] },
+        deletedAt: null,
+      },
+      select: { id: true },
+    }),
+    db.testCaseDraft.findFirst({
+      where: {
+        proposedUserStoryId: userStory.id,
+        status: AiDraftStatus.PENDING,
+        deletedAt: null,
+        batch: { deletedAt: null },
+      },
+      select: { id: true },
+    }),
+  ]);
+  if (activeExecution) {
+    return { ok: false, message: "该 US 已有测试用例生成任务正在执行" };
+  }
+  if (pendingDraft) {
+    return { ok: false, message: "该 US 已有待评审用例，请先完成评审" };
   }
 
   return createQueuedExecution({
@@ -289,6 +327,10 @@ export async function createAiTestCaseExecutionAction(
     sourceUserStoryId: userStory.id,
     capability: AiCapability.GENERATE_TEST_CASES,
     requirementText: formatUserStoryForTestCaseGeneration(userStory),
+    sourceFingerprint: createUserStoryTestDesignFingerprint(userStory),
+    testCaseSnapshotFingerprint: createTestCaseSetFingerprint(
+      userStory.testCases,
+    ),
   });
 }
 

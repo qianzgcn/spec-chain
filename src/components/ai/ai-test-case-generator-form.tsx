@@ -44,6 +44,7 @@ type UserStoryOption = {
   code: string;
   title: string;
   featureName: string | null;
+  hasTestCases: boolean;
 };
 
 export function AiTestCaseGeneratorForm({
@@ -73,6 +74,15 @@ export function AiTestCaseGeneratorForm({
   });
   const requirementText =
     useWatch({ control: form.control, name: "requirementText" }) ?? "";
+  const selectedUserStoryId = useWatch({
+    control: form.control,
+    name: "userStoryId",
+  });
+  const updating =
+    sourceMode === "USER_STORY" &&
+    userStories.some(
+      (story) => story.id === selectedUserStoryId && story.hasTestCases,
+    );
   const storyIds = userStories.map((story) => story.id);
   const storyLabels = new Map(
     userStories.map((story) => [
@@ -127,8 +137,12 @@ export function AiTestCaseGeneratorForm({
 
   return (
     <FormPage
-      title="AI辅助生成测试用例"
-      description="系统会结合需求和当前代码，生成一组需要人工评审的自然语言测试用例。"
+      title={updating ? "AI辅助更新测试用例" : "AI辅助生成测试用例"}
+      description={
+        updating
+          ? "系统会比较当前 US 和已有用例，提出需要人工评审的新增、更新或删除建议。"
+          : "系统会结合需求和当前代码，生成一组需要人工评审的自然语言测试用例。"
+      }
       actions={
         <>
           <Button variant="outline" type="button" onClick={cancel}>
@@ -145,7 +159,7 @@ export function AiTestCaseGeneratorForm({
             ) : (
               <SparklesIcon data-icon="inline-start" />
             )}
-            开始生成
+            {updating ? "开始更新" : "开始生成"}
           </Button>
         </>
       }

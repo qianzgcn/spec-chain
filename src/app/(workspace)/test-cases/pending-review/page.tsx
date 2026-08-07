@@ -30,7 +30,7 @@ export default async function PendingReviewTestCasesPage({
       <PageContainer className="flex flex-col gap-5">
         <PageHeader
           title="待评审用例"
-          description="查看并确认 AI 生成的测试用例。"
+          description="查看并确认 AI 提出的测试用例变更。"
         />
         <ProjectRequiredState />
       </PageContainer>
@@ -68,6 +68,7 @@ export default async function PendingReviewTestCasesPage({
     take: 20,
     select: {
       id: true,
+      changeType: true,
       name: true,
       priority: true,
       groupId: true,
@@ -97,6 +98,7 @@ export default async function PendingReviewTestCasesPage({
 
   const items: PendingTestCaseListItem[] = drafts.map((draft) => ({
     id: draft.id,
+    changeType: draft.changeType,
     name: draft.name,
     priority: draft.priority,
     groupId:
@@ -122,12 +124,13 @@ export default async function PendingReviewTestCasesPage({
     <PageContainer table className="gap-5">
       <PageHeader
         title="待评审用例"
-        description="检查 AI 生成的测试用例，选择分组后即可通过评审。"
+        description="评审 AI 提出的新增、更新或删除建议；新增和更新用例需先选择分组。"
       />
       <PendingTestCasesList
         key={items
           .map(
-            (item) => `${item.id}:${item.groupId ?? "none"}:${item.priority}`,
+            (item) =>
+              `${item.id}:${item.changeType}:${item.groupId ?? "none"}:${item.priority}`,
           )
           .join("|")}
         items={items}

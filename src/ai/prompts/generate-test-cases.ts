@@ -95,6 +95,7 @@ export function buildTestCaseDraftsPrompt(input: {
   groups: readonly { id: string; name: string }[];
   variables: readonly ProjectVariableMetadata[];
   allowEmptyResult?: boolean;
+  hasExistingTestCases?: boolean;
 }) {
   return renderPromptTemplate(generateDraftsPromptTemplate, {
     REQUIREMENT_TEXT: input.requirementText,
@@ -102,7 +103,10 @@ export function buildTestCaseDraftsPrompt(input: {
     AVAILABLE_GROUPS: formatAvailableGroups(input.groups),
     AVAILABLE_VARIABLES: formatAvailableVariables(input.variables),
     RESULT_COUNT_RULE: input.allowEmptyResult
-      ? "`testCases` 包含 0～20 条用例；已有用例已经完整覆盖时返回空数组，不得生成重复草稿。"
-      : "`testCases` 必须包含 1～20 条用例，按业务重要性排序。",
+      ? "`testCases` 包含 0～20 条变更；已有用例已经与当前 US 一致时返回空数组。"
+      : "`testCases` 必须包含 1～20 条新增用例，按业务重要性排序。",
+    RESULT_ACTION_RULE: input.hasExistingTestCases
+      ? "允许返回 CREATE、UPDATE、DELETE。必须以当前 US 为准，对已有用例做最小且必要的变更。"
+      : "只能返回 CREATE；当前没有可更新或删除的已有用例。",
   });
 }

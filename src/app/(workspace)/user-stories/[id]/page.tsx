@@ -10,6 +10,7 @@ import { ButtonLink } from "@/components/navigation/button-link";
 import { RequirementDetailActions } from "@/components/requirements/requirement-detail-actions";
 import { UserStoryStatusSelect } from "@/components/requirements/user-story-status-select";
 import { UserStoryDeliveryVersionSelect } from "@/components/requirements/user-story-delivery-version-select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -20,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDetailedDateTime } from "@/lib/date-time";
+import { AiDraftStatus, AiExecutionStatus } from "@/generated/prisma/enums";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -45,11 +47,21 @@ export default async function UserStoryDetailPage({
         deliveryVersion: {
           select: {
             id: true,
-            code: true,
             name: true,
             lockedAt: true,
             status: true,
           },
+        },
+        proposedTestCaseDrafts: {
+          where: {
+            status: AiDraftStatus.PENDING,
+            deletedAt: null,
+            batch: {
+              deletedAt: null,
+              sourceExecution: { status: AiExecutionStatus.SUCCEEDED },
+            },
+          },
+          select: { id: true },
         },
         acceptanceCriteria: {
           where: { deletedAt: null },
@@ -78,7 +90,7 @@ export default async function UserStoryDetailPage({
         status: { not: "DELIVERED" },
       },
       orderBy: { createdAt: "desc" },
-      select: { id: true, code: true, name: true },
+      select: { id: true, name: true },
     }),
   ]);
   if (!story) notFound();
@@ -91,14 +103,6 @@ export default async function UserStoryDetailPage({
           <>
             <Badge variant="outline">US</Badge>
             <span className="font-mono text-xs">{story.code}</span>
-            <ButtonLink
-              href={`/delivery-versions/${story.deliveryVersion.id}`}
-              variant="link"
-              size="sm"
-              className="h-auto p-0"
-            >
-              {story.deliveryVersion.code} · {story.deliveryVersion.name}
-            </ButtonLink>
             {story.feature ? (
               <ButtonLink
                 href={`/features/${story.feature.id}`}
@@ -114,21 +118,23 @@ export default async function UserStoryDetailPage({
         actions={
           <>
             {!story.deliveryVersion.lockedAt ? (
-              <UserStoryDeliveryVersionSelect
-                userStoryId={story.id}
-                value={story.deliveryVersion.id}
-                versions={movableVersions}
-              />
-            ) : null}
-            {!story.deliveryVersion.lockedAt ? (
               <ButtonLink
-                href={`/test-cases/ai-generate?userStoryId=${story.id}`}
-                variant="outline"
+                href={
+                  story.proposedTestCaseDrafts.length
+                    ? "/test-cases/pending-review"
+                    : `/test-cases/ai-generate?userStoryId=${story.id}`
+                }
+                variant={
+                  story.proposedTestCaseDrafts.length ? "outline" : "default"
+                }
               >
-                AI生成测试用例
+                {story.proposedTestCaseDrafts.length
+                  ? "评审测试用例变更"
+                  : story.testCases.length
+                    ? "AI更新测试用例"
+                    : "AI生成测试用例"}
               </ButtonLink>
             ) : null}
-            <UserStoryStatusSelect id={story.id} status={story.status} />
             <RequirementDetailActions
               type="USER_STORY"
               id={story.id}
@@ -137,6 +143,36 @@ export default async function UserStoryDetailPage({
           </>
         }
       />
+
+      <div className="bg-muted/40 flex flex-wrap items-center gap-x-8 gap-y-3 rounded-lg px-4 py-3">
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground text-xs font-medium">
+            交付版本
+          </span>
+          {!story.deliveryVersion.lockedAt ? (
+            <UserStoryDeliveryVersionSelect
+              userStoryId={story.id}
+              value={story.deliveryVersion.id}
+              versions={movableVersions}
+            />
+          ) : (
+            <ButtonLink
+              href={`/delivery-versions/${story.deliveryVersion.id}`}
+              variant="link"
+              size="sm"
+              className="h-auto p-0"
+            >
+              {story.deliveryVersion.name}
+            </ButtonLink>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground text-xs font-medium">
+            状态
+          </span>
+          <UserStoryStatusSelect id={story.id} status={story.status} />
+        </div>
+      </div>
 
       <div className="flex min-w-0 flex-col gap-4">
         <PageSection title="用户故事">
@@ -196,6 +232,27 @@ export default async function UserStoryDetailPage({
         <PageSection title="非功能需求">
           <MarkdownView content={story.nonFunctionalRequirements} />
         </PageSection>
+
+        {!story.deliveryVersion.lockedAt &&
+        (story.testCasesNeedUpdate ||
+          story.proposedTestCaseDrafts.length > 0) ? (
+          <Alert
+            variant={
+              story.proposedTestCaseDrafts.length > 0 ? "info" : "warning"
+            }
+          >
+            <AlertTitle>
+              {story.proposedTestCaseDrafts.length > 0
+                ? "测试用例变更待评审"
+                : "测试用例需要更新"}
+            </AlertTitle>
+            <AlertDescription>
+              {story.proposedTestCaseDrafts.length > 0
+                ? "AI 已根据当前 US 提出用例变更，请完成评审后再执行用例。"
+                : "US 内容已修改，请使用 AI 对现有用例进行新增、更新或删除判断。"}
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
         <PageSection title="关联测试用例">
           {story.testCases.length ? (

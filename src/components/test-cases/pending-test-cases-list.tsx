@@ -20,6 +20,7 @@ import { DataTableRowActions } from "@/components/data-table/data-table-row-acti
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -30,7 +31,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
-import { TestPriority } from "@/generated/prisma/enums";
+import {
+  TestCaseDraftChangeType,
+  TestPriority,
+} from "@/generated/prisma/enums";
 import { formatDetailedDateTime } from "@/lib/date-time";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
 
@@ -42,6 +46,7 @@ const PRIORITY_OPTIONS = Object.values(TestPriority).map((priority) => ({
 
 export type PendingTestCaseListItem = {
   id: string;
+  changeType: TestCaseDraftChangeType;
   name: string;
   priority: TestPriority;
   groupId: string | null;
@@ -55,6 +60,21 @@ export type PendingTestCaseListItem = {
 };
 
 type GroupOption = { id: string; name: string };
+
+const CHANGE_TYPE_META = {
+  [TestCaseDraftChangeType.CREATE]: {
+    label: "新增",
+    variant: "info" as const,
+  },
+  [TestCaseDraftChangeType.UPDATE]: {
+    label: "更新",
+    variant: "warning" as const,
+  },
+  [TestCaseDraftChangeType.DELETE]: {
+    label: "删除",
+    variant: "destructive" as const,
+  },
+};
 
 export function PendingTestCasesList({
   items,
@@ -173,7 +193,10 @@ export function PendingTestCasesList({
     if (!draftIds.length) return;
     if (
       draftIds.some(
-        (id) => (groupValues[id] ?? UNASSIGNED_GROUP) === UNASSIGNED_GROUP,
+        (id) =>
+          items.find((item) => item.id === id)?.changeType !==
+            TestCaseDraftChangeType.DELETE &&
+          (groupValues[id] ?? UNASSIGNED_GROUP) === UNASSIGNED_GROUP,
       )
     ) {
       toast.add({ type: "warning", description: "请先为选中的用例选择分组" });
@@ -262,6 +285,15 @@ export function PendingTestCasesList({
       ),
     },
     {
+      accessorKey: "changeType",
+      header: "变更",
+      size: 76,
+      cell: ({ row }) => {
+        const meta = CHANGE_TYPE_META[row.original.changeType];
+        return <Badge variant={meta.variant}>{meta.label}</Badge>;
+      },
+    },
+    {
       id: "source",
       header: "来源",
       minSize: 220,
@@ -282,62 +314,73 @@ export function PendingTestCasesList({
       header: "优先级",
       size: 88,
       meta: { cellClassName: "overflow-visible" },
-      cell: ({ row }) => (
-        <Select
-          items={PRIORITY_OPTIONS}
-          value={priorityValues[row.original.id] ?? row.original.priority}
-          disabled={isPending}
-          onValueChange={(value) => changePriority(row.original, value)}
-        >
-          <SelectTrigger
-            size="sm"
-            className="w-16"
-            aria-label={`设置“${row.original.name}”的优先级`}
+      cell: ({ row }) =>
+        row.original.changeType === TestCaseDraftChangeType.DELETE ? (
+          <span className="text-muted-foreground text-sm">
+            {TEST_PRIORITY_META[row.original.priority].label}
+          </span>
+        ) : (
+          <Select
+            items={PRIORITY_OPTIONS}
+            value={priorityValues[row.original.id] ?? row.original.priority}
+            disabled={isPending}
+            onValueChange={(value) => changePriority(row.original, value)}
           >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="start">
-            <SelectGroup>
-              {PRIORITY_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      ),
+            <SelectTrigger
+              size="sm"
+              className="w-16"
+              aria-label={`设置“${row.original.name}”的优先级`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="start">
+              <SelectGroup>
+                {PRIORITY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        ),
     },
     {
       id: "group",
       header: "分组",
       size: 168,
       meta: { cellClassName: "overflow-visible" },
-      cell: ({ row }) => (
-        <Select
-          items={groupOptions}
-          value={groupValues[row.original.id] ?? UNASSIGNED_GROUP}
-          disabled={isPending}
-          onValueChange={(value) => changeGroup(row.original, value)}
-        >
-          <SelectTrigger
-            size="sm"
-            className="w-full"
-            aria-label={`设置“${row.original.name}”的分组`}
+      cell: ({ row }) =>
+        row.original.changeType === TestCaseDraftChangeType.DELETE ? (
+          <span className="text-muted-foreground block truncate text-sm">
+            {groups.find((group) => group.id === row.original.groupId)?.name ??
+              "未分组"}
+          </span>
+        ) : (
+          <Select
+            items={groupOptions}
+            value={groupValues[row.original.id] ?? UNASSIGNED_GROUP}
+            disabled={isPending}
+            onValueChange={(value) => changeGroup(row.original, value)}
           >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="start">
-            <SelectGroup>
-              {groupOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      ),
+            <SelectTrigger
+              size="sm"
+              className="w-full"
+              aria-label={`设置“${row.original.name}”的分组`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="start">
+              <SelectGroup>
+                {groupOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        ),
     },
     {
       accessorKey: "createdAt",
@@ -353,8 +396,9 @@ export function PendingTestCasesList({
       meta: { headerClassName: "text-left", cellClassName: "text-left" },
       cell: ({ row }) => {
         const hasGroup =
+          row.original.changeType === TestCaseDraftChangeType.DELETE ||
           (groupValues[row.original.id] ?? UNASSIGNED_GROUP) !==
-          UNASSIGNED_GROUP;
+            UNASSIGNED_GROUP;
         return (
           <DataTableRowActions
             actions={[
@@ -378,7 +422,10 @@ export function PendingTestCasesList({
   ];
 
   const selectedWithoutGroup = selectedIds.some(
-    (id) => (groupValues[id] ?? UNASSIGNED_GROUP) === UNASSIGNED_GROUP,
+    (id) =>
+      items.find((item) => item.id === id)?.changeType !==
+        TestCaseDraftChangeType.DELETE &&
+      (groupValues[id] ?? UNASSIGNED_GROUP) === UNASSIGNED_GROUP,
   );
 
   return (

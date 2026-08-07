@@ -94,6 +94,12 @@ enum AiDraftStatus {
   CONFIRMED
 }
 
+enum TestCaseDraftChangeType {
+  CREATE
+  UPDATE
+  DELETE
+}
+
 enum DeliveryVersionStatus {
   PENDING
   IN_PROGRESS
@@ -348,6 +354,7 @@ model UserStory {
   status                    RequirementStatus @default(DESIGN)
   businessRules             String?
   nonFunctionalRequirements String?
+  testCasesNeedUpdate       Boolean           @default(false)
   createdAt                 DateTime          @default(now())
   updatedAt                 DateTime          @updatedAt
   deletedAt                 DateTime?
@@ -426,6 +433,7 @@ model TestCase {
   runs              TestRun[]
   aiExecutions      AiExecution[]
   sourceDrafts      TestCaseDraft[]            @relation("ConfirmedTestCase")
+  targetDrafts      TestCaseDraft[]            @relation("TargetTestCase")
   verificationItems DeliveryVerificationItem[]
 
   @@index([projectId, deletedAt, updatedAt])
@@ -620,36 +628,38 @@ model AiCapabilityBinding {
 }
 
 model AiExecution {
-  id                       String            @id @default(cuid())
-  projectId                String
-  requestedById            String
-  featureId                String?
-  sourceUserStoryId        String?
-  testCaseId               String?
-  deliveryVersionId        String?
-  capability               AiCapability
-  origin                   AiExecutionOrigin @default(USER)
-  status                   AiExecutionStatus @default(QUEUED)
-  stage                    AiExecutionStage  @default(QUEUED)
-  requirementText          String
-  modelProfileNameSnapshot String?
-  modelIdSnapshot          String?
-  skillNameSnapshot        String?
-  skillVersionSnapshot     String?
-  repositorySnapshot       String?
-  codeReferences           String?
-  promptTokens             Int?
-  completionTokens         Int?
-  totalTokens              Int?
-  errorMessage             String?
-  queuedAt                 DateTime          @default(now())
-  startedAt                DateTime?
-  finishedAt               DateTime?
-  durationMs               Int?
-  workerId                 String?
-  createdAt                DateTime          @default(now())
-  updatedAt                DateTime          @updatedAt
-  deletedAt                DateTime?
+  id                          String            @id @default(cuid())
+  projectId                   String
+  requestedById               String
+  featureId                   String?
+  sourceUserStoryId           String?
+  testCaseId                  String?
+  deliveryVersionId           String?
+  capability                  AiCapability
+  origin                      AiExecutionOrigin @default(USER)
+  status                      AiExecutionStatus @default(QUEUED)
+  stage                       AiExecutionStage  @default(QUEUED)
+  requirementText             String
+  sourceFingerprint           String?
+  testCaseSnapshotFingerprint String?
+  modelProfileNameSnapshot    String?
+  modelIdSnapshot             String?
+  skillNameSnapshot           String?
+  skillVersionSnapshot        String?
+  repositorySnapshot          String?
+  codeReferences              String?
+  promptTokens                Int?
+  completionTokens            Int?
+  totalTokens                 Int?
+  errorMessage                String?
+  queuedAt                    DateTime          @default(now())
+  startedAt                   DateTime?
+  finishedAt                  DateTime?
+  durationMs                  Int?
+  workerId                    String?
+  createdAt                   DateTime          @default(now())
+  updatedAt                   DateTime          @updatedAt
+  deletedAt                   DateTime?
 
   project              Project               @relation(fields: [projectId], references: [id], onDelete: Restrict)
   requestedBy          User                  @relation(fields: [requestedById], references: [id], onDelete: Restrict)
@@ -748,32 +758,38 @@ model TestCaseDraftBatch {
 }
 
 model TestCaseDraft {
-  id                  String        @id @default(cuid())
-  batchId             String
-  groupId             String?
-  proposedUserStoryId String?
-  confirmedTestCaseId String?
-  position            Int
-  name                String
-  priority            TestPriority
-  preconditions       String?
-  steps               String
-  status              AiDraftStatus @default(PENDING)
-  confirmedAt         DateTime?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-  deletedAt           DateTime?
+  id                    String                  @id @default(cuid())
+  batchId               String
+  groupId               String?
+  proposedUserStoryId   String?
+  confirmedTestCaseId   String?
+  targetTestCaseId      String?
+  changeType            TestCaseDraftChangeType @default(CREATE)
+  baseTestCaseUpdatedAt DateTime?
+  changeReason          String?
+  position              Int
+  name                  String
+  priority              TestPriority
+  preconditions         String?
+  steps                 String
+  status                AiDraftStatus           @default(PENDING)
+  confirmedAt           DateTime?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  deletedAt             DateTime?
 
   batch             TestCaseDraftBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
   group             TestCaseGroup?     @relation(fields: [groupId], references: [id], onDelete: Restrict)
   proposedUserStory UserStory?         @relation("TestCaseDraftProposedUserStory", fields: [proposedUserStoryId], references: [id], onDelete: Restrict)
   confirmedTestCase TestCase?          @relation("ConfirmedTestCase", fields: [confirmedTestCaseId], references: [id], onDelete: Restrict)
+  targetTestCase    TestCase?          @relation("TargetTestCase", fields: [targetTestCaseId], references: [id], onDelete: Restrict)
 
   @@index([batchId, deletedAt, position])
   @@index([groupId, deletedAt])
   @@index([proposedUserStoryId, deletedAt])
   @@index([status, deletedAt])
   @@index([confirmedTestCaseId])
+  @@index([targetTestCaseId])
 }
 
 model TaskSchedulerLease {

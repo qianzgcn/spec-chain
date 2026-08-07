@@ -17,7 +17,9 @@ export type TestCaseGenerationUserStory = {
   } | null;
   testCases?: Array<{
     code: string;
+    groupId: string;
     name: string;
+    priority: string;
     preconditions: string | null;
     steps: string;
     enabled: boolean;
@@ -48,9 +50,13 @@ ${story.feature.backgroundGoal}`
     ? story.testCases
         .map(
           (testCase) =>
-            `- ${testCase.code} ${testCase.name}（${
-              testCase.enabled ? "启用" : "停用，仅用于去重"
-            }）\n  前置条件：${testCase.preconditions ?? "无"}\n  步骤：${testCase.steps}`,
+            `- 目标用例编号：${testCase.code}
+  名称：${testCase.name}
+  分组 ID：${testCase.groupId}
+  优先级：${testCase.priority}
+  状态：${testCase.enabled ? "启用" : "停用，仅用于去重"}
+  前置条件：${testCase.preconditions ?? "无"}
+  步骤：${testCase.steps}`,
         )
         .join("\n")
     : "暂无";

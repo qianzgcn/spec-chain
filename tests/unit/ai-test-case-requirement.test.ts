@@ -32,7 +32,9 @@ describe("AI 测试用例需求快照", () => {
       testCases: [
         {
           code: "TC-001",
+          groupId: "group-auth",
           name: "管理员错误密码登录失败",
+          priority: "P1",
           preconditions: "管理员未登录",
           steps: "1. 使用错误密码登录。\n2. 验证登录失败。",
           enabled: true,
@@ -49,6 +51,7 @@ describe("AI 测试用例需求快照", () => {
     expect(snapshot).toContain("不要求逐条转换为用例");
     expect(snapshot).toContain("已有需求用例");
     expect(snapshot).toContain("TC-001");
+    expect(snapshot).toContain("分组 ID：group-auth");
   });
 
   it("独立 US 的可选内容使用明确占位", () => {

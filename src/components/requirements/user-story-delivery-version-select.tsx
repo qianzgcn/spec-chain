@@ -22,7 +22,7 @@ export function UserStoryDeliveryVersionSelect({
 }: {
   userStoryId: string;
   value: string;
-  versions: Array<{ id: string; code: string; name: string }>;
+  versions: Array<{ id: string; name: string }>;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -31,7 +31,7 @@ export function UserStoryDeliveryVersionSelect({
     <Select
       items={versions.map((version) => ({
         value: version.id,
-        label: `${version.code} · ${version.name}`,
+        label: version.name,
       }))}
       value={value}
       disabled={isPending || versions.length < 2}
@@ -57,7 +57,7 @@ export function UserStoryDeliveryVersionSelect({
         <SelectGroup>
           {versions.map((version) => (
             <SelectItem key={version.id} value={version.id}>
-              {version.code} · {version.name}
+              {version.name}
             </SelectItem>
           ))}
         </SelectGroup>

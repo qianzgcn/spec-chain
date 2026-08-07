@@ -24,6 +24,7 @@ import {
 import {
   AiCapability,
   AiExecutionStage,
+  TestCaseDraftChangeType,
   TestPriority,
 } from "@/generated/prisma/enums";
 import {
@@ -32,32 +33,39 @@ import {
   type ProjectVariableMetadata,
 } from "@/lib/project-variables/references";
 
-export const generatedTestCaseSchema = z.object({
-  name: z.string().trim().min(1).max(200),
+export const generatedTestCaseChangeSchema = z.object({
+  changeType: z.enum(TestCaseDraftChangeType),
+  targetTestCaseCode: z.string().trim().nullable(),
+  changeReason: z.string().trim().min(1).max(2_000),
+  name: z.string().trim().max(200),
   priority: z.enum(TestPriority),
   preconditions: z.string().trim().max(100_000),
-  steps: z.string().trim().min(1).max(100_000),
+  steps: z.string().trim().max(100_000),
   groupId: z.string().trim().min(1).nullable(),
 });
 
 export function createGeneratedTestCasesDecisionSchema(
   groupIds: readonly string[],
   variables: readonly ProjectVariableMetadata[],
-  allowEmptyResult = false,
+  options: {
+    allowEmptyResult?: boolean;
+    targetTestCaseCodes?: readonly string[];
+  } = {},
 ) {
   const validGroupIds = new Set(groupIds);
+  const validTargetCodes = new Set(options.targetTestCaseCodes ?? []);
 
   return z
     .object({
       sufficient: z.boolean(),
       failureReason: z.string(),
-      testCases: z.array(generatedTestCaseSchema).max(20),
+      testCases: z.array(generatedTestCaseChangeSchema).max(20),
     })
     .superRefine((value, context) => {
       if (
         value.sufficient &&
         value.testCases.length === 0 &&
-        !allowEmptyResult
+        !options.allowEmptyResult
       ) {
         context.addIssue({
           code: "custom",
@@ -81,7 +89,57 @@ export function createGeneratedTestCasesDecisionSchema(
       }
 
       const names = new Set<string>();
+      const targetedCases = new Set<string>();
       for (const [index, testCase] of value.testCases.entries()) {
+        const createsCase =
+          testCase.changeType === TestCaseDraftChangeType.CREATE;
+        const changesExistingCase = !createsCase;
+
+        if (createsCase && testCase.targetTestCaseCode) {
+          context.addIssue({
+            code: "custom",
+            path: ["testCases", index, "targetTestCaseCode"],
+            message: "新增用例不能指定目标用例",
+          });
+        }
+        if (
+          changesExistingCase &&
+          (!testCase.targetTestCaseCode ||
+            !validTargetCodes.has(testCase.targetTestCaseCode))
+        ) {
+          context.addIssue({
+            code: "custom",
+            path: ["testCases", index, "targetTestCaseCode"],
+            message: "更新或删除必须指向已有用例",
+          });
+        }
+        if (testCase.targetTestCaseCode) {
+          if (targetedCases.has(testCase.targetTestCaseCode)) {
+            context.addIssue({
+              code: "custom",
+              path: ["testCases", index, "targetTestCaseCode"],
+              message: "同一已有用例只能产生一条变更",
+            });
+          }
+          targetedCases.add(testCase.targetTestCaseCode);
+        }
+
+        if (testCase.changeType === TestCaseDraftChangeType.DELETE) continue;
+        if (!testCase.name) {
+          context.addIssue({
+            code: "custom",
+            path: ["testCases", index, "name"],
+            message: "新增或更新用例必须填写名称",
+          });
+        }
+        if (!testCase.steps) {
+          context.addIssue({
+            code: "custom",
+            path: ["testCases", index, "steps"],
+            message: "新增或更新用例必须填写测试步骤",
+          });
+        }
+
         const normalizedName = testCase.name
           .toLocaleLowerCase("zh-CN")
           .replaceAll(/\s+/g, "");
@@ -119,13 +177,16 @@ export function createGeneratedTestCasesDecisionSchema(
     });
 }
 
-export type GeneratedTestCase = z.infer<typeof generatedTestCaseSchema>;
+export type GeneratedTestCaseChange = z.infer<
+  typeof generatedTestCaseChangeSchema
+>;
 
 export type GenerateTestCasesWorkflowInput = {
   requirementText: string;
   repositories: RepositoryAccess[];
   groups: Array<{ id: string; name: string }>;
   variables: ProjectVariableMetadata[];
+  existingTestCaseCodes?: string[];
   allowEmptyResult?: boolean;
   abortSignal?: AbortSignal;
   onStage?: (stage: AiExecutionStage) => Promise<void>;
@@ -137,7 +198,7 @@ export type GenerateTestCasesWorkflowInput = {
 };
 
 export type GenerateTestCasesWorkflowResult = {
-  drafts: GeneratedTestCase[];
+  drafts: GeneratedTestCaseChange[];
   skill: AiSkill;
   repositories: RepositorySnapshotRecord[];
   codeReferences: CodeReferenceRecord[];
@@ -164,6 +225,7 @@ export function createGenerateTestCasesWorkflow({
       repositories,
       groups,
       variables,
+      existingTestCaseCodes = [],
       allowEmptyResult = false,
       abortSignal,
       onStage,
@@ -199,7 +261,7 @@ export function createGenerateTestCasesWorkflow({
         schema: createGeneratedTestCasesDecisionSchema(
           groups.map((group) => group.id),
           variables,
-          allowEmptyResult,
+          { allowEmptyResult, targetTestCaseCodes: existingTestCaseCodes },
         ),
         system: skill.instructions,
         prompt: buildTestCaseDraftsPrompt({
@@ -208,6 +270,7 @@ export function createGenerateTestCasesWorkflow({
           groups,
           variables,
           allowEmptyResult,
+          hasExistingTestCases: existingTestCaseCodes.length > 0,
         }),
         abortSignal,
         onRetry: ({ nextAttempt, maxAttempts, reason }) =>
@@ -236,8 +299,8 @@ export function createGenerateTestCasesWorkflow({
         stage: AiExecutionStage.GENERATING_DRAFT,
         message:
           generation.output.testCases.length > 0
-            ? `已生成 ${generation.output.testCases.length} 条测试用例草稿，本次模型调用共使用 ${relevantCode.usage.totalTokens} Token。`
-            : `现有用例已覆盖当前需求，无需新增草稿，本次模型调用共使用 ${relevantCode.usage.totalTokens} Token。`,
+            ? `已生成 ${generation.output.testCases.length} 条测试用例变更草稿，本次模型调用共使用 ${relevantCode.usage.totalTokens} Token。`
+            : `现有用例已与当前需求保持一致，无需调整，本次模型调用共使用 ${relevantCode.usage.totalTokens} Token。`,
       });
 
       return {

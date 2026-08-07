@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 
 import { updatePendingTestCaseDraftContentAction } from "@/app/actions/pending-test-cases";
 import { PageSection } from "@/components/layout/page-section";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -18,7 +19,10 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import type { TestPriority } from "@/generated/prisma/enums";
+import {
+  TestCaseDraftChangeType,
+  type TestPriority,
+} from "@/generated/prisma/enums";
 
 type ReviewValues = {
   name: string;
@@ -35,11 +39,61 @@ type CaseContent = {
   steps: string;
 };
 
+type CurrentCaseContent = {
+  code: string;
+  name: string;
+  priority: TestPriority;
+  preconditions: string | null;
+  steps: string;
+  group: { name: string };
+};
+
+function CurrentTestCase({ testCase }: { testCase: CurrentCaseContent }) {
+  return (
+    <PageSection title="当前用例">
+      <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-3">
+        <div>
+          <dt className="text-muted-foreground text-xs">编号</dt>
+          <dd className="mt-1 font-mono text-xs">{testCase.code}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground text-xs">分组</dt>
+          <dd className="mt-1">{testCase.group.name}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground text-xs">优先级</dt>
+          <dd className="mt-1">{testCase.priority}</dd>
+        </div>
+        <div className="sm:col-span-3">
+          <dt className="text-muted-foreground text-xs">名称</dt>
+          <dd className="mt-1">{testCase.name}</dd>
+        </div>
+        <div className="sm:col-span-3">
+          <dt className="text-muted-foreground text-xs">前置条件</dt>
+          <dd className="mt-1 whitespace-pre-wrap">
+            {testCase.preconditions || "无"}
+          </dd>
+        </div>
+        <div className="sm:col-span-3">
+          <dt className="text-muted-foreground text-xs">测试步骤</dt>
+          <dd className="mt-1 whitespace-pre-wrap">{testCase.steps}</dd>
+        </div>
+      </dl>
+    </PageSection>
+  );
+}
+
 export function PendingTestCaseReview({
   draftId,
+  changeType,
+  changeReason,
+  current,
   proposed,
 }: {
   draftId: string;
+  changeType: TestCaseDraftChangeType;
+  changeReason: string | null;
+  current: CurrentCaseContent | null;
   proposed: CaseContent;
 }) {
   const router = useRouter();
@@ -68,66 +122,99 @@ export function PendingTestCaseReview({
     });
   }
 
+  const changeLabel =
+    changeType === TestCaseDraftChangeType.CREATE
+      ? "新增原因"
+      : changeType === TestCaseDraftChangeType.UPDATE
+        ? "更新原因"
+        : "删除原因";
+
   return (
-    <PageSection title="用例内容">
-      <form className="flex flex-col gap-5" onSubmit={form.handleSubmit(save)}>
-        <div className="bg-muted/40 grid gap-4 rounded-lg p-4 text-sm sm:grid-cols-3">
-          <div>
-            <div className="text-muted-foreground text-xs">分组</div>
-            <p className="mt-1">{proposed.groupName}</p>
-          </div>
-          <div>
-            <div className="text-muted-foreground text-xs">优先级</div>
-            <p className="mt-1">{proposed.priority}</p>
-          </div>
-          <div>
-            <div className="text-muted-foreground text-xs">需求归属</div>
-            <p className="mt-1">{proposed.userStoryLabel}</p>
-          </div>
-        </div>
-        <FieldGroup>
-          <Field data-invalid={Boolean(form.formState.errors.name)}>
-            <FieldLabel htmlFor="draft-test-case-name">用例名称</FieldLabel>
-            <Input
-              id="draft-test-case-name"
-              maxLength={200}
-              aria-invalid={Boolean(form.formState.errors.name)}
-              {...form.register("name", { required: "请输入用例名称" })}
-            />
-            <FieldError errors={[form.formState.errors.name]} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="draft-test-case-preconditions">
-              前置条件
-            </FieldLabel>
-            <Textarea
-              id="draft-test-case-preconditions"
-              rows={6}
-              {...form.register("preconditions")}
-            />
-          </Field>
-          <Field data-invalid={Boolean(form.formState.errors.steps)}>
-            <FieldLabel htmlFor="draft-test-case-steps">测试步骤</FieldLabel>
-            <Textarea
-              id="draft-test-case-steps"
-              rows={10}
-              aria-invalid={Boolean(form.formState.errors.steps)}
-              {...form.register("steps", { required: "测试步骤不能为空" })}
-            />
-            <FieldError errors={[form.formState.errors.steps]} />
-          </Field>
-        </FieldGroup>
-        <div className="flex justify-end">
-          <Button
-            type="submit"
-            variant="outline"
-            disabled={!form.formState.isDirty || isPending}
+    <>
+      <Alert
+        variant={
+          changeType === TestCaseDraftChangeType.DELETE ? "warning" : "info"
+        }
+      >
+        <AlertTitle>{changeLabel}</AlertTitle>
+        <AlertDescription>{changeReason || "未提供"}</AlertDescription>
+      </Alert>
+
+      {current ? <CurrentTestCase testCase={current} /> : null}
+
+      {changeType !== TestCaseDraftChangeType.DELETE ? (
+        <PageSection
+          title={
+            changeType === TestCaseDraftChangeType.UPDATE
+              ? "建议内容"
+              : "用例内容"
+          }
+        >
+          <form
+            className="flex flex-col gap-5"
+            onSubmit={form.handleSubmit(save)}
           >
-            {isPending ? <Spinner data-icon="inline-start" /> : null}
-            保存修改
-          </Button>
-        </div>
-      </form>
-    </PageSection>
+            <div className="bg-muted/40 grid gap-4 rounded-lg p-4 text-sm sm:grid-cols-3">
+              <div>
+                <div className="text-muted-foreground text-xs">分组</div>
+                <p className="mt-1">{proposed.groupName}</p>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs">优先级</div>
+                <p className="mt-1">{proposed.priority}</p>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs">需求归属</div>
+                <p className="mt-1">{proposed.userStoryLabel}</p>
+              </div>
+            </div>
+            <FieldGroup>
+              <Field data-invalid={Boolean(form.formState.errors.name)}>
+                <FieldLabel htmlFor="draft-test-case-name">用例名称</FieldLabel>
+                <Input
+                  id="draft-test-case-name"
+                  maxLength={200}
+                  aria-invalid={Boolean(form.formState.errors.name)}
+                  {...form.register("name", { required: "请输入用例名称" })}
+                />
+                <FieldError errors={[form.formState.errors.name]} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="draft-test-case-preconditions">
+                  前置条件
+                </FieldLabel>
+                <Textarea
+                  id="draft-test-case-preconditions"
+                  rows={6}
+                  {...form.register("preconditions")}
+                />
+              </Field>
+              <Field data-invalid={Boolean(form.formState.errors.steps)}>
+                <FieldLabel htmlFor="draft-test-case-steps">
+                  测试步骤
+                </FieldLabel>
+                <Textarea
+                  id="draft-test-case-steps"
+                  rows={10}
+                  aria-invalid={Boolean(form.formState.errors.steps)}
+                  {...form.register("steps", { required: "测试步骤不能为空" })}
+                />
+                <FieldError errors={[form.formState.errors.steps]} />
+              </Field>
+            </FieldGroup>
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                variant="outline"
+                disabled={!form.formState.isDirty || isPending}
+              >
+                {isPending ? <Spinner data-icon="inline-start" /> : null}
+                保存修改
+              </Button>
+            </div>
+          </form>
+        </PageSection>
+      ) : null}
+    </>
   );
 }

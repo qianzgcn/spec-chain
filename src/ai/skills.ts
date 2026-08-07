@@ -28,8 +28,9 @@ const GENERATE_USER_STORY_SKILL: AiSkill = {
 const GENERATE_TEST_CASES_SKILL: AiSkill = {
   capability: AiCapability.GENERATE_TEST_CASES,
   name: "生成自然语言测试用例",
-  purpose: "根据需求和现有代码生成可独立执行、需要人工评审的测试用例草稿。",
-  version: "1.1.0",
+  purpose:
+    "根据需求、现有用例和代码提出需要人工评审的测试用例新增、更新或删除建议。",
+  version: "1.2.0",
   instructions: generateTestCasesSystemPrompt,
 };
 

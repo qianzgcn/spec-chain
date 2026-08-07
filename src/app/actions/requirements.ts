@@ -5,6 +5,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 
 import {
+  AiDraftStatus,
   DeliveryVersionStatus,
   RequirementStatus,
 } from "@/generated/prisma/enums";
@@ -268,6 +269,9 @@ export async function updateUserStoryAction(
       nonFunctionalRequirements: true,
       updatedAt: true,
       featureId: true,
+      _count: {
+        select: { testCases: { where: { deletedAt: null } } },
+      },
       deliveryVersion: { select: { lockedAt: true, status: true } },
       acceptanceCriteria: {
         where: { deletedAt: null },
@@ -339,11 +343,26 @@ export async function updateUserStoryAction(
           businessRules: parsed.data.businessRules || null,
           nonFunctionalRequirements:
             parsed.data.nonFunctionalRequirements || null,
+          ...(contentChanged && story._count.testCases > 0
+            ? { testCasesNeedUpdate: true }
+            : {}),
         },
       });
       if (claimed.count !== 1) throw new RecordChangedError();
 
       if (!contentChanged) return;
+
+      await transaction.testCaseDraftBatch.updateMany({
+        where: {
+          projectId: project.id,
+          deletedAt: null,
+          sourceExecution: { sourceUserStoryId: id },
+          drafts: {
+            some: { status: AiDraftStatus.PENDING, deletedAt: null },
+          },
+        },
+        data: { deletedAt: new Date() },
+      });
 
       await transaction.acceptanceCriterion.updateMany({
         where: {
@@ -390,10 +409,17 @@ export async function updateUserStoryAction(
 
   revalidatePath("/requirements");
   revalidatePath(`/user-stories/${id}`);
+  if (contentChanged) revalidatePath("/test-cases/pending-review");
   if (story.featureId) {
     revalidatePath(`/features/${story.featureId}`);
   }
-  return { ok: true, message: "US 已保存" };
+  return {
+    ok: true,
+    message:
+      contentChanged && story._count.testCases > 0
+        ? "US 已保存，请同步更新关联测试用例"
+        : "US 已保存",
+  };
 }
 
 export async function updateUserStoryStatusAction(

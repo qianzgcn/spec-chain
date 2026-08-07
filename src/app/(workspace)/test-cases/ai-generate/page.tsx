@@ -38,6 +38,7 @@ export default async function AiGenerateTestCasesPage({
       code: true,
       title: true,
       feature: { select: { name: true } },
+      _count: { select: { testCases: { where: { deletedAt: null } } } },
     },
   });
 
@@ -49,6 +50,7 @@ export default async function AiGenerateTestCasesPage({
         code: story.code,
         title: story.title,
         featureName: story.feature?.name ?? null,
+        hasTestCases: story._count.testCases > 0,
       }))}
     />
   );

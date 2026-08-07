@@ -9,7 +9,11 @@ import { PageSection } from "@/components/layout/page-section";
 import { PendingTestCaseDetailActions } from "@/components/test-cases/pending-test-case-detail-actions";
 import { PendingTestCaseReview } from "@/components/test-cases/pending-test-case-review";
 import { Badge } from "@/components/ui/badge";
-import { AiDraftStatus, AiExecutionStatus } from "@/generated/prisma/enums";
+import {
+  AiDraftStatus,
+  AiExecutionStatus,
+  TestCaseDraftChangeType,
+} from "@/generated/prisma/enums";
 import { formatDetailedDateTime } from "@/lib/date-time";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
 import { db } from "@/server/db";
@@ -17,6 +21,12 @@ import { getCurrentProject } from "@/server/projects/current-project";
 
 export const metadata: Metadata = {
   title: "待评审用例详情",
+};
+
+const CHANGE_TYPE_LABELS = {
+  [TestCaseDraftChangeType.CREATE]: "新增",
+  [TestCaseDraftChangeType.UPDATE]: "更新",
+  [TestCaseDraftChangeType.DELETE]: "删除",
 };
 
 export default async function PendingReviewTestCasePage({
@@ -40,6 +50,8 @@ export default async function PendingReviewTestCasePage({
     },
     select: {
       id: true,
+      changeType: true,
+      changeReason: true,
       name: true,
       priority: true,
       preconditions: true,
@@ -49,6 +61,16 @@ export default async function PendingReviewTestCasePage({
         select: {
           name: true,
           deletedAt: true,
+        },
+      },
+      targetTestCase: {
+        select: {
+          code: true,
+          name: true,
+          priority: true,
+          preconditions: true,
+          steps: true,
+          group: { select: { name: true } },
         },
       },
       proposedUserStory: {
@@ -88,7 +110,17 @@ export default async function PendingReviewTestCasePage({
         meta={
           <>
             <Badge variant="warning">待评审</Badge>
-            <Badge variant="secondary">AI 生成</Badge>
+            <Badge
+              variant={
+                draft.changeType === TestCaseDraftChangeType.DELETE
+                  ? "destructive"
+                  : draft.changeType === TestCaseDraftChangeType.UPDATE
+                    ? "warning"
+                    : "info"
+              }
+            >
+              {CHANGE_TYPE_LABELS[draft.changeType]}
+            </Badge>
             <Badge variant={priorityMeta.badgeVariant}>
               {priorityMeta.label}
             </Badge>
@@ -99,13 +131,19 @@ export default async function PendingReviewTestCasePage({
         actions={
           <PendingTestCaseDetailActions
             id={draft.id}
-            hasGroup={Boolean(activeGroup)}
+            hasGroup={
+              draft.changeType === TestCaseDraftChangeType.DELETE ||
+              Boolean(activeGroup)
+            }
           />
         }
       />
 
       <PendingTestCaseReview
         draftId={draft.id}
+        changeType={draft.changeType}
+        changeReason={draft.changeReason}
+        current={draft.targetTestCase}
         proposed={{
           name: draft.name,
           priority: draft.priority,

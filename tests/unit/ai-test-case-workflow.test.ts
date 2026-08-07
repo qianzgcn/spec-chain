@@ -60,6 +60,9 @@ function createFakeProvider({
             testCases: sufficient
               ? [
                   {
+                    changeType: "CREATE",
+                    targetTestCaseCode: null,
+                    changeReason: "补充错误密码失败场景",
                     name: "管理员使用错误密码登录失败",
                     priority: "P1",
                     groupId: "group-auth",
@@ -69,6 +72,9 @@ function createFakeProvider({
                       "1. 访问登录入口。\n2. 使用 ${ADMIN.username} 和错误密码提交登录。\n3. 验证系统拒绝登录，用户仍处于未登录状态。",
                   },
                   {
+                    changeType: "CREATE",
+                    targetTestCaseCode: null,
+                    changeReason: "补充正确密码成功场景",
                     name: "管理员使用正确密码登录成功",
                     priority: "P0",
                     groupId: "group-auth",
@@ -165,7 +171,7 @@ describe("AI 生成测试用例工作流", () => {
     expect(JSON.stringify(result)).not.toContain("function login");
     expect(calls).toHaveLength(2);
     expect(logs.map((log) => log.message)).toContain(
-      "已生成 2 条测试用例草稿，本次模型调用共使用 30 Token。",
+      "已生成 2 条测试用例变更草稿，本次模型调用共使用 30 Token。",
     );
   });
 
@@ -197,7 +203,7 @@ describe("AI 生成测试用例工作流", () => {
     const decisionSchema = createGeneratedTestCasesDecisionSchema(
       ["group-auth"],
       workflowInput.variables,
-      true,
+      { allowEmptyResult: true, targetTestCaseCodes: ["TC-001"] },
     );
     expect(
       decisionSchema.safeParse({
@@ -206,7 +212,6 @@ describe("AI 生成测试用例工作流", () => {
         testCases: [],
       }).success,
     ).toBe(true);
-
     expect(
       createGeneratedTestCasesDecisionSchema(
         ["group-auth"],
@@ -219,6 +224,9 @@ describe("AI 生成测试用例工作流", () => {
     ).toBe(false);
 
     const baseCase = {
+      changeType: "CREATE",
+      targetTestCaseCode: null,
+      changeReason: "补充核心登录场景",
       name: "管理员登录",
       priority: "P1",
       groupId: "group-auth",
@@ -229,12 +237,69 @@ describe("AI 生成测试用例工作流", () => {
       decisionSchema.safeParse({
         sufficient: true,
         failureReason: "",
+        testCases: [
+          {
+            ...baseCase,
+            changeType: "DELETE",
+            targetTestCaseCode: "TC-001",
+            changeReason: "该场景已被当前 US 明确取消",
+            name: "",
+            preconditions: "",
+            steps: "",
+            groupId: null,
+          },
+        ],
+      }).success,
+    ).toBe(true);
+    expect(
+      decisionSchema.safeParse({
+        sufficient: true,
+        failureReason: "",
         testCases: Array.from({ length: 21 }, (_, index) => ({
           ...baseCase,
           name: `管理员登录 ${index}`,
         })),
       }).success,
     ).toBe(false);
+
+    expect(
+      decisionSchema.safeParse({
+        sufficient: true,
+        failureReason: "",
+        testCases: [
+          {
+            ...baseCase,
+            changeType: "UPDATE",
+            targetTestCaseCode: "TC-001",
+            changeReason: "登录结果发生变化",
+          },
+          {
+            ...baseCase,
+            changeType: "DELETE",
+            targetTestCaseCode: "TC-001",
+            changeReason: "该场景已被当前 US 明确取消",
+            name: "",
+            preconditions: "",
+            steps: "",
+            groupId: null,
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      decisionSchema.safeParse({
+        sufficient: true,
+        failureReason: "",
+        testCases: [
+          {
+            ...baseCase,
+            changeType: "UPDATE",
+            targetTestCaseCode: "TC-001",
+            changeReason: "登录结果发生变化",
+          },
+        ],
+      }).success,
+    ).toBe(true);
     expect(
       decisionSchema.safeParse({
         sufficient: true,

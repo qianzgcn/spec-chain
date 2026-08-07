@@ -38,6 +38,8 @@ export function createQueuedAiExecutionRecord(
     testCaseId?: string | null;
     deliveryVersionId?: string | null;
     origin?: AiExecutionOrigin;
+    sourceFingerprint?: string | null;
+    testCaseSnapshotFingerprint?: string | null;
   },
 ) {
   return database.aiExecution.create({
@@ -52,6 +54,8 @@ export function createQueuedAiExecutionRecord(
       origin: input.origin ?? AiExecutionOrigin.USER,
       status: AiExecutionStatus.QUEUED,
       requirementText: input.requirementText,
+      sourceFingerprint: input.sourceFingerprint ?? null,
+      testCaseSnapshotFingerprint: input.testCaseSnapshotFingerprint ?? null,
       logs: {
         create: {
           position: 0,
