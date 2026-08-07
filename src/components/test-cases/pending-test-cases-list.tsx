@@ -36,6 +36,7 @@ import {
   TestPriority,
 } from "@/generated/prisma/enums";
 import { formatDetailedDateTime } from "@/lib/date-time";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 import { TEST_PRIORITY_META } from "@/lib/test-cases/meta";
 
 const UNASSIGNED_GROUP = "__unassigned__";
@@ -81,12 +82,14 @@ export function PendingTestCasesList({
   groups,
   total,
   page,
+  pageSize,
   batchId,
 }: {
   items: PendingTestCaseListItem[];
   groups: GroupOption[];
   total: number;
   page: number;
+  pageSize: number;
   batchId?: string;
 }) {
   const router = useRouter();
@@ -113,10 +116,19 @@ export function PendingTestCasesList({
     router.refresh();
   }
 
-  function changePage(nextPage: number) {
+  function updateQuery({
+    page: nextPage,
+    pageSize: nextPageSize,
+  }: {
+    page?: number;
+    pageSize?: number;
+  }) {
+    const p = nextPage ?? page;
+    const ps = nextPageSize ?? pageSize;
     const params = new URLSearchParams();
     if (batchId) params.set("batch", batchId);
-    if (nextPage > 1) params.set("page", String(nextPage));
+    if (ps !== DEFAULT_PAGE_SIZE) params.set("pageSize", String(ps));
+    if (p > 1) params.set("page", String(p));
     navigate(`/test-cases/pending-review${params.size ? `?${params}` : ""}`);
   }
 
@@ -452,10 +464,11 @@ export function PendingTestCasesList({
         footer={
           <DataTablePagination
             page={page}
-            pageSize={20}
+            pageSize={pageSize}
             total={total}
             itemName="条用例"
-            onChange={changePage}
+            onPageChange={(page) => updateQuery({ page })}
+            onPageSizeChange={(pageSize) => updateQuery({ pageSize, page: 1 })}
           />
         }
       >

@@ -8,6 +8,7 @@ import {
   type PendingTestCaseListItem,
 } from "@/components/test-cases/pending-test-cases-list";
 import { AiDraftStatus, AiExecutionStatus } from "@/generated/prisma/enums";
+import { parsePage, parsePageSize } from "@/lib/pagination";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
 export default async function PendingReviewTestCasesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; batch?: string }>;
+  searchParams: Promise<{ page?: string; pageSize?: string; batch?: string }>;
 }) {
   const [project, params] = await Promise.all([
     getCurrentProject(),
@@ -37,9 +38,8 @@ export default async function PendingReviewTestCasesPage({
     );
   }
 
-  const requestedPage = Number.parseInt(params.page ?? "1", 10);
-  const page =
-    Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const pageSize = parsePageSize(params.pageSize);
+  const page = parsePage(params.page);
   const batchId = params.batch?.trim() || undefined;
   const where = {
     status: AiDraftStatus.PENDING,
@@ -59,13 +59,13 @@ export default async function PendingReviewTestCasesPage({
       select: { id: true, name: true },
     }),
   ]);
-  const pageCount = Math.max(1, Math.ceil(total / 20));
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, pageCount);
   const drafts = await db.testCaseDraft.findMany({
     where,
     orderBy: { createdAt: "desc" },
-    skip: (safePage - 1) * 20,
-    take: 20,
+    skip: (safePage - 1) * pageSize,
+    take: pageSize,
     select: {
       id: true,
       changeType: true,
@@ -137,6 +137,7 @@ export default async function PendingReviewTestCasesPage({
         groups={groups}
         total={total}
         page={safePage}
+        pageSize={pageSize}
         batchId={batchId}
       />
     </PageContainer>

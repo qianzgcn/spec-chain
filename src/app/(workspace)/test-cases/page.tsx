@@ -8,6 +8,7 @@ import {
   type TestCaseListItem,
 } from "@/components/test-cases/test-cases-list";
 import { TestPriority } from "@/generated/prisma/enums";
+import { parsePage, parsePageSize } from "@/lib/pagination";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -22,6 +23,7 @@ type SearchParams = {
   enabled?: string;
   type?: string;
   page?: string;
+  pageSize?: string;
 };
 
 export default async function TestCasesPage({
@@ -62,9 +64,8 @@ export default async function TestCasesPage({
     params.type === "REQUIREMENT" || params.type === "PLATFORM"
       ? params.type
       : undefined;
-  const requestedPage = Number.parseInt(params.page ?? "1", 10);
-  const page =
-    Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const pageSize = parsePageSize(params.pageSize);
+  const page = parsePage(params.page);
 
   const where = {
     projectId: project.id,
@@ -93,13 +94,13 @@ export default async function TestCasesPage({
     db.testCase.count({ where }),
   ]);
 
-  const pageCount = Math.max(1, Math.ceil(total / 20));
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, pageCount);
   const testCases = await db.testCase.findMany({
     where,
     orderBy: { updatedAt: "desc" },
-    skip: (safePage - 1) * 20,
-    take: 20,
+    skip: (safePage - 1) * pageSize,
+    take: pageSize,
     select: {
       id: true,
       code: true,
@@ -165,6 +166,7 @@ export default async function TestCasesPage({
           enabled: params.enabled ?? "",
           type: type ?? "",
           page: safePage,
+          pageSize,
         }}
       />
     </PageContainer>

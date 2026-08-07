@@ -9,6 +9,7 @@ import {
 } from "@/components/requirements/pending-requirements-list";
 import { AiDraftStatus } from "@/generated/prisma/enums";
 import { AiExecutionStatus } from "@/generated/prisma/enums";
+import { parsePage, parsePageSize } from "@/lib/pagination";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
 export default async function PendingReviewRequirementsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; pageSize?: string }>;
 }) {
   const [project, params] = await Promise.all([
     getCurrentProject(),
@@ -38,9 +39,8 @@ export default async function PendingReviewRequirementsPage({
     );
   }
 
-  const requestedPage = Number.parseInt(params.page ?? "1", 10);
-  const page =
-    Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const pageSize = parsePageSize(params.pageSize);
+  const page = parsePage(params.page);
   const where = {
     projectId: project.id,
     status: AiDraftStatus.PENDING,
@@ -48,13 +48,13 @@ export default async function PendingReviewRequirementsPage({
     sourceExecution: { status: AiExecutionStatus.SUCCEEDED },
   };
   const total = await db.userStoryDraft.count({ where });
-  const pageCount = Math.max(1, Math.ceil(total / 20));
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, pageCount);
   const drafts = await db.userStoryDraft.findMany({
     where,
     orderBy: { updatedAt: "desc" },
-    skip: (safePage - 1) * 20,
-    take: 20,
+    skip: (safePage - 1) * pageSize,
+    take: pageSize,
     select: {
       id: true,
       title: true,
@@ -82,7 +82,12 @@ export default async function PendingReviewRequirementsPage({
         title="待评审需求"
         description="集中检查 AI 生成的 US 内容；确认后才会进入正式需求列表。"
       />
-      <PendingRequirementsList items={items} total={total} page={safePage} />
+      <PendingRequirementsList
+        items={items}
+        total={total}
+        page={safePage}
+        pageSize={pageSize}
+      />
     </PageContainer>
   );
 }

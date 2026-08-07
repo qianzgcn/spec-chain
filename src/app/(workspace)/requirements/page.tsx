@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/empty";
 import { RequirementStatus } from "@/generated/prisma/enums";
 import { deriveFeatureStatus } from "@/lib/requirements/status";
+import { parsePage, parsePageSize } from "@/lib/pagination";
 import { db } from "@/server/db";
 import { getCurrentProject } from "@/server/projects/current-project";
 
@@ -33,6 +34,7 @@ type SearchParams = {
   type?: string;
   status?: string;
   page?: string;
+  pageSize?: string;
 };
 
 function matchesText(code: string, title: string, query: string) {
@@ -272,13 +274,11 @@ export default async function RequirementsPage({
     (left, right) =>
       new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
   );
-  const requestedPage = Number.parseInt(params.page ?? "1", 10);
-  const pageCount = Math.max(1, Math.ceil(filteredItems.length / 20));
-  const page = Math.min(
-    pageCount,
-    Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1,
-  );
-  const items = filteredItems.slice((page - 1) * 20, page * 20);
+  const pageSize = parsePageSize(params.pageSize);
+  const requestedPage = parsePage(params.page);
+  const pageCount = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+  const page = Math.min(pageCount, requestedPage);
+  const items = filteredItems.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <PageContainer table className="gap-5">
@@ -307,6 +307,7 @@ export default async function RequirementsPage({
           type,
           status,
           page,
+          pageSize,
         }}
       />
     </PageContainer>

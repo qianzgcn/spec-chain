@@ -24,14 +24,25 @@ const SUMMARY_LIMIT = 100;
 
 function deriveExecutionTaskType(
   capability: AiCapability,
-  drafts?: Array<{ changeType?: string; targetTestCaseId?: string | null }>,
+  execution: {
+    testCaseSnapshotFingerprint?: string | null;
+    testCaseDraftBatch?: {
+      drafts: Array<{ changeType?: string; targetTestCaseId?: string | null }>;
+    } | null;
+  },
 ): ExecutionTaskType {
   if (capability === AiCapability.GENERATE_TEST_CASES) {
-    const firstDraft = drafts?.[0];
+    const firstDraft = execution.testCaseDraftBatch?.drafts?.[0];
     if (
       firstDraft?.changeType === "UPDATE" ||
       Boolean(firstDraft?.targetTestCaseId)
     ) {
+      return "GENERATE_TEST_CASES_UPDATE";
+    }
+    if (firstDraft?.changeType === "CREATE") {
+      return "GENERATE_TEST_CASES_CREATE";
+    }
+    if (Boolean(execution.testCaseSnapshotFingerprint)) {
       return "GENERATE_TEST_CASES_UPDATE";
     }
     return "GENERATE_TEST_CASES_CREATE";
@@ -77,6 +88,7 @@ export async function getExecutionTaskSummaries(
       status: true,
       stage: true,
       requirementText: true,
+      testCaseSnapshotFingerprint: true,
       queuedAt: true,
       startedAt: true,
       finishedAt: true,
@@ -98,10 +110,7 @@ export async function getExecutionTaskSummaries(
 
   return aiExecutions.map((execution): ExecutionTaskSummary => ({
     id: execution.id,
-    type: deriveExecutionTaskType(
-      execution.capability,
-      execution.testCaseDraftBatch?.drafts,
-    ),
+    type: deriveExecutionTaskType(execution.capability, execution),
     status: mapAiExecutionStatus(execution.status),
     stageLabel: getAiExecutionStageLabel(execution.capability, execution.stage),
     content: toAiTaskContent(execution),
@@ -119,6 +128,7 @@ const AI_EXECUTION_DETAIL_SELECT = {
   status: true,
   stage: true,
   requirementText: true,
+  testCaseSnapshotFingerprint: true,
   queuedAt: true,
   startedAt: true,
   finishedAt: true,
@@ -324,10 +334,7 @@ function toAiExecutionTaskDetail(
 ): AiExecutionTaskDetail {
   return {
     id: execution.id,
-    type: deriveExecutionTaskType(
-      execution.capability,
-      execution.testCaseDraftBatch?.drafts,
-    ),
+    type: deriveExecutionTaskType(execution.capability, execution),
     capability: execution.capability,
     status: mapAiExecutionStatus(execution.status),
     stage: execution.stage,

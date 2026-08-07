@@ -20,6 +20,7 @@ import { ExecutionTaskListFilters } from "@/components/execution-tasks/execution
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { toast } from "@/components/ui/toast";
 import { ACTIVE_EXECUTION_TASK_STATUSES } from "@/lib/execution-tasks/meta";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 import type {
   ExecutionTaskStatus,
   ExecutionTaskSummary,
@@ -67,6 +68,7 @@ function ExecutionTaskTable({
   initialTasks: ExecutionTaskSummary[];
 }) {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [searchValue, setSearchValue] = useState("");
   const [keyword, setKeyword] = useState("");
   const [taskType, setTaskType] = useState<ExecutionTaskType | null>(null);
@@ -88,21 +90,25 @@ function ExecutionTaskTable({
         ? 1_000
         : false,
   });
-  const normalizedKeyword = keyword.trim().toLocaleLowerCase();
-  const filteredTasks = tasksQuery.data.filter(
-    (task) =>
-      (!normalizedKeyword ||
-        task.id.toLocaleLowerCase().includes(normalizedKeyword) ||
-        task.content.toLocaleLowerCase().includes(normalizedKeyword)) &&
-      (!taskType || task.type === taskType) &&
-      (!status || task.status === status),
-  );
+
+  const tasks = tasksQuery.data ?? [];
+  const filteredTasks = tasks.filter((task) => {
+    const matchKeyword =
+      !keyword ||
+      `${task.id} ${task.content}`
+        .toLocaleLowerCase("zh-CN")
+        .includes(keyword.toLocaleLowerCase("zh-CN"));
+    const matchType = !taskType || task.type === taskType;
+    const matchStatus = !status || task.status === status;
+    return matchKeyword && matchType && matchStatus;
+  });
+
   const hasFilters = Boolean(keyword || taskType || status);
-  const pageCount = Math.max(1, Math.ceil(filteredTasks.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(filteredTasks.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const pageItems = filteredTasks.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
+    (safePage - 1) * pageSize,
+    safePage * pageSize,
   );
 
   function retryTask(taskId: string) {
@@ -195,10 +201,14 @@ function ExecutionTaskTable({
         footer={
           <DataTablePagination
             page={safePage}
-            pageSize={PAGE_SIZE}
+            pageSize={pageSize}
             total={filteredTasks.length}
             itemName="个任务"
-            onChange={setPage}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPage(1);
+              setPageSize(size);
+            }}
           />
         }
       >

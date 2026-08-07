@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 import { AiCapability, AiModelCheckStatus } from "@/generated/prisma/enums";
 import {
   aiModelProfileFormSchema,
@@ -130,6 +131,7 @@ export function AiSettingsManagement({
     null,
   );
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [isPending, startTransition] = useTransition();
   const form = useForm<AiModelProfileFormValues>({
     resolver: zodResolver(aiModelProfileFormSchema),
@@ -149,11 +151,11 @@ export function AiSettingsManagement({
       label: profile.modelId,
     })),
   ];
-  const pageCount = Math.max(1, Math.ceil(profiles.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(profiles.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const pageItems = profiles.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
+    (safePage - 1) * pageSize,
+    safePage * pageSize,
   );
 
   function openCreate() {
@@ -418,10 +420,14 @@ export function AiSettingsManagement({
         footer={
           <DataTablePagination
             page={safePage}
-            pageSize={PAGE_SIZE}
+            pageSize={pageSize}
             total={profiles.length}
             itemName="个模型"
-            onChange={setPage}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPage(1);
+              setPageSize(size);
+            }}
           />
         }
       >

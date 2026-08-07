@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 import {
   RunStatus,
   TestPriority,
@@ -69,6 +70,7 @@ type TestCaseFilters = {
   enabled: string;
   type: string;
   page: number;
+  pageSize: number;
 };
 
 const PRIORITY_OPTIONS = [
@@ -126,6 +128,8 @@ export function TestCasesList({
     if (next.priority) params.set("priority", next.priority);
     if (next.enabled) params.set("enabled", next.enabled);
     if (next.type) params.set("type", next.type);
+    if (next.pageSize && next.pageSize !== DEFAULT_PAGE_SIZE)
+      params.set("pageSize", String(next.pageSize));
     if (next.page > 1) params.set("page", String(next.page));
     navigate(`/test-cases${params.size ? `?${params}` : ""}`);
   }
@@ -188,7 +192,7 @@ export function TestCasesList({
     {
       accessorKey: "name",
       header: "用例名称",
-      size: 200,
+      size: 240,
       cell: ({ row }) => (
         <Link
           href={`/test-cases/${row.original.id}`}
@@ -480,10 +484,11 @@ export function TestCasesList({
         footer={
           <DataTablePagination
             page={filters.page}
-            pageSize={20}
+            pageSize={filters.pageSize}
             total={total}
             itemName="条用例"
-            onChange={(page) => updateQuery({ page })}
+            onPageChange={(page) => updateQuery({ page })}
+            onPageSizeChange={(pageSize) => updateQuery({ pageSize, page: 1 })}
           />
         }
       >

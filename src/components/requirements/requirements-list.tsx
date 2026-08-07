@@ -36,6 +36,7 @@ import {
 import { toast } from "@/components/ui/toast";
 import { RequirementStatus } from "@/generated/prisma/enums";
 import { formatCompactDateTime } from "@/lib/date-time";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 import { REQUIREMENT_STATUS_META } from "@/lib/requirements/status";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +58,7 @@ type RequirementFilters = {
   type: string;
   status: string;
   page: number;
+  pageSize: number;
 };
 
 const TYPE_OPTIONS = [
@@ -112,6 +114,8 @@ export function RequirementsList({
     if (next.q) params.set("q", next.q);
     if (next.type) params.set("type", next.type);
     if (next.status) params.set("status", next.status);
+    if (next.pageSize && next.pageSize !== DEFAULT_PAGE_SIZE)
+      params.set("pageSize", String(next.pageSize));
     if (next.page > 1) params.set("page", String(next.page));
     navigate(`/requirements${params.size ? `?${params}` : ""}`);
   }
@@ -401,10 +405,11 @@ export function RequirementsList({
         footer={
           <DataTablePagination
             page={filters.page}
-            pageSize={20}
+            pageSize={filters.pageSize}
             total={total}
             itemName="条需求"
-            onChange={(page) => updateQuery({ page })}
+            onPageChange={(page) => updateQuery({ page })}
+            onPageSizeChange={(pageSize) => updateQuery({ pageSize, page: 1 })}
           />
         }
       >

@@ -11,6 +11,8 @@ import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { Badge } from "@/components/ui/badge";
 import { formatCompactDateTime, formatDetailedDateTime } from "@/lib/date-time";
 
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
+
 export type PendingRequirementListItem = {
   id: string;
   title: string;
@@ -99,16 +101,27 @@ export function PendingRequirementsList({
   items,
   total,
   page,
+  pageSize,
 }: {
   items: PendingRequirementListItem[];
   total: number;
   page: number;
+  pageSize: number;
 }) {
   const { isNavigating, navigate } = useNavigationFeedback();
 
-  function changePage(nextPage: number) {
+  function updateQuery({
+    page: nextPage,
+    pageSize: nextPageSize,
+  }: {
+    page?: number;
+    pageSize?: number;
+  }) {
+    const p = nextPage ?? page;
+    const ps = nextPageSize ?? pageSize;
     const params = new URLSearchParams();
-    if (nextPage > 1) params.set("page", String(nextPage));
+    if (ps !== DEFAULT_PAGE_SIZE) params.set("pageSize", String(ps));
+    if (p > 1) params.set("page", String(p));
     navigate(`/requirements/pending-review${params.size ? `?${params}` : ""}`);
   }
 
@@ -122,10 +135,11 @@ export function PendingRequirementsList({
       footer={
         <DataTablePagination
           page={page}
-          pageSize={20}
+          pageSize={pageSize}
           total={total}
           itemName="条需求"
-          onChange={changePage}
+          onPageChange={(page) => updateQuery({ page })}
+          onPageSizeChange={(pageSize) => updateQuery({ pageSize, page: 1 })}
         />
       }
     >

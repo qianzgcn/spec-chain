@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toast";
 import { formatDateTime } from "@/lib/date-time";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 import {
   projectFormSchema,
   type ProjectFormValues,
@@ -102,17 +103,18 @@ export function ProjectManagement({
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ProjectItem | null>(null);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [isPending, startTransition] = useTransition();
   const form = useForm<ProjectFormValues>({
     resolver: zodResolver(projectFormSchema),
     defaultValues: { name: "", description: "" },
   });
 
-  const pageCount = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(projects.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const pageItems = projects.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
+    (safePage - 1) * pageSize,
+    safePage * pageSize,
   );
 
   function closeCreateDialog() {
@@ -275,10 +277,14 @@ export function ProjectManagement({
         footer={
           <DataTablePagination
             page={safePage}
-            pageSize={PAGE_SIZE}
+            pageSize={pageSize}
             total={projects.length}
             itemName="个项目"
-            onChange={setPage}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPage(1);
+              setPageSize(size);
+            }}
           />
         }
       >

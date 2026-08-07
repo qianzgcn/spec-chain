@@ -12,6 +12,7 @@ import {
 } from "@/app/actions/delivery-versions";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
+import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 import { DataTableShell } from "@/components/data-table/data-table-shell";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import { toast } from "@/components/ui/toast";
 import type { DeliveryVersionStatus } from "@/generated/prisma/enums";
 import { formatCompactDateTime } from "@/lib/date-time";
 import { DELIVERY_VERSION_STATUS_META } from "@/lib/delivery-versions/meta";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 
 export type DeliveryVersionListItem = {
   id: string;
@@ -37,9 +39,18 @@ export function DeliveryVersionsList({
   items: DeliveryVersionListItem[];
 }) {
   const router = useRouter();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [isPending, startTransition] = useTransition();
   const [deleteTarget, setDeleteTarget] =
     useState<DeliveryVersionListItem | null>(null);
+
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const pageItems = items.slice(
+    (safePage - 1) * pageSize,
+    safePage * pageSize,
+  );
 
   function makeCurrent(item: DeliveryVersionListItem) {
     startTransition(async () => {
@@ -158,10 +169,24 @@ export function DeliveryVersionsList({
 
   return (
     <>
-      <DataTableShell>
+      <DataTableShell
+        footer={
+          <DataTablePagination
+            page={safePage}
+            pageSize={pageSize}
+            total={items.length}
+            itemName="个版本"
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPage(1);
+              setPageSize(size);
+            }}
+          />
+        }
+      >
         <DataTable
           columns={columns}
-          data={items}
+          data={pageItems}
           loading={isPending}
           emptyText="还没有交付版本"
           getRowId={(item) => item.id}

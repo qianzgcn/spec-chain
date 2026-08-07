@@ -38,6 +38,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
 import { formatDateTime } from "@/lib/date-time";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
 import {
   testCaseGroupFormSchema,
   type TestCaseGroupFormValues,
@@ -50,25 +51,24 @@ type GroupItem = {
   updatedAt: string;
 };
 
-const PAGE_SIZE = 20;
-
 export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
   const router = useRouter();
   const [editingGroup, setEditingGroup] = useState<GroupItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<GroupItem | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [isPending, startTransition] = useTransition();
   const form = useForm<TestCaseGroupFormValues>({
     resolver: zodResolver(testCaseGroupFormSchema),
     defaultValues: { name: "" },
   });
 
-  const pageCount = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(groups.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const pageItems = groups.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
+    (safePage - 1) * pageSize,
+    safePage * pageSize,
   );
 
   function openCreate() {
@@ -195,10 +195,14 @@ export function TestCaseGroupsManagement({ groups }: { groups: GroupItem[] }) {
         footer={
           <DataTablePagination
             page={safePage}
-            pageSize={PAGE_SIZE}
+            pageSize={pageSize}
             total={groups.length}
             itemName="个分组"
-            onChange={setPage}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPage(1);
+              setPageSize(size);
+            }}
           />
         }
       >
