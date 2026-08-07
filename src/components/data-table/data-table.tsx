@@ -88,22 +88,6 @@ function getColumnStyle<TData>(
   };
 }
 
-function getPinnedHeaderClassName(pinnedSide: "left" | "right" | false) {
-  if (!pinnedSide) return "";
-  return pinnedSide === "left" ? "z-20 border-r" : "z-20 border-l";
-}
-
-function getPinnedCellClassName(pinnedSide: "left" | "right" | false) {
-  if (!pinnedSide) return "truncate";
-
-  const borderClass = pinnedSide === "left" ? "border-r" : "border-l";
-  return cn(
-    "z-[1] overflow-visible bg-background",
-    "group-hover/row:bg-muted group-has-aria-expanded/row:bg-muted group-data-[state=selected]/row:bg-muted",
-    borderClass,
-  );
-}
-
 declare module "@tanstack/react-table" {
   // 泛型参数必须与 TanStack Table 的模块声明保持完全一致。
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -208,7 +192,8 @@ export function DataTable<TData>({
                   )}
                   className={cn(
                     "bg-muted sticky top-0 z-10 overflow-hidden align-middle text-ellipsis",
-                    getPinnedHeaderClassName(header.column.getIsPinned()),
+                    header.column.getIsPinned() === "right" && "z-20 border-l",
+                    header.column.getIsPinned() === "left" && "z-20 border-r",
                     header.column.columnDef.meta?.headerClassName,
                   )}
                 >
@@ -228,7 +213,7 @@ export function DataTable<TData>({
             rows.map((row) => (
               <TableRow
                 key={row.id}
-                className={cn("group/row bg-background", rowClassName?.(row))}
+                className={cn("bg-background", rowClassName?.(row))}
                 aria-expanded={
                   row.getCanExpand() ? row.getIsExpanded() : undefined
                 }
@@ -241,8 +226,10 @@ export function DataTable<TData>({
                       widths.get(cell.column.id) ?? cell.column.getSize(),
                     )}
                     className={cn(
-                      "h-12",
-                      getPinnedCellClassName(cell.column.getIsPinned()),
+                      "h-12 bg-inherit",
+                      cell.column.getIsPinned() === "right" && "z-10 border-l overflow-visible",
+                      cell.column.getIsPinned() === "left" && "z-10 border-r overflow-visible",
+                      !cell.column.getIsPinned() && "truncate",
                       cell.column.columnDef.meta?.cellClassName,
                     )}
                   >
